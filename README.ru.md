@@ -7,7 +7,7 @@
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Made with Go](https://img.shields.io/badge/Made%20with-Go%201.22-00ADD8.svg)](https://go.dev)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED.svg)](https://docs.docker.com/compose/)
-[![Latest release](https://img.shields.io/badge/release-v1.4.6-success.svg)](https://github.com/UncleFi1/step-ca-ui/releases/latest)
+[![Latest release](https://img.shields.io/github/v/release/UncleFi1/step-ca-ui?label=release&color=success)](https://github.com/UncleFi1/step-ca-ui/releases/latest)
 
 [🇬🇧 English](README.md) · 🇷🇺 **Русский**
 
@@ -23,7 +23,7 @@
 - 👥 **Ролевая модель** — `admin` / `manager` / `viewer`
 - ⏱️ **Временные пользователи** — гостевые аккаунты с автоматическим истечением *(новинка v1.4.0)*
 - 📅 **Кастомный date picker** — в стиле сайта, без браузерного виджета *(новинка v1.4.0)*
-- 🌍 **Учёт часового пояса** — Москва по умолчанию, легко меняется
+- 🌍 **Учёт часового пояса** — настраивается через переменную `TZ`
 - 🎨 **4 темы** — тёмная, светлая, синяя, авто (по системе)
 - 🛡️ **Встроенная безопасность** — CSRF-токены, rate limiting, блокировка IP, журнал
 - 🌐 **Provisioner'ы step-ca** — список и редактирование
@@ -33,7 +33,7 @@
 ```bash
 git clone https://github.com/UncleFi1/step-ca-ui.git
 cd step-ca-ui
-./install.sh
+sudo ./install.sh
 ```
 
 И всё. Скрипт сам:
@@ -123,16 +123,20 @@ cd step-ca-ui
 
 ```env
 HOST_IP=192.168.1.100              # SAN в self-signed серте; DNS-имя для step-ca
-PROVISIONER=admin@example.com      # идентификатор provisioner'а step-ca
+UI_HTTPS_PORT=443                  # внешний HTTPS-порт
+PROVISIONER=admin                  # идентификатор provisioner'а step-ca
 CA_PASSWORD=<сгенерировано>        # пароль provisioner'а step-ca
 SECRET_KEY=<сгенерировано>         # ключ подписи сессий и CSRF
 POSTGRES_PASSWORD=<сгенерировано>  # пароль базы
+TZ=UTC                             # часовой пояс контейнеров
+STEPCA_DEFAULT_TLS_CERT_DURATION=8760h
+STEPCA_MAX_TLS_CERT_DURATION=87600h
 ```
 
 После изменения `.env` пересоздайте контейнеры:
 
 ```bash
-docker compose up -d --force-recreate
+sudo docker compose up -d --force-recreate
 ```
 
 ## FAQ
@@ -147,7 +151,7 @@ services:
     ports:
       - "8443:8443"   # было "443:8443"
 ```
-И перезапустите: `docker compose up -d --force-recreate step-ui`.
+И перезапустите: `sudo docker compose up -d --force-recreate step-ui`.
 </details>
 
 <details>
@@ -159,12 +163,12 @@ services:
 
 ```bash
 # Бэкап
-docker compose exec postgres pg_dump -U stepui stepui > backup.sql
-docker run --rm -v step-ca-data:/src -v "$PWD":/dst alpine tar czf /dst/ca-data.tgz -C /src .
+sudo docker compose exec postgres pg_dump -U stepui stepui > backup.sql
+sudo docker run --rm -v step-ca-data:/src -v "$PWD":/dst alpine tar czf /dst/ca-data.tgz -C /src .
 
 # Восстановление
-docker compose exec -T postgres psql -U stepui stepui < backup.sql
-docker run --rm -v step-ca-data:/dst -v "$PWD":/src alpine tar xzf /src/ca-data.tgz -C /dst
+sudo docker compose exec -T postgres psql -U stepui stepui < backup.sql
+sudo docker run --rm -v step-ca-data:/dst -v "$PWD":/src alpine tar xzf /src/ca-data.tgz -C /dst
 ```
 </details>
 
@@ -172,7 +176,7 @@ docker run --rm -v step-ca-data:/dst -v "$PWD":/src alpine tar xzf /src/ca-data.
 <summary><b>Как сбросить пароль admin'а?</b></summary>
 
 ```bash
-docker compose exec postgres psql -U stepui -d stepui -c \
+sudo docker compose exec postgres psql -U stepui -d stepui -c \
   "UPDATE users SET password_hash = encode(sha256('newpass'::bytea), 'hex') WHERE username='admin';"
 ```
 Войдите как `admin` / `newpass` и сразу смените пароль через интерфейс.
@@ -196,7 +200,7 @@ Legacy SHA-256 значение принимается для восстанов
 
 ```bash
 git pull
-docker compose up -d --build
+sudo docker compose up -d --build
 ```
 Миграции запускаются автоматически. Перед обновлением всегда смотрите [release notes](https://github.com/UncleFi1/step-ca-ui/releases) — мажорные версии могут содержать breaking changes.
 </details>

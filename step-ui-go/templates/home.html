@@ -60,15 +60,15 @@
   </a>
 
   {{if eq .Session.Role "admin"}}
-  <a href="/download/ca" class="action-card c-purple">
+  <a href="/provisioners" class="action-card c-purple">
     <div class="action-icon">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
         <path d="M12 3v12M7 10l5 5 5-5"/>
         <line x1="5" y1="21" x2="19" y2="21"/>
       </svg>
     </div>
-    <div class="action-title">Скачать CA cert</div>
-    <div class="action-sub">Корневой сертификат центра</div>
+    <div class="action-title">Скачать CA certs</div>
+    <div class="action-sub">Root, Intermediate и Full Chain</div>
   </a>
   {{end}}
 

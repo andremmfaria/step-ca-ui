@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"bytes"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -228,8 +229,50 @@ func (h *Handler) Revoke(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) DownloadCA(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Disposition", "attachment; filename=home-ca.crt")
-	http.ServeFile(w, r, h.cfg.RootCert)
+	h.serveCAFile(w, r, h.cfg.RootCert, "home-ca-root.crt")
+}
+
+func (h *Handler) DownloadIntermediateCA(w http.ResponseWriter, r *http.Request) {
+	h.serveCAFile(w, r, h.intermediateCertPath(), "home-ca-intermediate.crt")
+}
+
+func (h *Handler) DownloadFullChain(w http.ResponseWriter, r *http.Request) {
+	intermediatePath := h.intermediateCertPath()
+	intermediate, err := os.ReadFile(intermediatePath)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	root, err := os.ReadFile(h.cfg.RootCert)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	var chain bytes.Buffer
+	chain.Write(intermediate)
+	if len(intermediate) > 0 && intermediate[len(intermediate)-1] != '\n' {
+		chain.WriteByte('\n')
+	}
+	chain.Write(root)
+
+	w.Header().Set("Content-Type", "application/x-pem-file")
+	w.Header().Set("Content-Disposition", "attachment; filename=home-ca-full-chain.crt")
+	http.ServeContent(w, r, "home-ca-full-chain.crt", time.Now(), bytes.NewReader(chain.Bytes()))
+}
+
+func (h *Handler) intermediateCertPath() string {
+	return filepath.Join(filepath.Dir(h.cfg.RootCert), "intermediate_ca.crt")
+}
+
+func (h *Handler) serveCAFile(w http.ResponseWriter, r *http.Request, path, filename string) {
+	if _, err := os.Stat(path); err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", "application/x-pem-file")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
+	http.ServeFile(w, r, path)
 }
 
 func (h *Handler) DownloadCert(w http.ResponseWriter, r *http.Request) {

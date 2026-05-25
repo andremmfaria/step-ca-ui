@@ -7,7 +7,7 @@
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Made with Go](https://img.shields.io/badge/Made%20with-Go%201.22-00ADD8.svg)](https://go.dev)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED.svg)](https://docs.docker.com/compose/)
-[![Latest release](https://img.shields.io/badge/release-v1.4.6-success.svg)](https://github.com/UncleFi1/step-ca-ui/releases/latest)
+[![Latest release](https://img.shields.io/github/v/release/UncleFi1/step-ca-ui?label=release&color=success)](https://github.com/UncleFi1/step-ca-ui/releases/latest)
 
 🇬🇧 **English** · [🇷🇺 Русский](README.ru.md)
 
@@ -23,7 +23,7 @@
 - 👥 **Role-based access** — `admin` / `manager` / `viewer`
 - ⏱️ **Temporary users** — short-lived guest accounts with automatic expiration *(new in v1.4.0)*
 - 📅 **Custom date picker** — site-themed, no native browser widget *(new in v1.4.0)*
-- 🌍 **Timezone-aware** — Moscow time by default, easily configurable
+- 🌍 **Timezone-aware** — configurable with the `TZ` environment variable
 - 🎨 **4 themes** — dark, light, blue, auto (follows OS)
 - 🛡️ **Built-in security** — CSRF tokens, rate limiting, IP blocking, security log
 - 🌐 **Provisioner inspection** — list and edit step-ca provisioners
@@ -33,7 +33,7 @@
 ```bash
 git clone https://github.com/UncleFi1/step-ca-ui.git
 cd step-ca-ui
-./install.sh
+sudo ./install.sh
 ```
 
 That's it. The installer:
@@ -123,16 +123,20 @@ All configuration lives in `.env`. The installer creates this file for you, but 
 
 ```env
 HOST_IP=192.168.1.100              # SAN in self-signed cert; step-ca DNS
-PROVISIONER=admin@example.com      # step-ca provisioner identifier
+UI_HTTPS_PORT=443                  # external HTTPS port
+PROVISIONER=admin                  # step-ca provisioner identifier
 CA_PASSWORD=<generated>            # step-ca provisioner password
 SECRET_KEY=<generated>             # session/CSRF signing key
 POSTGRES_PASSWORD=<generated>      # database password
+TZ=UTC                             # container timezone
+STEPCA_DEFAULT_TLS_CERT_DURATION=8760h
+STEPCA_MAX_TLS_CERT_DURATION=87600h
 ```
 
 After changing `.env`, recreate the containers:
 
 ```bash
-docker compose up -d --force-recreate
+sudo docker compose up -d --force-recreate
 ```
 
 ## FAQ
@@ -147,7 +151,7 @@ services:
     ports:
       - "8443:8443"   # was "443:8443"
 ```
-Then restart: `docker compose up -d --force-recreate step-ui`.
+Then restart: `sudo docker compose up -d --force-recreate step-ui`.
 </details>
 
 <details>
@@ -159,12 +163,12 @@ Two volumes contain everything stateful:
 
 ```bash
 # Backup
-docker compose exec postgres pg_dump -U stepui stepui > backup.sql
-docker run --rm -v step-ca-data:/src -v "$PWD":/dst alpine tar czf /dst/ca-data.tgz -C /src .
+sudo docker compose exec postgres pg_dump -U stepui stepui > backup.sql
+sudo docker run --rm -v step-ca-data:/src -v "$PWD":/dst alpine tar czf /dst/ca-data.tgz -C /src .
 
 # Restore
-docker compose exec -T postgres psql -U stepui stepui < backup.sql
-docker run --rm -v step-ca-data:/dst -v "$PWD":/src alpine tar xzf /src/ca-data.tgz -C /dst
+sudo docker compose exec -T postgres psql -U stepui stepui < backup.sql
+sudo docker run --rm -v step-ca-data:/dst -v "$PWD":/src alpine tar xzf /src/ca-data.tgz -C /dst
 ```
 </details>
 
@@ -172,7 +176,7 @@ docker run --rm -v step-ca-data:/dst -v "$PWD":/src alpine tar xzf /src/ca-data.
 <summary><b>How do I reset the admin password?</b></summary>
 
 ```bash
-docker compose exec postgres psql -U stepui -d stepui -c \
+sudo docker compose exec postgres psql -U stepui -d stepui -c \
   "UPDATE users SET password_hash = encode(sha256('newpass'::bytea), 'hex') WHERE username='admin';"
 ```
 Then log in with `admin` / `newpass` and change it from the UI.
@@ -196,7 +200,7 @@ Yes. Point your reverse proxy at `step-ui:8443` (HTTPS upstream) or change step-
 
 ```bash
 git pull
-docker compose up -d --build
+sudo docker compose up -d --build
 ```
 Migrations run automatically on startup. Always check the [release notes](https://github.com/UncleFi1/step-ca-ui/releases) first — major versions may have breaking changes.
 </details>

@@ -166,6 +166,8 @@ func main() {
 		r.Group(func(r chi.Router) {
 			r.Use(mw.RequireRole("admin", store))
 			r.Get("/download/ca", h.DownloadCA)
+			r.Get("/download/intermediate-ca", h.DownloadIntermediateCA)
+			r.Get("/download/full-chain", h.DownloadFullChain)
 		})
 
 		// Операции с сертификатами (manager+)

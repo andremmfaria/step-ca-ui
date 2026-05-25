@@ -6,7 +6,7 @@ services:
     container_name: postgres
     restart: unless-stopped
     environment:
-      TZ: "Europe/Moscow"
+      TZ: "${TZ:-UTC}"
       POSTGRES_DB:       stepui
       POSTGRES_USER:     stepui
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-stepui_secret}
@@ -31,18 +31,20 @@ services:
       - "9443:9443"
     volumes:
       - step-ca-data:/home/step
+      - ./step-ca-bootstrap.sh:/usr/local/bin/step-ca-bootstrap.sh:ro
     environment:
+      TZ: "${TZ:-UTC}"
       DOCKER_STEPCA_INIT_NAME:             "Home CA"
       DOCKER_STEPCA_INIT_DNS_NAMES:        "step-ca,${HOST_IP:-127.0.0.1}"
       DOCKER_STEPCA_INIT_ADDRESS:          ":9443"
       DOCKER_STEPCA_INIT_PROVISIONER_NAME: "${PROVISIONER:-admin}"
       DOCKER_STEPCA_INIT_PASSWORD:         "${CA_PASSWORD:-change-me-min-8-chars}"
       DOCKER_STEPCA_INIT_SSH:              "false"
+      STEPCA_DEFAULT_TLS_CERT_DURATION:    "${STEPCA_DEFAULT_TLS_CERT_DURATION:-8760h}"
+      STEPCA_MAX_TLS_CERT_DURATION:        "${STEPCA_MAX_TLS_CERT_DURATION:-87600h}"
+    command: ["/bin/sh", "/usr/local/bin/step-ca-bootstrap.sh", "/usr/local/bin/step-ca", "--password-file", "/home/step/secrets/password", "/home/step/config/ca.json"]
     networks:
       - step-net
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
     healthcheck:
       test: ["CMD", "curl", "-sk", "https://localhost:9443/health"]
       interval: 10s
@@ -59,14 +61,14 @@ services:
     container_name: step-ui
     restart: unless-stopped
     ports:
-      - "443:8443"
+      - "${UI_HTTPS_PORT:-443}:8443"
     volumes:
       - step-ui-certs:/opt/step-ui/certs
       - step-ui-ssl:/opt/step-ui/ssl
       - step-ui-data:/opt/step-ui/data
       - step-ca-data:/home/step:ro
     environment:
-      TZ: "Europe/Moscow"
+      TZ: "${TZ:-UTC}"
       DATABASE_URL: "postgres://stepui:${POSTGRES_PASSWORD:-stepui_secret}@postgres:5432/stepui?sslmode=disable"
       CA_URL:        "https://step-ca:9443"
       ROOT_CERT:     "/home/step/certs/root_ca.crt"
@@ -90,10 +92,6 @@ services:
       timeout: 5s
       retries: 10
       start_period: 20s
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
-
 # ─── Volumes ───────────────────────────────────────────────────────────────
 volumes:
   postgres-data:
