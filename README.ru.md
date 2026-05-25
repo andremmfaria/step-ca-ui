@@ -7,7 +7,7 @@
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Made with Go](https://img.shields.io/badge/Made%20with-Go%201.22-00ADD8.svg)](https://go.dev)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED.svg)](https://docs.docker.com/compose/)
-[![Latest release](https://img.shields.io/badge/release-v1.4.5-success.svg)](https://github.com/UncleFi1/step-ca-ui/releases/latest)
+[![Latest release](https://img.shields.io/badge/release-v1.4.6-success.svg)](https://github.com/UncleFi1/step-ca-ui/releases/latest)
 
 [🇬🇧 English](README.md) · 🇷🇺 **Русский**
 
