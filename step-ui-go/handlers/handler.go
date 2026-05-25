@@ -19,9 +19,9 @@ var StartedAt time.Time
 
 // Версионирование — переопределяется через ldflags при сборке
 var (
-	Version   = "1.4.4"
-	BuildDate = "2026-04-21"
-	GitCommit = "4bf0aa0"
+	Version   = "1.4.5"
+	BuildDate = "2026-05-25"
+	GitCommit = "unknown"
 )
 
 type Handler struct {
