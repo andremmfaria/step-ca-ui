@@ -107,13 +107,13 @@ The whole thing takes 2–4 minutes on a fresh VM.
 
 ## Security
 
-- ✅ **CSRF tokens** on every form
+- ✅ **CSRF protection** — tokens on every form and server-side checks on POST routes
 - ✅ **Rate limiting** — 5 failed login attempts → 15-minute IP block
 - ✅ **Security headers** — HSTS, CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy
 - ✅ **Session timeout** — 8 hours, sliding
 - ✅ **Login audit log** — every login attempt is recorded with IP and User-Agent
 - ✅ **Self-signed TLS** — auto-generated on first boot, 10-year validity
-- ⚠️ **Password hashing** — currently SHA-256 *(legacy from v1.0; bcrypt migration tracked in [#1](https://github.com/UncleFi1/step-ca-ui/issues))*
+- ✅ **Password hashing** — bcrypt for new/updated passwords, with transparent migration from legacy SHA-256 hashes on next successful login
 
 > 🔒 **Production tip:** put step-ui behind a reverse proxy (Caddy/nginx) with a real TLS certificate, restrict access via VPN/Tailscale, and back up the `step-ca-data` volume regularly.
 
@@ -176,6 +176,7 @@ docker compose exec postgres psql -U stepui -d stepui -c \
   "UPDATE users SET password_hash = encode(sha256('newpass'::bytea), 'hex') WHERE username='admin';"
 ```
 Then log in with `admin` / `newpass` and change it from the UI.
+The legacy SHA-256 reset value is accepted for recovery and is rehashed to bcrypt after login.
 </details>
 
 <details>

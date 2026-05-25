@@ -3,22 +3,63 @@ package security
 import (
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/hex"
 	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 // ─── Password ─────────────────────────────────────────────────────────────────
 
 func HashPassword(pw string) string {
+	hash, err := bcrypt.GenerateFromPassword([]byte(pw), bcrypt.DefaultCost)
+	if err != nil {
+		panic("bcrypt password hash failed: " + err.Error())
+	}
+	return string(hash)
+}
+
+func legacySHA256(pw string) string {
 	h := sha256.Sum256([]byte(pw))
 	return hex.EncodeToString(h[:])
+}
+
+func isLegacySHA256Hash(hash string) bool {
+	if len(hash) != sha256.Size*2 {
+		return false
+	}
+	_, err := hex.DecodeString(hash)
+	return err == nil
+}
+
+func VerifyPassword(pw, hash string) bool {
+	if strings.HasPrefix(hash, "$2a$") || strings.HasPrefix(hash, "$2b$") || strings.HasPrefix(hash, "$2y$") {
+		return bcrypt.CompareHashAndPassword([]byte(hash), []byte(pw)) == nil
+	}
+	if isLegacySHA256Hash(hash) {
+		expected := legacySHA256(pw)
+		return subtle.ConstantTimeCompare([]byte(expected), []byte(hash)) == 1
+	}
+	return false
+}
+
+func NeedsPasswordRehash(hash string) bool {
+	if isLegacySHA256Hash(hash) {
+		return true
+	}
+	cost, err := bcrypt.Cost([]byte(hash))
+	return err != nil || cost < bcrypt.DefaultCost
 }
 
 func ValidatePassword(pw string) (bool, string) {
 	if len(pw) < 8 {
 		return false, "Минимум 8 символов"
+	}
+	if len(pw) > 72 {
+		return false, "Максимум 72 символа"
 	}
 	hasDigit, hasLetter, hasSpecial := false, false, false
 	for _, c := range pw {

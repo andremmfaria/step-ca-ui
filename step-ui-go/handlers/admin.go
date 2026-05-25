@@ -38,32 +38,31 @@ func (h *Handler) AdminGet(w http.ResponseWriter, r *http.Request) {
 	_ = h.db.QueryRow(`SELECT COUNT(*) FROM users WHERE role = 'viewer'`).Scan(&s.ViewersCount)
 
 	_ = h.db.QueryRow(`
-		SELECT COUNT(*) FROM certs
-		WHERE (revoked IS NULL OR revoked = false)
-		  AND not_after > NOW()
+		SELECT COUNT(*) FROM certificates
+		WHERE status = 'active'
+		  AND (expires_at IS NULL OR expires_at > NOW())
 	`).Scan(&s.ActiveCerts)
 	_ = h.db.QueryRow(`SELECT COUNT(*) FROM le_certificates`).Scan(&s.LeCerts)
 
 	_ = h.db.QueryRow(`
-		SELECT COUNT(*) FROM security_log
-		WHERE event_type = 'login_success'
+		SELECT COUNT(*) FROM auth_log
+		WHERE success = true
 		  AND created_at > NOW() - INTERVAL '24 hours'
 	`).Scan(&s.LoginsToday)
 	_ = h.db.QueryRow(`
-		SELECT COUNT(*) FROM security_log
-		WHERE event_type = 'login_failed'
+		SELECT COUNT(*) FROM auth_log
+		WHERE success = false
 		  AND created_at > NOW() - INTERVAL '24 hours'
 	`).Scan(&s.FailedLogins)
 
 	var recent []AdminLogin
 	rows, err := h.db.Query(`
-		SELECT COALESCE(u.username, '—') AS username,
-		       COALESCE(sl.ip, '—')      AS ip,
-		       sl.created_at
-		FROM security_log sl
-		LEFT JOIN users u ON u.id = sl.user_id
-		WHERE sl.event_type = 'login_success'
-		ORDER BY sl.created_at DESC
+		SELECT COALESCE(username, '—') AS username,
+		       COALESCE(ip, '—')       AS ip,
+		       created_at
+		FROM auth_log
+		WHERE success = true
+		ORDER BY created_at DESC
 		LIMIT 10
 	`)
 	if err == nil && rows != nil {

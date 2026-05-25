@@ -151,6 +151,9 @@ func (h *Handler) IssueGet(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) IssuePost(w http.ResponseWriter, r *http.Request) {
+	if !h.requireCSRF(w, r, "/issue") {
+		return
+	}
 	si := h.sessionInfo(r)
 	name := trimStr(r.FormValue("name"))
 	domain := trimStr(r.FormValue("domain"))
@@ -259,6 +262,9 @@ func (h *Handler) ImportGet(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) ImportPost(w http.ResponseWriter, r *http.Request) {
+	if !h.requireCSRF(w, r, "/import") {
+		return
+	}
 	si := h.sessionInfo(r)
 	switch r.FormValue("action") {
 	case "upload":

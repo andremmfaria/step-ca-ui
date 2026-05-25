@@ -25,6 +25,9 @@ func (h *Handler) Users(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) UsersPost(w http.ResponseWriter, r *http.Request) {
+	if !h.requireCSRF(w, r, "/admin/users") {
+		return
+	}
 	si := h.sessionInfo(r)
 	action := r.FormValue("action")
 	switch action {
@@ -149,6 +152,9 @@ func (h *Handler) ProfileGet(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) ProfilePost(w http.ResponseWriter, r *http.Request) {
+	if !h.requireCSRF(w, r, "/profile") {
+		return
+	}
 	si := h.sessionInfo(r)
 	action := r.FormValue("action")
 
@@ -202,7 +208,7 @@ func (h *Handler) ProfilePost(w http.ResponseWriter, r *http.Request) {
 		confirm := trimStr(r.FormValue("confirm_password"))
 
 		u, _ := appdb.GetUserByID(h.db, si.UserID)
-		if u == nil || u.PasswordHash != security.HashPassword(current) {
+		if u == nil || !security.VerifyPassword(current, u.PasswordHash) {
 			h.flash(w, r, "err", "Неверный текущий пароль")
 			http.Redirect(w, r, "/profile", http.StatusFound)
 			return

@@ -205,6 +205,15 @@ func (h *Handler) csrfOK(r *http.Request) bool {
 	return token != "" && token == sess
 }
 
+func (h *Handler) requireCSRF(w http.ResponseWriter, r *http.Request, redirectTo string) bool {
+	if h.csrfOK(r) {
+		return true
+	}
+	h.flash(w, r, "err", "Ошибка сессии. Обновите страницу.")
+	http.Redirect(w, r, redirectTo, http.StatusSeeOther)
+	return false
+}
+
 func (h *Handler) base(w http.ResponseWriter, r *http.Request, activePage string) map[string]interface{} {
 	return map[string]interface{}{
 		"Session":    h.sessionInfo(r),

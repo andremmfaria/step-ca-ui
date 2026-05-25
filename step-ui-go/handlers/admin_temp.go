@@ -92,6 +92,9 @@ func (h *Handler) AdminUsersTempGet(w http.ResponseWriter, r *http.Request) {
 
 // AdminUsersTempPost — создание временного пользователя.
 func (h *Handler) AdminUsersTempPost(w http.ResponseWriter, r *http.Request) {
+	if !h.requireCSRF(w, r, "/admin/users-temp") {
+		return
+	}
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "bad form", http.StatusBadRequest)
 		return

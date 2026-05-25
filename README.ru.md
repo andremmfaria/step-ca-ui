@@ -107,13 +107,13 @@ cd step-ca-ui
 
 ## Безопасность
 
-- ✅ **CSRF-токены** на каждой форме
+- ✅ **CSRF-защита** — токены на каждой форме и серверная проверка POST-маршрутов
 - ✅ **Rate limiting** — 5 неудачных попыток входа → блокировка IP на 15 минут
 - ✅ **Security headers** — HSTS, CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy
 - ✅ **Таймаут сессии** — 8 часов, скользящий
 - ✅ **Журнал входов** — каждая попытка с IP и User-Agent
 - ✅ **Self-signed TLS** — генерируется при первом запуске, валидность 10 лет
-- ⚠️ **Хэширование паролей** — пока SHA-256 *(legacy с v1.0; миграция на bcrypt запланирована в [#1](https://github.com/UncleFi1/step-ca-ui/issues))*
+- ✅ **Хэширование паролей** — bcrypt для новых/изменённых паролей, прозрачная миграция legacy SHA-256 при следующем успешном входе
 
 > 🔒 **Совет для production:** поставьте step-ui за reverse proxy (Caddy/nginx) с настоящим TLS-сертификатом, ограничьте доступ через VPN/Tailscale, регулярно бэкапьте том `step-ca-data`.
 
@@ -176,6 +176,7 @@ docker compose exec postgres psql -U stepui -d stepui -c \
   "UPDATE users SET password_hash = encode(sha256('newpass'::bytea), 'hex') WHERE username='admin';"
 ```
 Войдите как `admin` / `newpass` и сразу смените пароль через интерфейс.
+Legacy SHA-256 значение принимается для восстановления и после входа перехэшируется в bcrypt.
 </details>
 
 <details>

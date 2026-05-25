@@ -41,7 +41,7 @@ func (h *Handler) LoginPost(w http.ResponseWriter, r *http.Request) {
 	password := r.FormValue("password")
 
 	user, _ := appdb.GetUserByUsername(h.db, username)
-	if user == nil || user.PasswordHash != security.HashPassword(password) {
+	if user == nil || !security.VerifyPassword(password, user.PasswordHash) {
 		security.RL.Register(ip)
 		left := security.RL.Left(ip)
 		appdb.LogAuth(h.db, username, ip, false, fmt.Sprintf("Неверный пароль (%d попыток осталось)", left))
@@ -59,6 +59,10 @@ func (h *Handler) LoginPost(w http.ResponseWriter, r *http.Request) {
 		h.flash(w, r, "err", "Аккаунт заблокирован. Обратитесь к администратору.")
 		http.Redirect(w, r, "/login", http.StatusFound)
 		return
+	}
+
+	if security.NeedsPasswordRehash(user.PasswordHash) {
+		appdb.UpdateUserPassword(h.db, user.ID, security.HashPassword(password))
 	}
 
 	security.RL.Clear(ip)

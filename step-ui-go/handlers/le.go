@@ -39,6 +39,9 @@ func (h *Handler) LEIssueGet(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) LEIssuePost(w http.ResponseWriter, r *http.Request) {
+	if !h.requireCSRF(w, r, "/le/issue") {
+		return
+	}
 	domain := trimStr(r.FormValue("domain"))
 	email := trimStr(r.FormValue("email"))
 	provider := r.FormValue("provider")
@@ -96,6 +99,9 @@ func (h *Handler) LEIssuePost(w http.ResponseWriter, r *http.Request) {
 // ─── Renew ────────────────────────────────────────────────────────────────────
 
 func (h *Handler) LERenew(w http.ResponseWriter, r *http.Request) {
+	if !h.requireCSRF(w, r, "/le") {
+		return
+	}
 	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
 	cert, _ := appdb.GetLECert(h.db, id)
 	if cert == nil {
@@ -131,6 +137,9 @@ func (h *Handler) LERenew(w http.ResponseWriter, r *http.Request) {
 // ─── Delete ───────────────────────────────────────────────────────────────────
 
 func (h *Handler) LEDelete(w http.ResponseWriter, r *http.Request) {
+	if !h.requireCSRF(w, r, "/le") {
+		return
+	}
 	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
 	cert, _ := appdb.GetLECert(h.db, id)
 	if cert != nil {
@@ -144,6 +153,9 @@ func (h *Handler) LEDelete(w http.ResponseWriter, r *http.Request) {
 // ─── Toggle AutoRenew ─────────────────────────────────────────────────────────
 
 func (h *Handler) LEToggleAutoRenew(w http.ResponseWriter, r *http.Request) {
+	if !h.requireCSRF(w, r, "/le") {
+		return
+	}
 	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
 	cert, _ := appdb.GetLECert(h.db, id)
 	if cert != nil {
@@ -191,6 +203,9 @@ func (h *Handler) LESettingsGet(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) LESettingsPost(w http.ResponseWriter, r *http.Request) {
+	if !h.requireCSRF(w, r, "/le/settings") {
+		return
+	}
 	settings := &models.LESettings{
 		Email:        trimStr(r.FormValue("email")),
 		Provider:     r.FormValue("provider"),
