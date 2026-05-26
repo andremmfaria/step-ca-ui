@@ -2,17 +2,18 @@
  * admin.css — admin workspace shell, navigation, metrics and dense tables.
  */
 
-:root {
-  --admin-bg: #0f1117;
-  --admin-side: #151922;
-  --admin-card: #181d27;
-  --admin-card-soft: #121722;
-  --admin-border: #283141;
-  --admin-border-strong: #354155;
-  --admin-text: #e6eaf0;
-  --admin-muted: #9aa5b5;
-  --admin-accent: #4f8cff;
-  --admin-accent-soft: rgba(79, 140, 255, .14);
+:root,
+html[data-theme="dark"] {
+  --admin-bg: #0d0d0d;
+  --admin-side: #111111;
+  --admin-card: #141414;
+  --admin-card-soft: #101010;
+  --admin-border: #252525;
+  --admin-border-strong: #343434;
+  --admin-text: #e8e8e8;
+  --admin-muted: #8a8f98;
+  --admin-accent: #4493f8;
+  --admin-accent-soft: rgba(68, 147, 248, .10);
   --admin-green: #3fb950;
   --admin-green-soft: rgba(63, 185, 80, .13);
   --admin-warn: #d29922;
@@ -40,6 +41,26 @@ html[data-theme="light"] {
   --admin-danger: #c9342f;
   --admin-danger-soft: rgba(201, 52, 47, .10);
   --admin-shadow: rgba(15, 23, 42, .10);
+}
+
+html[data-theme="blue"] {
+  --admin-bg: #0a1628;
+  --admin-side: #0d1b33;
+  --admin-card: #0f1f3d;
+  --admin-card-soft: #0b1830;
+  --admin-border: #1a3160;
+  --admin-border-strong: #28477e;
+  --admin-text: #cdd9f0;
+  --admin-muted: #7d97bd;
+  --admin-accent: #60a5fa;
+  --admin-accent-soft: rgba(96, 165, 250, .15);
+  --admin-green: #34d399;
+  --admin-green-soft: rgba(52, 211, 153, .12);
+  --admin-warn: #fbbf24;
+  --admin-warn-soft: rgba(251, 191, 36, .14);
+  --admin-danger: #f87171;
+  --admin-danger-soft: rgba(248, 113, 113, .13);
+  --admin-shadow: rgba(0, 0, 0, .42);
 }
 
 body.admin-mode {

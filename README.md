@@ -25,6 +25,7 @@
 - 📅 **Custom date picker** — site-themed, no native browser widget *(new in v1.4.0)*
 - 🌍 **Timezone-aware** — configurable with the `TZ` environment variable
 - 🎨 **4 themes** — dark, light, blue, auto (follows OS)
+- 🧭 **Admin workspace** — polished admin UI with matching dark, light and blue themes *(new in v1.4.11)*
 - 🛡️ **Built-in security** — CSRF tokens, rate limiting, IP blocking, security log
 - 🌐 **Provisioner inspection** — list and edit step-ca provisioners
 - 💾 **Backup export** — admin UI and CLI backup bundles with manifest checksums *(new in v1.4.9)*
