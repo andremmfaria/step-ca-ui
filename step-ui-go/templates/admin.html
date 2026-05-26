@@ -1,10 +1,10 @@
 {{define "content"}}
-<div class="page-header">
-  <h1 style="margin:0 0 4px;font-size:22px;font-weight:700">Панель управления</h1>
-  <p class="muted" style="margin:0">Сводка по пользователям, сертификатам и безопасности</p>
+<div class="admin-page-header">
+  <h1 class="admin-page-title">Панель управления</h1>
+  <p class="admin-page-subtitle">Сводка по пользователям, сертификатам и безопасности</p>
 </div>
 
-<div class="card" style="margin-top:18px;margin-bottom:18px">
+<div class="card">
   <div class="card-header">
     <strong>Пользователи</strong>
     <a href="/admin/users" class="btn btn-ghost" style="margin-left:auto">Управление →</a>
@@ -21,7 +21,7 @@
   </div>
 </div>
 
-<div class="card" style="margin-bottom:18px">
+<div class="card">
   <div class="card-header"><strong>Сертификаты</strong></div>
   <div class="card-body">
     <div class="admin-stats">
@@ -41,7 +41,7 @@
       <div class="admin-stat ok"><div class="admin-stat-value">{{.Stats.LoginsToday}}</div><div class="admin-stat-label">Входов за 24ч</div></div>
       <div class="admin-stat {{if gt .Stats.FailedLogins 0}}warn{{end}}"><div class="admin-stat-value">{{.Stats.FailedLogins}}</div><div class="admin-stat-label">Неудачных за 24ч</div></div>
     </div>
-    <h3 style="margin-top:22px;margin-bottom:10px;font-size:15px;font-weight:600">Последние успешные входы</h3>
+    <h3 style="margin-top:18px;margin-bottom:10px;font-size:14px;font-weight:600">Последние успешные входы</h3>
     {{if .RecentLogins}}
     <div class="table-wrap"><div class="tbl-wrap">
   <table class="tbl">

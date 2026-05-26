@@ -19,7 +19,7 @@ var StartedAt time.Time
 
 // Версионирование — переопределяется через ldflags при сборке
 var (
-	Version   = "1.4.9"
+	Version   = "1.4.10"
 	BuildDate = "2026-05-26"
 	GitCommit = "unknown"
 )
