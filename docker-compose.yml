@@ -66,6 +66,7 @@ services:
       - step-ui-certs:/opt/step-ui/certs
       - step-ui-ssl:/opt/step-ui/ssl
       - step-ui-data:/opt/step-ui/data
+      - step-ui-uploads:/opt/step-ui/uploads
       - step-ca-data:/home/step:ro
     environment:
       TZ: "${TZ:-UTC}"
@@ -100,6 +101,7 @@ volumes:
   step-ui-certs:
   step-ui-ssl:
   step-ui-data:
+  step-ui-uploads:
 
 # ─── Networks ──────────────────────────────────────────────────────────────
 networks:

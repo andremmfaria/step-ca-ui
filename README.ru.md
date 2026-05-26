@@ -27,6 +27,7 @@
 - 🎨 **4 темы** — тёмная, светлая, синяя, авто (по системе)
 - 🛡️ **Встроенная безопасность** — CSRF-токены, rate limiting, блокировка IP, журнал
 - 🌐 **Provisioner'ы step-ca** — список и редактирование
+- 💾 **Экспорт бэкапа** — backup bundle из UI и CLI с manifest checksums *(новинка v1.4.9)*
 
 ## Быстрый старт
 
@@ -168,21 +169,19 @@ services:
 </details>
 
 <details>
-<summary><b>Как сделать бэкап?</b></summary>
+<summary><b>Как сделать бэкап и восстановление?</b></summary>
 
-Всё состояние хранится в двух томах:
-- `step-ca-data` — корневые ключи CA, intermediate-сертификаты, provisioner'ы
-- том PostgreSQL — пользователи, метаданные сертификатов, логи
+Через UI: `Админ-панель -> Бэкап -> Скачать backup bundle`.
+
+CLI-экспорт тоже поддерживается:
 
 ```bash
-# Бэкап
-sudo docker compose exec postgres pg_dump -U stepui stepui > backup.sql
-sudo docker run --rm -v step-ca-data:/src -v "$PWD":/dst alpine tar czf /dst/ca-data.tgz -C /src .
-
-# Восстановление
-sudo docker compose exec -T postgres psql -U stepui stepui < backup.sql
-sudo docker run --rm -v step-ca-data:/dst -v "$PWD":/src alpine tar xzf /src/ca-data.tgz -C /dst
+sudo ./install.sh --mode backup --lang ru
 ```
+
+Бэкап включает PostgreSQL, `step-ca-data`, данные/сертификаты/uploads Step-CA UI
+и `manifest.json` с SHA-256 checksums. Restore намеренно ручной; инструкция в
+[BACKUP_RESTORE.md](BACKUP_RESTORE.md).
 </details>
 
 <details>

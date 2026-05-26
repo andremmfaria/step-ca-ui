@@ -1,9 +1,9 @@
 package db
 
 import (
-	"os"
 	"database/sql"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -93,7 +93,7 @@ func InitSchema(d *sql.DB) error {
 		return err
 	}
 
-		// Создаём admin если нет пользователей
+	// Создаём admin если нет пользователей
 	var count int
 	d.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&count)
 	if count == 0 {

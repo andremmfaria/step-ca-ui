@@ -19,7 +19,7 @@ var StartedAt time.Time
 
 // Версионирование — переопределяется через ldflags при сборке
 var (
-	Version   = "1.4.8"
+	Version   = "1.4.9"
 	BuildDate = "2026-05-26"
 	GitCommit = "unknown"
 )
@@ -60,6 +60,7 @@ func (h *Handler) loadTemplates() {
 		"admin_security",
 		"admin_console",
 		"admin_about",
+		"admin_backup",
 	}
 	for _, page := range pages {
 		baseFile := "templates/base.html"

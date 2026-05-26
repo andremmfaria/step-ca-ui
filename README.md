@@ -27,6 +27,7 @@
 - 🎨 **4 themes** — dark, light, blue, auto (follows OS)
 - 🛡️ **Built-in security** — CSRF tokens, rate limiting, IP blocking, security log
 - 🌐 **Provisioner inspection** — list and edit step-ca provisioners
+- 💾 **Backup export** — admin UI and CLI backup bundles with manifest checksums *(new in v1.4.9)*
 
 ## Quick Start
 
@@ -167,21 +168,19 @@ Then restart: `sudo docker compose up -d --force-recreate step-ui`.
 </details>
 
 <details>
-<summary><b>How do I back up the data?</b></summary>
+<summary><b>How do I back up and restore the data?</b></summary>
 
-Two volumes contain everything stateful:
-- `step-ca-data` — root CA private keys, intermediate certs, provisioners
-- PostgreSQL volume — users, certificates metadata, logs
+Use the admin UI: `Admin -> Backup -> Download backup bundle`.
+
+CLI export is also supported:
 
 ```bash
-# Backup
-sudo docker compose exec postgres pg_dump -U stepui stepui > backup.sql
-sudo docker run --rm -v step-ca-data:/src -v "$PWD":/dst alpine tar czf /dst/ca-data.tgz -C /src .
-
-# Restore
-sudo docker compose exec -T postgres psql -U stepui stepui < backup.sql
-sudo docker run --rm -v step-ca-data:/dst -v "$PWD":/src alpine tar xzf /src/ca-data.tgz -C /dst
+sudo ./install.sh --mode backup --lang en
 ```
+
+Backups include PostgreSQL, `step-ca-data`, Step-CA UI data/certs/uploads and
+`manifest.json` with SHA-256 checksums. Restore is manual by design; follow
+[BACKUP_RESTORE.md](BACKUP_RESTORE.md).
 </details>
 
 <details>

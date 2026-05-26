@@ -6,6 +6,7 @@
 # Modes:
 #   install  — clean installation, writes .env and credentials.txt
 #   update   — backup + optional git checkout + docker compose up -d --build
+#   backup   — export project files, .env, PostgreSQL dump and Docker volumes
 #
 # Output is quiet by default. Full logs go to /var/log/step-ca-ui-install.log
 # or /tmp/step-ca-ui-install-<ts>.log if /var/log is not writable.
@@ -27,6 +28,7 @@ while [[ $# -gt 0 ]]; do
     --mode=*) MODE="${1#*=}"; shift ;;
     --install) MODE="install"; shift ;;
     --update) MODE="update"; shift ;;
+    --backup) MODE="backup"; shift ;;
     *) echo "Unknown argument: $1" >&2; exit 2 ;;
   esac
 done
@@ -92,6 +94,8 @@ t() {
     en:mode_install) echo "Clean install" ;;
     ru:mode_update) echo "Обновление существующей установки" ;;
     en:mode_update) echo "Update existing installation" ;;
+    ru:mode_backup) echo "Создать бэкап без обновления" ;;
+    en:mode_backup) echo "Create backup without updating" ;;
     ru:no_sudo) echo "запустите от root или установите sudo" ;;
     en:no_sudo) echo "run as root or install sudo" ;;
     ru:docker_not_running) echo "Docker daemon не запущен" ;;
@@ -146,10 +150,12 @@ t() {
     en:self_signed) echo "TLS certificate is self-signed — accept the browser warning or import Root CA." ;;
     ru:update_requires_env) echo "Для обновления нужен существующий .env. Для чистой установки выберите install." ;;
     en:update_requires_env) echo "Update requires an existing .env. Choose install for a clean setup." ;;
-    ru:backup_start) echo "Бэкап перед обновлением           " ;;
-    en:backup_start) echo "Pre-update backup                 " ;;
+    ru:backup_start) echo "Создание бэкапа                   " ;;
+    en:backup_start) echo "Creating backup                   " ;;
     ru:backup_dir) echo "Каталог бэкапа" ;;
     en:backup_dir) echo "Backup directory" ;;
+    ru:backup_done) echo "Бэкап создан" ;;
+    en:backup_done) echo "Backup completed" ;;
     ru:sync_ca_pw) echo "Синхронизировать CA_PASSWORD из существующего step-ca secret" ;;
     en:sync_ca_pw) echo "Sync CA_PASSWORD from existing step-ca secret" ;;
     ru:update_git) echo "Обновить код из GitHub перед пересборкой" ;;
@@ -259,7 +265,9 @@ check_environment() {
   say_step "$(t checking_env)"
   {
     if [[ $EUID -ne 0 ]]; then
-      if command -v sudo >/dev/null 2>&1; then
+      if command -v docker >/dev/null 2>&1; then
+        SUDO=""
+      elif command -v sudo >/dev/null 2>&1; then
         SUDO="sudo"
       else
         die "$(t no_sudo)"
@@ -323,17 +331,19 @@ choose_mode() {
   [[ -f .env ]] && default_mode="update"
 
   MODE="$(echo "$MODE" | tr '[:upper:]' '[:lower:]')"
-  if [[ "$MODE" != "install" && "$MODE" != "update" ]]; then
+  if [[ "$MODE" != "install" && "$MODE" != "update" && "$MODE" != "backup" ]]; then
     if [[ "$ASSUME_YES" == "1" || ! -t 0 ]]; then
       MODE="$default_mode"
     else
       printf "\n${C_BOLD}${C_BLUE}▸${C_RESET} %s\n" "$(t mode_prompt)"
       printf "  ${C_BOLD}1${C_RESET}) %s\n" "$(t mode_install)"
       printf "  ${C_BOLD}2${C_RESET}) %s\n" "$(t mode_update)"
+      printf "  ${C_BOLD}3${C_RESET}) %s\n" "$(t mode_backup)"
       local mode_reply
       mode_reply="$(ask "$(t mode_prompt)" "$([[ "$default_mode" == "update" ]] && echo 2 || echo 1)")"
       case "$mode_reply" in
         2|update|Update|обновление|Обновление) MODE="update" ;;
+        3|backup|Backup|бэкап|Бэкап) MODE="backup" ;;
         *) MODE="install" ;;
       esac
     fi
@@ -570,9 +580,9 @@ EOF
 }
 
 backup_update() {
-  local ts backup_dir
+  local kind="${1:-update}" ts backup_dir
   ts="$(date +%Y%m%d_%H%M%S)"
-  backup_dir="${BACKUP_DIR:-$PROJECT_DIR/backups/update-$ts}"
+  backup_dir="${BACKUP_DIR:-$PROJECT_DIR/backups/$kind-$ts}"
   mkdir -p "$backup_dir/volumes"
 
   say_step "$(t backup_start)"
@@ -598,6 +608,27 @@ backup_update() {
       [[ -n "$mountpoint" && -d "$mountpoint" ]] || continue
       tar -czf "$backup_dir/volumes/$volume.tgz" -C "$mountpoint" . || true
     done <<< "$volumes"
+
+    {
+      printf '{\n'
+      printf '  "format": "step-ca-ui-cli-backup-v1",\n'
+      printf '  "created_at": "%s",\n' "$(date -Is)"
+      printf '  "kind": "%s",\n' "$kind"
+      printf '  "project_dir": "%s",\n' "$PROJECT_DIR"
+      printf '  "components": [\n'
+      local first=1 file rel size sum
+      while IFS= read -r file; do
+        [[ -f "$file" ]] || continue
+        rel="${file#$backup_dir/}"
+        size="$(wc -c < "$file" | tr -d ' ')"
+        sum="$(sha256sum "$file" | awk '{print $1}')"
+        if [[ "$first" == "0" ]]; then printf ',\n'; fi
+        first=0
+        printf '    {"path": "%s", "size": %s, "sha256": "%s"}' "$rel" "$size" "$sum"
+      done < <(find "$backup_dir" -type f ! -name manifest.json | sort)
+      printf '\n  ]\n'
+      printf '}\n'
+    } > "$backup_dir/manifest.json"
   } >>"$LOG_FILE" 2>&1
   say_ok
   say_info "$(t backup_dir): $backup_dir"
@@ -662,7 +693,7 @@ git_update_if_requested() {
 
 update_mode() {
   [[ -f .env ]] || die "$(t update_requires_env)"
-  backup_update
+  backup_update update
   ensure_update_env
   sync_ca_password_from_existing
   git_update_if_requested
@@ -680,6 +711,16 @@ update_mode() {
   url="$(app_url "$host_ip" "$ui_port")"
   wait_all_services "$url" || true
   final_report "$url" "update" ""
+}
+
+backup_mode() {
+  [[ -f .env ]] || die "$(t update_requires_env)"
+  backup_update manual
+  echo
+  printf "${C_GREEN}${C_BOLD}✓ %s${C_RESET}\n" "$(t backup_done)"
+  echo
+  printf "  ${C_DIM}%s: %s${C_RESET}\n" "$(t full_log)" "$LOG_FILE"
+  _log "=== install.sh finished at $(date -Is) ==="
 }
 
 final_report() {
@@ -712,5 +753,6 @@ choose_mode
 case "$MODE" in
   install) install_mode ;;
   update) update_mode ;;
+  backup) backup_mode ;;
   *) die "unknown mode: $MODE" ;;
 esac
