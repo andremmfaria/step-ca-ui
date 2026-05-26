@@ -78,6 +78,7 @@ services:
       PROVISIONER_PASSWORD: "${CA_PASSWORD:-change-me-min-8-chars}"
       SECRET_KEY:    "${SECRET_KEY:-change-me-to-a-long-random-string-at-least-32-chars}"
       SESSION_SECURE: "${SESSION_SECURE:-true}"
+      ENABLE_HSTS:   "${ENABLE_HSTS:-false}"
       HOST_IP:       "${HOST_IP:-127.0.0.1}"
       PORT:          "8443"
       STEPUI_ADMIN_PASSWORD: "${STEPUI_ADMIN_PASSWORD:-}"

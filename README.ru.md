@@ -122,7 +122,7 @@ sudo ./install.sh --mode update --lang ru
 
 - ✅ **CSRF-защита** — токены на каждой форме и серверная проверка POST-маршрутов
 - ✅ **Rate limiting** — 5 неудачных попыток входа → блокировка IP на 15 минут
-- ✅ **Security headers** — HSTS, CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy
+- ✅ **Security headers** — CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, опциональный HSTS
 - ✅ **Таймаут сессии** — 8 часов, скользящий
 - ✅ **Журнал входов** — каждая попытка с IP и User-Agent
 - ✅ **Self-signed TLS** — генерируется при первом запуске, валидность 10 лет
@@ -141,6 +141,7 @@ PROVISIONER=admin                  # идентификатор provisioner'а s
 CA_PASSWORD=<сгенерировано>        # пароль provisioner'а step-ca
 SECRET_KEY=<сгенерировано>         # ключ подписи сессий и CSRF
 SESSION_SECURE=true                # secure cookie сессии для HTTPS
+ENABLE_HSTS=false                  # включайте только с доверенным TLS-сертификатом
 POSTGRES_PASSWORD=<сгенерировано>  # пароль базы
 TZ=UTC                             # часовой пояс контейнеров
 STEPCA_DEFAULT_TLS_CERT_DURATION=8760h

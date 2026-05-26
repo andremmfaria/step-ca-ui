@@ -546,6 +546,7 @@ PROVISIONER=${provisioner}
 CA_PASSWORD=${ca_password}
 SECRET_KEY=${secret_key}
 SESSION_SECURE=true
+ENABLE_HSTS=false
 POSTGRES_PASSWORD=${postgres_password}
 STEPUI_ADMIN_PASSWORD=${admin_password}
 TZ=${tz_value}

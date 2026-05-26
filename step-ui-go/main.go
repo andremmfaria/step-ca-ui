@@ -126,6 +126,7 @@ func main() {
 	blockKey := sha256.Sum256([]byte(cfg.SecretKey + "_block"))
 	store := sessions.NewCookieStore(hashKey[:], blockKey[:16])
 	store.Options = &sessions.Options{
+		Path:     "/",
 		MaxAge:   28800,
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
@@ -142,7 +143,7 @@ func main() {
 	r := chi.NewRouter()
 	r.Use(chiMiddleware.Recoverer)
 	r.Use(chiMiddleware.RealIP)
-	r.Use(mw.SecurityHeaders)
+	r.Use(mw.SecurityHeaders(cfg.EnableHSTS))
 
 	// Публичные маршруты
 	r.Get("/login", h.LoginGet)

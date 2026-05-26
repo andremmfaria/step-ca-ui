@@ -13,6 +13,7 @@ type Config struct {
 	PasswordFile  string
 	SecretKey     string
 	SessionSecure bool
+	EnableHSTS    bool
 	Port          int
 	CertsDir      string
 	UploadDir     string
@@ -30,6 +31,7 @@ func Load() *Config {
 		PasswordFile:  getEnv("PASSWORD_FILE", "/opt/step-ui/data/provisioner_password"),
 		SecretKey:     getEnv("SECRET_KEY", "change-me-in-production-32chars!"),
 		SessionSecure: getEnvBool("SESSION_SECURE", true),
+		EnableHSTS:    getEnvBool("ENABLE_HSTS", false),
 		Port:          port,
 		CertsDir:      "/opt/step-ui/certs",
 		UploadDir:     "/opt/step-ui/uploads",

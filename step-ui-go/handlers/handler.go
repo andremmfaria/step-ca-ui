@@ -151,7 +151,10 @@ func (h *Handler) templateFuncs() template.FuncMap {
 }
 
 func (h *Handler) sess(r *http.Request) *sessions.Session {
-	s, _ := h.store.Get(r, "step-ui")
+	s, err := h.store.Get(r, "step-ui")
+	if err != nil {
+		log.Printf("session decode failed: remote=%s host=%s path=%s err=%v", r.RemoteAddr, r.Host, r.URL.Path, err)
+	}
 	return s
 }
 
@@ -189,7 +192,11 @@ func (h *Handler) popFlash(w http.ResponseWriter, r *http.Request) []models.Flas
 }
 
 func (h *Handler) csrf(w http.ResponseWriter, r *http.Request) string {
-	s := h.sess(r)
+	s, err := h.store.Get(r, "step-ui")
+	if err != nil {
+		log.Printf("session reset after decode failure: remote=%s host=%s path=%s err=%v", r.RemoteAddr, r.Host, r.URL.Path, err)
+		s, _ = h.store.New(r, "step-ui")
+	}
 	token, ok := s.Values["csrf_token"].(string)
 	if !ok || token == "" {
 		token = security.GenerateToken()

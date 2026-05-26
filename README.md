@@ -121,7 +121,7 @@ The whole thing takes 2–4 minutes on a fresh VM.
 
 - ✅ **CSRF protection** — tokens on every form and server-side checks on POST routes
 - ✅ **Rate limiting** — 5 failed login attempts → 15-minute IP block
-- ✅ **Security headers** — HSTS, CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy
+- ✅ **Security headers** — CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, optional HSTS
 - ✅ **Session timeout** — 8 hours, sliding
 - ✅ **Login audit log** — every login attempt is recorded with IP and User-Agent
 - ✅ **Self-signed TLS** — auto-generated on first boot, 10-year validity
@@ -140,6 +140,7 @@ PROVISIONER=admin                  # step-ca provisioner identifier
 CA_PASSWORD=<generated>            # step-ca provisioner password
 SECRET_KEY=<generated>             # session/CSRF signing key
 SESSION_SECURE=true                # secure session cookie over HTTPS
+ENABLE_HSTS=false                  # enable only when using a trusted TLS certificate
 POSTGRES_PASSWORD=<generated>      # database password
 TZ=UTC                             # container timezone
 STEPCA_DEFAULT_TLS_CERT_DURATION=8760h
