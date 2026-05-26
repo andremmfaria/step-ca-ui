@@ -94,8 +94,9 @@ func (h *Handler) AdminConsoleGet(w http.ResponseWriter, r *http.Request) {
 // AdminAboutGet — о системе.
 func (h *Handler) AdminAboutGet(w http.ResponseWriter, r *http.Request) {
 	data := h.base(w, r, "admin_about")
-	data["AppVersion"] = Version
-	data["AppBuildDate"] = BuildDate
-	data["AppGitCommit"] = GitCommit
+	checks, summary := h.preflight(r.Context())
+	data["System"] = h.systemInfo()
+	data["Checks"] = checks
+	data["Summary"] = summary
 	h.render(w, "admin_about", data)
 }

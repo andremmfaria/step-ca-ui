@@ -36,6 +36,18 @@ cd step-ca-ui
 sudo ./install.sh
 ```
 
+Установщик поддерживает русский/английский язык, чистую установку и безопасное
+обновление:
+
+```bash
+sudo ./install.sh --mode install --lang ru
+sudo ./install.sh --mode update --lang ru
+```
+
+В режиме обновления сначала создаётся бэкап, сохраняются `.env` и Docker volumes,
+затем выполняется `docker compose up -d --build`. Команда
+`docker compose down -v` не используется.
+
 И всё. Скрипт сам:
 1. Определит ОС и установит Docker, если его нет
 2. Автоопределит IP сервера (с подтверждением)
@@ -127,6 +139,7 @@ UI_HTTPS_PORT=443                  # внешний HTTPS-порт
 PROVISIONER=admin                  # идентификатор provisioner'а step-ca
 CA_PASSWORD=<сгенерировано>        # пароль provisioner'а step-ca
 SECRET_KEY=<сгенерировано>         # ключ подписи сессий и CSRF
+SESSION_SECURE=true                # secure cookie сессии для HTTPS
 POSTGRES_PASSWORD=<сгенерировано>  # пароль базы
 TZ=UTC                             # часовой пояс контейнеров
 STEPCA_DEFAULT_TLS_CERT_DURATION=8760h
@@ -199,10 +212,9 @@ Legacy SHA-256 значение принимается для восстанов
 <summary><b>Как обновиться на новую версию?</b></summary>
 
 ```bash
-git pull
-sudo docker compose up -d --build
+sudo ./install.sh --mode update --lang ru
 ```
-Миграции запускаются автоматически. Перед обновлением всегда смотрите [release notes](https://github.com/UncleFi1/step-ca-ui/releases) — мажорные версии могут содержать breaking changes.
+Режим обновления сначала создаёт бэкап, сохраняет текущие Docker volumes, при необходимости переключается на выбранный тег и запускает миграции автоматически при старте. Перед обновлением всегда смотрите [release notes](https://github.com/UncleFi1/step-ca-ui/releases) — мажорные версии могут содержать breaking changes.
 </details>
 
 ## Участие в разработке

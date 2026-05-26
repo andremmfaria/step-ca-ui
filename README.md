@@ -36,6 +36,17 @@ cd step-ca-ui
 sudo ./install.sh
 ```
 
+The installer can run in Russian or English and supports both clean installs and
+safe updates:
+
+```bash
+sudo ./install.sh --mode install --lang en
+sudo ./install.sh --mode update --lang en
+```
+
+Update mode creates a backup first, preserves `.env` and Docker volumes, then
+runs `docker compose up -d --build`. It does not run `docker compose down -v`.
+
 That's it. The installer:
 1. Detects your OS and installs Docker if needed
 2. Auto-detects your server IP (with confirmation)
@@ -127,6 +138,7 @@ UI_HTTPS_PORT=443                  # external HTTPS port
 PROVISIONER=admin                  # step-ca provisioner identifier
 CA_PASSWORD=<generated>            # step-ca provisioner password
 SECRET_KEY=<generated>             # session/CSRF signing key
+SESSION_SECURE=true                # secure session cookie over HTTPS
 POSTGRES_PASSWORD=<generated>      # database password
 TZ=UTC                             # container timezone
 STEPCA_DEFAULT_TLS_CERT_DURATION=8760h
@@ -199,10 +211,9 @@ Yes. Point your reverse proxy at `step-ui:8443` (HTTPS upstream) or change step-
 <summary><b>How do I update to a new version?</b></summary>
 
 ```bash
-git pull
-sudo docker compose up -d --build
+sudo ./install.sh --mode update --lang en
 ```
-Migrations run automatically on startup. Always check the [release notes](https://github.com/UncleFi1/step-ca-ui/releases) first — major versions may have breaking changes.
+The update mode creates a backup first, keeps existing Docker volumes, optionally checks out a selected tag, and runs migrations automatically on startup. Always check the [release notes](https://github.com/UncleFi1/step-ca-ui/releases) first — major versions may have breaking changes.
 </details>
 
 ## Contributing

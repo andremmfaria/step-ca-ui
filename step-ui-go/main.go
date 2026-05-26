@@ -129,7 +129,7 @@ func main() {
 		MaxAge:   28800,
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   false,
+		Secure:   cfg.SessionSecure,
 	}
 
 	// ─── Handlers ────────────────────────────────────────────────────────────
