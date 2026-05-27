@@ -8,7 +8,7 @@
 [![Made with Go](https://img.shields.io/badge/Made%20with-Go%201.22-00ADD8.svg)](https://go.dev)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED.svg)](https://docs.docker.com/compose/)
 [![Current version](https://img.shields.io/badge/version-v1.6.0-success.svg)](https://github.com/UncleFi1/step-ca-ui/releases/tag/v1.6.0)
-[![Latest release](https://img.shields.io/github/v/release/UncleFi1/step-ca-ui?label=release&color=success)](https://github.com/UncleFi1/step-ca-ui/releases/latest)
+[![Latest release](https://img.shields.io/badge/release-v1.6.0-success.svg)](https://github.com/UncleFi1/step-ca-ui/releases/latest)
 
 🇬🇧 **English** · [🇷🇺 Русский](README.ru.md)
 
