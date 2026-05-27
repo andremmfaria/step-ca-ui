@@ -112,4 +112,33 @@
   </div>
 </div>
 {{end}}
+
+<div class="card">
+  <div class="card-header"><h3>Deploy snippets</h3></div>
+  <div class="card-body">
+    <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px">
+      <div>
+        <label>nginx</label>
+        <textarea readonly rows="6">ssl_certificate {{.Cert.CertPath}};
+ssl_certificate_key {{.Cert.KeyPath}};
+ssl_trusted_certificate /path/to/home-ca-full-chain.crt;
+ssl_protocols TLSv1.2 TLSv1.3;</textarea>
+      </div>
+      <div>
+        <label>Apache</label>
+        <textarea readonly rows="6">SSLCertificateFile {{.Cert.CertPath}}
+SSLCertificateKeyFile {{.Cert.KeyPath}}
+SSLCertificateChainFile /path/to/home-ca-full-chain.crt
+SSLProtocol all -SSLv3 -TLSv1 -TLSv1.1</textarea>
+      </div>
+      <div>
+        <label>Traefik file provider</label>
+        <textarea readonly rows="6">tls:
+  certificates:
+    - certFile: {{.Cert.CertPath}}
+      keyFile: {{.Cert.KeyPath}}</textarea>
+      </div>
+    </div>
+  </div>
+</div>
 {{end}}

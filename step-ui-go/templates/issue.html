@@ -8,6 +8,7 @@
   <!-- ═ Основная форма ═ -->
   <form method="POST" action="/issue" id="issueForm">
     <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <input type="hidden" name="template" id="templateInput" value="server">
     <input type="hidden" name="key_type" id="keyTypeInput" value="EC:P-256">
     <input type="hidden" name="duration" id="durationInput" value="8760h">
 
@@ -24,6 +25,31 @@
             <label>Домен или IP</label>
             <input type="text" name="domain" id="fDomain" placeholder="example.com" autocomplete="off" required>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Шаблон выпуска ── -->
+    <div class="card">
+      <div class="card-header"><h3>Шаблон и policy</h3></div>
+      <div class="card-body">
+        <div class="template-grid">
+          <button type="button" class="template-card active" data-template="server" data-key="EC:P-256" data-duration="8760h" data-placeholder="app.example.com">
+            <span class="template-title">Server TLS</span>
+            <span class="template-sub">Обычный HTTPS/service сертификат на 1 год</span>
+          </button>
+          <button type="button" class="template-card" data-template="internal" data-key="EC:P-256" data-duration="87600h" data-placeholder="service.home.local">
+            <span class="template-title">Internal service</span>
+            <span class="template-sub">Внутренний сервис, срок до 10 лет</span>
+          </button>
+          <button type="button" class="template-card" data-template="wildcard" data-key="EC:P-256" data-duration="8760h" data-placeholder="*.example.com">
+            <span class="template-title">Wildcard</span>
+            <span class="template-sub">Только имена вида *.example.com</span>
+          </button>
+          <button type="button" class="template-card" data-template="client" data-key="EC:P-256" data-duration="8760h" data-placeholder="client-01">
+            <span class="template-title">Client identity</span>
+            <span class="template-sub">Идентификатор для mTLS/VPN сценариев</span>
+          </button>
         </div>
       </div>
     </div>
@@ -81,6 +107,7 @@
     <div class="card-header"><h3>Предпросмотр</h3></div>
     <div class="card-body">
       <div class="info-row"><div class="info-key">Название</div><div class="info-val"><strong id="pvName" style="color:var(--muted)">—</strong></div></div>
+      <div class="info-row"><div class="info-key">Шаблон</div><div class="info-val"><span class="badge gray" id="pvTemplate">Server TLS</span></div></div>
       <div class="info-row"><div class="info-key">Домен</div><div class="info-val"><code id="pvDomain">—</code></div></div>
       <div class="info-row"><div class="info-key">Тип ключа</div><div class="info-val"><span class="badge blue" id="pvType">EC P-256</span></div></div>
       <div class="info-row"><div class="info-key">Срок</div><div class="info-val"><span id="pvDuration">1 год</span></div></div>
@@ -91,6 +118,17 @@
 
 <style>
 /* Карточки выбора типа ключа */
+.template-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}
+.template-card{
+  width:100%;text-align:left;border:1px solid var(--border);border-radius:8px;padding:13px 14px;
+  cursor:pointer;transition:border-color .15s,background .15s;background:var(--bg);color:var(--text);
+  font-family:inherit;
+}
+.template-card:hover{border-color:var(--muted)}
+.template-card.active{border-color:var(--accent);background:var(--active-nav)}
+.template-title{display:block;font-size:13px;font-weight:700;margin-bottom:5px}
+.template-sub{display:block;font-size:11px;color:var(--muted);line-height:1.35}
+
 .key-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
 .key-card{
   border:1px solid var(--border);border-radius:8px;padding:14px 14px;cursor:pointer;
@@ -135,12 +173,20 @@
     'RSA:2048':  'RSA 2048',
     'RSA:4096':  'RSA 4096'
   };
+  var TEMPLATE_LABEL = {
+    server: 'Server TLS',
+    internal: 'Internal service',
+    wildcard: 'Wildcard',
+    client: 'Client identity'
+  };
 
   var pvName     = document.getElementById('pvName');
+  var pvTemplate = document.getElementById('pvTemplate');
   var pvDomain   = document.getElementById('pvDomain');
   var pvType     = document.getElementById('pvType');
   var pvDuration = document.getElementById('pvDuration');
   var pvExpires  = document.getElementById('pvExpires');
+  var tplInput   = document.getElementById('templateInput');
   var keyInput   = document.getElementById('keyTypeInput');
   var durInput   = document.getElementById('durationInput');
   var fName      = document.getElementById('fName');
@@ -150,6 +196,7 @@
     pvName.textContent    = fName.value   || '—';
     pvName.style.color    = fName.value   ? 'var(--text)'  : 'var(--muted)';
     pvDomain.textContent  = fDomain.value || '—';
+    pvTemplate.textContent = TEMPLATE_LABEL[tplInput.value] || tplInput.value;
     var kt = keyInput.value;
     pvType.textContent = KEYTYPE_LABEL[kt] || kt;
     var d = DURATIONS[durInput.value];
@@ -159,6 +206,32 @@
       pvExpires.textContent = exp.toISOString().slice(0,10);
     }
   }
+
+  function setKeyType(value){
+    document.querySelectorAll('.key-card').forEach(function(c){
+      c.classList.toggle('active', c.getAttribute('data-val') === value);
+    });
+    keyInput.value = value;
+  }
+
+  function setDuration(value){
+    document.querySelectorAll('.chip').forEach(function(c){
+      c.classList.toggle('active', c.getAttribute('data-val') === value);
+    });
+    durInput.value = value;
+  }
+
+  document.querySelectorAll('.template-card').forEach(function(card){
+    card.addEventListener('click', function(){
+      document.querySelectorAll('.template-card').forEach(function(c){c.classList.remove('active');});
+      this.classList.add('active');
+      tplInput.value = this.getAttribute('data-template');
+      fDomain.placeholder = this.getAttribute('data-placeholder') || 'example.com';
+      setKeyType(this.getAttribute('data-key') || 'EC:P-256');
+      setDuration(this.getAttribute('data-duration') || '8760h');
+      updatePreview();
+    });
+  });
 
   // Карточки типа ключа
   document.querySelectorAll('.key-card').forEach(function(card){

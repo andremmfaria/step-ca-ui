@@ -158,17 +158,15 @@ func (h *Handler) IssuePost(w http.ResponseWriter, r *http.Request) {
 	si := h.sessionInfo(r)
 	name := trimStr(r.FormValue("name"))
 	domain := trimStr(r.FormValue("domain"))
-	duration := r.FormValue("duration")
-	keyType := r.FormValue("key_type")
-	if duration == "" {
-		duration = "8760h"
-	}
-	if keyType == "" {
-		keyType = "EC:P-256"
-	}
+	policy, policyErr := normalizeIssuePolicy(r.FormValue("template"), r.FormValue("duration"), r.FormValue("key_type"), domain)
 	data := h.base(w, r, "issue")
 	if name == "" || domain == "" {
 		data["Msgs"] = []models.FlashMsg{{Type: "err", Text: "Заполните все поля"}}
+		h.render(w, "issue", data)
+		return
+	}
+	if policyErr != nil {
+		data["Msgs"] = []models.FlashMsg{{Type: "err", Text: "Ошибка policy: " + policyErr.Error()}}
 		h.render(w, "issue", data)
 		return
 	}
@@ -176,7 +174,7 @@ func (h *Handler) IssuePost(w http.ResponseWriter, r *http.Request) {
 	os.MkdirAll(certDir, 0755)
 	certPath := filepath.Join(certDir, "certificate.crt")
 	keyPath := filepath.Join(certDir, "private.key")
-	if err := issueCert(domain, certPath, keyPath, duration, keyType, h.cfg); err != nil {
+	if err := issueCert(domain, certPath, keyPath, policy.Duration, policy.KeyType, h.cfg); err != nil {
 		data["Msgs"] = []models.FlashMsg{{Type: "err", Text: "Ошибка: " + err.Error()}}
 		h.render(w, "issue", data)
 		return
@@ -184,10 +182,10 @@ func (h *Handler) IssuePost(w http.ResponseWriter, r *http.Request) {
 	issued, expires, serial, _ := parseCertDates(certPath)
 	appdb.InsertCert(h.db, &models.Certificate{
 		Name: name, Domain: domain, CertPath: certPath, KeyPath: keyPath,
-		IssuedAt: issued, ExpiresAt: expires, Serial: serial, KeyType: keyType,
+		IssuedAt: issued, ExpiresAt: expires, Serial: serial, KeyType: policy.KeyType,
 	})
-	appdb.InsertHistory(h.db, "issue", name, domain, fmt.Sprintf("Тип: %s, срок: %s", keyType, duration), si.Username, si.Role)
-	h.flash(w, r, "ok", fmt.Sprintf("Сертификат %s для %s выпущен (%s)!", name, domain, keyType))
+	appdb.InsertHistory(h.db, "issue", name, domain, fmt.Sprintf("Шаблон: %s, тип: %s, срок: %s", policy.Template, policy.KeyType, policy.Duration), si.Username, si.Role)
+	h.flash(w, r, "ok", fmt.Sprintf("Сертификат %s для %s выпущен (%s)!", name, domain, policy.KeyType))
 	http.Redirect(w, r, "/issue", http.StatusFound)
 }
 

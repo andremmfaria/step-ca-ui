@@ -31,6 +31,7 @@
 - 💾 **Экспорт бэкапа** — backup bundle из UI и CLI с manifest checksums *(новинка v1.4.9)*
 - 🔎 **CA integrity checks** — проверка root/intermediate chain, provisioner claims, password sync и закреплённого step-ca image *(новинка v1.5.0)*
 - 🔬 **Детали сертификата** — SAN, fingerprints, key usage, cert/key pair и chain validation *(новинка v1.5.1)*
+- 🧩 **Шаблоны сертификатов** — presets для server, internal service, wildcard и client identity *(новинка v1.5.2)*
 
 ## Быстрый старт
 

@@ -19,6 +19,48 @@ import (
 	"step-ui/models"
 )
 
+type IssuePolicy struct {
+	Template string
+	Duration string
+	KeyType  string
+}
+
+var issueTemplates = map[string]IssuePolicy{
+	"server":   {Template: "server", Duration: "8760h", KeyType: "EC:P-256"},
+	"internal": {Template: "internal", Duration: "87600h", KeyType: "EC:P-256"},
+	"wildcard": {Template: "wildcard", Duration: "8760h", KeyType: "EC:P-256"},
+	"client":   {Template: "client", Duration: "8760h", KeyType: "EC:P-256"},
+}
+
+var allowedIssueDurations = map[string]bool{
+	"720h": true, "4380h": true, "8760h": true, "87600h": true,
+}
+
+var allowedIssueKeyTypes = map[string]bool{
+	"EC:P-256": true, "EC:P-384": true, "RSA:2048": true, "RSA:4096": true,
+}
+
+func normalizeIssuePolicy(template, duration, keyType, domain string) (IssuePolicy, error) {
+	template = strings.TrimSpace(strings.ToLower(template))
+	if template == "" {
+		template = "server"
+	}
+	policy, ok := issueTemplates[template]
+	if !ok {
+		return IssuePolicy{}, fmt.Errorf("unknown certificate template: %s", template)
+	}
+	if allowedIssueDurations[duration] {
+		policy.Duration = duration
+	}
+	if allowedIssueKeyTypes[keyType] {
+		policy.KeyType = keyType
+	}
+	if policy.Template == "wildcard" && !strings.HasPrefix(strings.TrimSpace(domain), "*.") {
+		return IssuePolicy{}, fmt.Errorf("wildcard template requires domain like *.example.com")
+	}
+	return policy, nil
+}
+
 func issueCert(domain, certPath, keyPath, duration, keyType string, cfg *config.Config) error {
 	args := []string{
 		"ca", "certificate",
