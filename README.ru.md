@@ -7,6 +7,7 @@
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Made with Go](https://img.shields.io/badge/Made%20with-Go%201.22-00ADD8.svg)](https://go.dev)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED.svg)](https://docs.docker.com/compose/)
+[![Current version](https://img.shields.io/badge/version-v1.6.0-success.svg)](https://github.com/UncleFi1/step-ca-ui/releases/tag/v1.6.0)
 [![Latest release](https://img.shields.io/github/v/release/UncleFi1/step-ca-ui?label=release&color=success)](https://github.com/UncleFi1/step-ca-ui/releases/latest)
 
 [🇬🇧 English](README.md) · 🇷🇺 **Русский**
@@ -16,6 +17,16 @@
 ---
 
 > Удобный веб-интерфейс над `smallstep/step-ca` для небольших команд. Никаких облаков, телеметрии и vendor lock-in — всё работает на вашем сервере в трёх Docker-контейнерах.
+
+## Текущий релиз
+
+**Последняя стабильная версия:** [v1.6.0](https://github.com/UncleFi1/step-ca-ui/releases/tag/v1.6.0)
+
+Главное:
+- TOTP 2FA с подключением authenticator app, QR-кодом и recovery-кодами
+- запрос 2FA-кода при входе после проверки пароля
+- обновлённый визуальный стиль главной страницы, страницы 2FA и списка сертификатов
+- адаптивный список сертификатов для широких экранов, ноутбуков и узких окон браузера
 
 ## Возможности
 
