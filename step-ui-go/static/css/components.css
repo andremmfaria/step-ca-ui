@@ -63,9 +63,17 @@
 
 .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
 
+.form-grid{display:grid;gap:12px}
+
 .form-full{margin-bottom:12px}
 
 label{display:block;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}
+
+.check-row{display:flex;align-items:center;gap:9px;margin:0;color:var(--text);font-size:12px;font-weight:600;text-transform:none;letter-spacing:0}
+
+.check-row input[type="checkbox"]{width:16px;height:16px;flex:0 0 auto}
+
+.form-actions{display:flex;gap:10px;align-items:center;margin-top:4px}
 
 input,textarea{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:12px;font-family:inherit;transition:background .2s,border-color .2s}
 

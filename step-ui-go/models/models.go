@@ -61,3 +61,26 @@ type SessionInfo struct {
 	Role     string
 	Theme    string
 }
+
+type NotificationSettings struct {
+	ID              int
+	WebhookEnabled  bool
+	WebhookURL      string
+	NotifyExpiry    bool
+	ExpiryDays      int
+	NotifyFailures  bool
+	NotifyAuthBurst bool
+	UpdatedAt       *time.Time
+}
+
+type NotificationLog struct {
+	ID        int
+	EventKey  string
+	EventType string
+	Severity  string
+	Title     string
+	Message   string
+	Success   bool
+	Error     string
+	CreatedAt time.Time
+}

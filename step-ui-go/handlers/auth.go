@@ -48,6 +48,10 @@ func (h *Handler) LoginPost(w http.ResponseWriter, r *http.Request) {
 		if left > 0 {
 			h.flash(w, r, "err", fmt.Sprintf("Неверный логин или пароль. Осталось попыток: %d", left))
 		} else {
+			h.notifyAsync("auth-burst:"+ip+":"+time.Now().Format("2006-01-02T15:04"), "auth.failed_burst", "warn",
+				"Failed login burst",
+				fmt.Sprintf("IP %s заблокирован после серии неудачных входов", ip),
+				map[string]string{"username": username, "ip": ip})
 			h.flash(w, r, "err", "Слишком много попыток. Подождите 15 минут.")
 		}
 		http.Redirect(w, r, "/login", http.StatusFound)

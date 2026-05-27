@@ -120,6 +120,9 @@ func main() {
 	if err := appdb.InitLESchema(conn); err != nil {
 		log.Fatalf("Cannot init LE schema: %v", err)
 	}
+	if err := appdb.InitNotificationSchema(conn); err != nil {
+		log.Fatalf("Cannot init notification schema: %v", err)
+	}
 
 	// ─── Sessions ────────────────────────────────────────────────────────────
 	hashKey := sha256.Sum256([]byte(cfg.SecretKey))
@@ -138,6 +141,7 @@ func main() {
 
 	// ─── Let's Encrypt auto-renewer ──────────────────────────────────────────
 	le.StartRenewer(conn)
+	h.StartNotificationWorker()
 
 	// ─── Router ──────────────────────────────────────────────────────────────
 	r := chi.NewRouter()
@@ -207,6 +211,9 @@ func main() {
 			r.Get("/admin/integrity", h.AdminIntegrityGet)
 			r.Get("/admin/backup", h.AdminBackupGet)
 			r.Post("/admin/backup/download", h.AdminBackupDownload)
+			r.Get("/admin/notifications", h.AdminNotificationsGet)
+			r.Post("/admin/notifications", h.AdminNotificationsPost)
+			r.Post("/admin/notifications/test", h.AdminNotificationsTest)
 		})
 
 		// Let's Encrypt (manager+)

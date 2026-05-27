@@ -32,6 +32,7 @@
 - 🔎 **CA integrity checks** — root/intermediate chain, provisioner claims, password sync and pinned step-ca image *(new in v1.5.0)*
 - 🔬 **Certificate details** — SANs, fingerprints, key usage, cert/key pair and chain validation *(new in v1.5.1)*
 - 🧩 **Certificate templates** — server, internal service, wildcard and client identity presets *(new in v1.5.2)*
+- 🔔 **Webhook notifications** — test webhook, failed issue/renew alerts, login burst alerts and expiry watcher *(new in v1.5.3)*
 
 ## Quick Start
 

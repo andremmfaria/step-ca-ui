@@ -175,6 +175,10 @@ func (h *Handler) IssuePost(w http.ResponseWriter, r *http.Request) {
 	certPath := filepath.Join(certDir, "certificate.crt")
 	keyPath := filepath.Join(certDir, "private.key")
 	if err := issueCert(domain, certPath, keyPath, policy.Duration, policy.KeyType, h.cfg); err != nil {
+		h.notifyAsync("", "certificate.issue_failed", "error",
+			"Certificate issue failed",
+			fmt.Sprintf("Не удалось выпустить сертификат %s для %s: %s", name, domain, err.Error()),
+			map[string]string{"name": name, "domain": domain, "template": policy.Template, "key_type": policy.KeyType})
 		data["Msgs"] = []models.FlashMsg{{Type: "err", Text: "Ошибка: " + err.Error()}}
 		h.render(w, "issue", data)
 		return
@@ -207,6 +211,10 @@ func (h *Handler) Renew(w http.ResponseWriter, r *http.Request) {
 			appdb.InsertHistory(h.db, "renew", c.Name, c.Domain, "Перевыпуск, тип: "+keyType, si.Username, si.Role)
 			h.flash(w, r, "ok", "Сертификат перевыпущен")
 		} else {
+			h.notifyAsync("", "certificate.renew_failed", "error",
+				"Certificate renew failed",
+				fmt.Sprintf("Не удалось перевыпустить сертификат %s для %s: %s", c.Name, c.Domain, err.Error()),
+				map[string]string{"id": strconv.Itoa(c.ID), "name": c.Name, "domain": c.Domain, "key_type": keyType})
 			h.flash(w, r, "err", "Ошибка: "+err.Error())
 		}
 	}
