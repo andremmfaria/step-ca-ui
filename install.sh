@@ -544,6 +544,7 @@ HOST_IP=${host_ip}
 UI_HTTPS_PORT=${ui_port}
 PROVISIONER=${provisioner}
 CA_PASSWORD=${ca_password}
+STEP_CA_IMAGE=smallstep/step-ca:0.30.2
 SECRET_KEY=${secret_key}
 SESSION_SECURE=true
 ENABLE_HSTS=false

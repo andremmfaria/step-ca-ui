@@ -203,6 +203,7 @@ func main() {
 			r.Get("/admin/security", h.SecurityLog)
 			r.Get("/admin/console", h.AdminConsoleGet)
 			r.Get("/admin/about", h.AdminAboutGet)
+			r.Get("/admin/integrity", h.AdminIntegrityGet)
 			r.Get("/admin/backup", h.AdminBackupGet)
 			r.Post("/admin/backup/download", h.AdminBackupDownload)
 		})

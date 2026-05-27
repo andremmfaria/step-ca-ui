@@ -11,6 +11,7 @@ type Config struct {
 	RootCert      string
 	Provisioner   string
 	PasswordFile  string
+	StepCAImage   string
 	SecretKey     string
 	SessionSecure bool
 	EnableHSTS    bool
@@ -29,6 +30,7 @@ func Load() *Config {
 		RootCert:      getEnv("ROOT_CERT", "/home/step/certs/root_ca.crt"),
 		Provisioner:   getEnv("PROVISIONER", "admin"),
 		PasswordFile:  getEnv("PASSWORD_FILE", "/opt/step-ui/data/provisioner_password"),
+		StepCAImage:   getEnv("STEP_CA_IMAGE", "smallstep/step-ca:0.30.2"),
 		SecretKey:     getEnv("SECRET_KEY", "change-me-in-production-32chars!"),
 		SessionSecure: getEnvBool("SESSION_SECURE", true),
 		EnableHSTS:    getEnvBool("ENABLE_HSTS", false),

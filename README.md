@@ -29,6 +29,7 @@
 - 🛡️ **Built-in security** — CSRF tokens, rate limiting, IP blocking, security log
 - 🌐 **Provisioner inspection** — list and edit step-ca provisioners
 - 💾 **Backup export** — admin UI and CLI backup bundles with manifest checksums *(new in v1.4.9)*
+- 🔎 **CA integrity checks** — root/intermediate chain, provisioner claims, password sync and pinned step-ca image *(new in v1.5.0)*
 
 ## Quick Start
 
@@ -139,6 +140,7 @@ HOST_IP=192.168.1.100              # SAN in self-signed cert; step-ca DNS
 UI_HTTPS_PORT=443                  # external HTTPS port
 PROVISIONER=admin                  # step-ca provisioner identifier
 CA_PASSWORD=<generated>            # step-ca provisioner password
+STEP_CA_IMAGE=smallstep/step-ca:0.30.2 # pinned step-ca image
 SECRET_KEY=<generated>             # session/CSRF signing key
 SESSION_SECURE=true                # secure session cookie over HTTPS
 ENABLE_HSTS=false                  # enable only when using a trusted TLS certificate

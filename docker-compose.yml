@@ -23,7 +23,7 @@ services:
 
   # ─── Step-CA ───────────────────────────────────────────────────────────────
   step-ca:
-    image: smallstep/step-ca:latest
+    image: "${STEP_CA_IMAGE:-smallstep/step-ca:0.30.2}"
     container_name: step-ca
     privileged: true
     restart: unless-stopped
@@ -79,6 +79,7 @@ services:
       SECRET_KEY:    "${SECRET_KEY:-change-me-to-a-long-random-string-at-least-32-chars}"
       SESSION_SECURE: "${SESSION_SECURE:-true}"
       ENABLE_HSTS:   "${ENABLE_HSTS:-false}"
+      STEP_CA_IMAGE:  "${STEP_CA_IMAGE:-smallstep/step-ca:0.30.2}"
       HOST_IP:       "${HOST_IP:-127.0.0.1}"
       PORT:          "8443"
       STEPUI_ADMIN_PASSWORD: "${STEPUI_ADMIN_PASSWORD:-}"

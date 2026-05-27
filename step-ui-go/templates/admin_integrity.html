@@ -1,58 +1,38 @@
 {{define "content"}}
 <div class="admin-page-header">
-  <h1 class="admin-page-title">О системе</h1>
-  <p class="admin-page-subtitle">Версия, окружение и preflight-проверки production readiness</p>
+  <h1 class="admin-page-title">CA integrity</h1>
+  <p class="admin-page-subtitle">Проверка цепочки CA, provisioner claims, password sync и безопасного обновления step-ca</p>
 </div>
 
 <div class="admin-stats" style="margin-bottom:14px">
   <div class="admin-stat ok"><div class="admin-stat-value">{{.Summary.OK}}</div><div class="admin-stat-label">OK</div></div>
   <div class="admin-stat {{if gt .Summary.Warnings 0}}warn{{end}}"><div class="admin-stat-value">{{.Summary.Warnings}}</div><div class="admin-stat-label">Warnings</div></div>
   <div class="admin-stat {{if gt .Summary.Errors 0}}warn{{end}}"><div class="admin-stat-value">{{.Summary.Errors}}</div><div class="admin-stat-label">Errors</div></div>
-  <div class="admin-stat"><div class="admin-stat-value">{{if .System.SessionSecure}}ON{{else}}OFF{{end}}</div><div class="admin-stat-label">SESSION_SECURE</div></div>
+  <div class="admin-stat"><div class="admin-stat-value">{{.System.StepCAImage}}</div><div class="admin-stat-label">step-ca image</div></div>
 </div>
 
 <div class="card">
-  <div class="card-header"><strong>Система</strong></div>
-  <div class="card-body">
-    <table class="tbl admin-kv-table">
-      <tbody>
-        <tr><td><strong>Продукт</strong></td><td>Step-CA UI</td></tr>
-        <tr><td><strong>Версия</strong></td><td><code>{{.System.Version}}</code></td></tr>
-        <tr><td><strong>Билд</strong></td><td><code>{{.System.BuildDate}}</code> · <code>{{.System.GitCommit}}</code></td></tr>
-        <tr><td><strong>Аптайм</strong></td><td>{{.System.Uptime}}</td></tr>
-        <tr><td><strong>Запущен</strong></td><td>{{fmtLog .System.StartedAt}}</td></tr>
-        <tr><td><strong>Репозиторий</strong></td><td><a href="https://github.com/UncleFi1/step-ca-ui" target="_blank" rel="noopener">UncleFi1/step-ca-ui</a></td></tr>
-      </tbody>
-    </table>
-  </div>
-</div>
-
-<div class="card">
-  <div class="card-header"><strong>Конфигурация</strong></div>
+  <div class="card-header"><strong>CA configuration</strong></div>
   <div class="card-body">
     <table class="tbl admin-kv-table">
       <tbody>
         <tr><td><strong>CA URL</strong></td><td><code>{{.System.CAURL}}</code></td></tr>
-        <tr><td><strong>step-ca image</strong></td><td><code>{{.System.StepCAImage}}</code></td></tr>
-        <tr><td><strong>Provisioner</strong></td><td><code>{{.System.Provisioner}}</code></td></tr>
         <tr><td><strong>Root CA</strong></td><td><code>{{.System.RootCert}}</code></td></tr>
+        <tr><td><strong>Intermediate CA</strong></td><td><code>/home/step/certs/intermediate_ca.crt</code></td></tr>
+        <tr><td><strong>Provisioner</strong></td><td><code>{{.System.Provisioner}}</code></td></tr>
         <tr><td><strong>Password file</strong></td><td><code>{{.System.PasswordFile}}</code></td></tr>
-        <tr><td><strong>Certs dir</strong></td><td><code>{{.System.CertsDir}}</code></td></tr>
-        <tr><td><strong>Uploads dir</strong></td><td><code>{{.System.UploadDir}}</code></td></tr>
-        <tr><td><strong>UI TLS cert</strong></td><td><code>{{.System.SSLCert}}</code></td></tr>
-        <tr><td><strong>UI TLS key</strong></td><td><code>{{.System.SSLKey}}</code></td></tr>
       </tbody>
     </table>
   </div>
 </div>
 
 <div class="card">
-  <div class="card-header"><strong>Preflight checks</strong></div>
+  <div class="card-header"><strong>Integrity checks</strong></div>
   <div class="card-body" style="padding:0">
     <div class="tbl-wrap">
       <table class="tbl admin-preflight-table">
         <colgroup>
-          <col style="width:210px">
+          <col style="width:230px">
           <col style="width:110px">
           <col>
         </colgroup>
