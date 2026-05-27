@@ -92,6 +92,27 @@ func InitSchema(d *sql.DB) error {
 	if _, err := d.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(200) DEFAULT ''`); err != nil {
 		return err
 	}
+	if _, err := d.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN DEFAULT false`); err != nil {
+		return err
+	}
+	if _, err := d.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret TEXT DEFAULT ''`); err != nil {
+		return err
+	}
+	if _, err := d.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_pending_secret TEXT DEFAULT ''`); err != nil {
+		return err
+	}
+	if _, err := d.Exec(`
+		CREATE TABLE IF NOT EXISTS user_recovery_codes (
+			id SERIAL PRIMARY KEY,
+			user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			code_hash TEXT NOT NULL,
+			used_at TIMESTAMPTZ,
+			created_at TIMESTAMPTZ DEFAULT NOW()
+		);
+		CREATE INDEX IF NOT EXISTS idx_recovery_codes_user ON user_recovery_codes(user_id);
+	`); err != nil {
+		return err
+	}
 
 	// Создаём admin если нет пользователей
 	var count int
@@ -122,8 +143,11 @@ func InitSchema(d *sql.DB) error {
 
 func GetUserByUsername(d *sql.DB, username string) (*models.User, error) {
 	u := &models.User{}
-	err := d.QueryRow(`SELECT id,username,password_hash,role,is_active,created_at,last_login,last_ip FROM users WHERE username=$1`, username).
-		Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.IsActive, &u.CreatedAt, &u.LastLogin, &u.LastIP)
+	err := d.QueryRow(`SELECT id,username,password_hash,role,is_active,created_at,last_login,last_ip,
+		COALESCE(totp_enabled,false),COALESCE(totp_secret,''),COALESCE(totp_pending_secret,'')
+		FROM users WHERE username=$1`, username).
+		Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.IsActive, &u.CreatedAt, &u.LastLogin, &u.LastIP,
+			&u.TOTPEnabled, &u.TOTPSecret, &u.TOTPPendingSecret)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -134,9 +158,12 @@ func GetUserByID(d *sql.DB, id int) (*models.User, error) {
 	u := &models.User{}
 	var displayName, email, theme sql.NullString
 	err := d.QueryRow(`SELECT id, username, password_hash, role, is_active, created_at, last_login, last_ip,
-		COALESCE(display_name,''), COALESCE(email,''), COALESCE(theme,'dark') FROM users WHERE id=$1`, id).Scan(
+		COALESCE(display_name,''), COALESCE(email,''), COALESCE(theme,'dark'),
+		COALESCE(totp_enabled,false), COALESCE(totp_secret,''), COALESCE(totp_pending_secret,'')
+		FROM users WHERE id=$1`, id).Scan(
 		&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.IsActive,
 		&u.CreatedAt, &u.LastLogin, &u.LastIP, &displayName, &email, &theme,
+		&u.TOTPEnabled, &u.TOTPSecret, &u.TOTPPendingSecret,
 	)
 	if err != nil {
 		return nil, err
@@ -195,6 +222,64 @@ func UpdateUserInfo(d *sql.DB, id int, username, displayName, email string) erro
 func UpdateUserTheme(d *sql.DB, id int, theme string) error {
 	_, err := d.Exec(`UPDATE users SET theme=$1 WHERE id=$2`, theme, id)
 	return err
+}
+
+func UpdateUserTOTPPending(d *sql.DB, id int, secret string) error {
+	_, err := d.Exec(`UPDATE users SET totp_pending_secret=$1 WHERE id=$2`, secret, id)
+	return err
+}
+
+func EnableUserTOTP(d *sql.DB, id int, secret string) error {
+	_, err := d.Exec(`UPDATE users SET totp_enabled=true, totp_secret=$1, totp_pending_secret='' WHERE id=$2`, secret, id)
+	return err
+}
+
+func DisableUserTOTP(d *sql.DB, id int) error {
+	_, err := d.Exec(`UPDATE users SET totp_enabled=false, totp_secret='', totp_pending_secret='' WHERE id=$1`, id)
+	if err != nil {
+		return err
+	}
+	_, err = d.Exec(`DELETE FROM user_recovery_codes WHERE user_id=$1`, id)
+	return err
+}
+
+func ReplaceRecoveryCodes(d *sql.DB, userID int, hashes []string) error {
+	tx, err := d.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(`DELETE FROM user_recovery_codes WHERE user_id=$1`, userID); err != nil {
+		return err
+	}
+	for _, hash := range hashes {
+		if _, err := tx.Exec(`INSERT INTO user_recovery_codes (user_id, code_hash) VALUES ($1,$2)`, userID, hash); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+func UseRecoveryCode(d *sql.DB, codeID int) error {
+	_, err := d.Exec(`UPDATE user_recovery_codes SET used_at=NOW() WHERE id=$1 AND used_at IS NULL`, codeID)
+	return err
+}
+
+func GetUnusedRecoveryCodes(d *sql.DB, userID int) (map[int]string, error) {
+	rows, err := d.Query(`SELECT id, code_hash FROM user_recovery_codes WHERE user_id=$1 AND used_at IS NULL ORDER BY id`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[int]string{}
+	for rows.Next() {
+		var id int
+		var hash string
+		if err := rows.Scan(&id, &hash); err == nil {
+			out[id] = hash
+		}
+	}
+	return out, nil
 }
 
 func UsernameExistsExceptID(d *sql.DB, username string, id int) (bool, error) {

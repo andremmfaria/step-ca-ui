@@ -235,6 +235,11 @@ func main() {
 		// Профиль (любой авторизованный)
 		r.Get("/profile", h.ProfileGet)
 		r.Post("/profile", h.ProfilePost)
+		r.Get("/profile/2fa", h.Profile2FAGet)
+		r.Post("/profile/2fa/start", h.Profile2FAStart)
+		r.Get("/profile/2fa/qr", h.Profile2FAQR)
+		r.Post("/profile/2fa/confirm", h.Profile2FAConfirm)
+		r.Post("/profile/2fa/disable", h.Profile2FADisable)
 	})
 
 	// ─── Static files ─────────────────────────────────────────────────────────

@@ -3,17 +3,20 @@ package models
 import "time"
 
 type User struct {
-	ID           int
-	Username     string
-	PasswordHash string
-	Role         string
-	IsActive     bool
-	CreatedAt    *time.Time
-	LastLogin    *time.Time
-	LastIP       *string
-	DisplayName  string
-	Email        string
-	Theme        string
+	ID                int
+	Username          string
+	PasswordHash      string
+	Role              string
+	IsActive          bool
+	CreatedAt         *time.Time
+	LastLogin         *time.Time
+	LastIP            *string
+	DisplayName       string
+	Email             string
+	Theme             string
+	TOTPEnabled       bool
+	TOTPSecret        string
+	TOTPPendingSecret string
 }
 
 type AuthLog struct {

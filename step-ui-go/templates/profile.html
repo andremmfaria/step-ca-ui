@@ -101,6 +101,13 @@
         </div>
       </div>
       <div class="info-row">
+        <div class="info-key">2FA</div>
+        <div class="info-val">
+          {{if .U.TOTPEnabled}}<span class="badge ok">включена</span>
+          {{else}}<span class="badge warn">выключена</span>{{end}}
+        </div>
+      </div>
+      <div class="info-row">
         <div class="info-key">Аккаунт создан</div>
         <div class="info-val">{{fmtTime .U.CreatedAt}}</div>
       </div>
@@ -131,6 +138,16 @@
   </div>
 </div>
 {{end}}
+<div class="card" style="margin-bottom:0">
+  <div class="card-header"><h3 style="margin:0">Двухфакторная защита</h3></div>
+  <div class="card-body" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+    <div>
+      <div style="font-weight:700">{{if .U.TOTPEnabled}}2FA включена{{else}}2FA не включена{{end}}</div>
+      <div class="muted" style="font-size:12px;margin-top:2px">TOTP через authenticator app и recovery-коды</div>
+    </div>
+    <a href="/profile/2fa" class="btn btn-ghost">Настроить</a>
+  </div>
+</div>
 </div>
 
 

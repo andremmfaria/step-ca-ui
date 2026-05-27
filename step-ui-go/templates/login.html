@@ -40,6 +40,17 @@ input:focus{outline:none;border-color:#4493f8}
     {{end}}
     <form method="POST" action="/login">
       <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+      {{if .NeedTOTP}}
+      <div class="form-group">
+        <label>Код 2FA</label>
+        <input type="text" name="totp_code" inputmode="numeric" autocomplete="one-time-code" placeholder="123456" autofocus {{if .Blocked}}disabled{{end}}>
+      </div>
+      <div class="form-group">
+        <label>Recovery code</label>
+        <input type="text" name="recovery_code" autocomplete="off" placeholder="если нет доступа к authenticator" {{if .Blocked}}disabled{{end}}>
+      </div>
+      <button class="btn" type="submit" {{if .Blocked}}disabled{{end}}>Подтвердить &rarr;</button>
+      {{else}}
       <div class="form-group">
         <label>Логин</label>
         <input type="text" name="username" required autofocus {{if .Blocked}}disabled{{end}}>
@@ -49,6 +60,7 @@ input:focus{outline:none;border-color:#4493f8}
         <input type="password" name="password" required {{if .Blocked}}disabled{{end}}>
       </div>
       <button class="btn" type="submit" {{if .Blocked}}disabled{{end}}>Войти &rarr;</button>
+      {{end}}
     </form>
   </div>
 </div>

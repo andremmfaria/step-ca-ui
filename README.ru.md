@@ -33,6 +33,7 @@
 - 🔬 **Детали сертификата** — SAN, fingerprints, key usage, cert/key pair и chain validation *(новинка v1.5.1)*
 - 🧩 **Шаблоны сертификатов** — presets для server, internal service, wildcard и client identity *(новинка v1.5.2)*
 - 🔔 **Webhook-уведомления** — тестовая отправка, ошибки выпуска/перевыпуска, серия неудачных входов и контроль истечения *(новинка v1.5.3)*
+- 🔐 **TOTP 2FA** — подключение authenticator app, QR-код, проверка при входе и recovery-коды *(новинка v1.6.0)*
 
 ## Быстрый старт
 
