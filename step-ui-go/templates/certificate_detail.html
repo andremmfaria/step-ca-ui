@@ -1,0 +1,115 @@
+{{define "content"}}
+<div class="page-header">
+  <div>
+    <div class="breadcrumb">certificates &middot; details</div>
+    <h1>{{.Cert.Name}}</h1>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center">
+    <a href="/certificates" class="btn btn-ghost">← Назад</a>
+    <a href="/download/cert/{{.Cert.ID}}" class="btn btn-ghost">CRT</a>
+    {{if .Cert.KeyPath}}<a href="/download/key/{{.Cert.ID}}" class="btn btn-ghost">KEY</a>{{end}}
+  </div>
+</div>
+
+{{if .Detail}}
+<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:14px">
+  <div class="stat-card">
+    <div class="stat-label">Статус</div>
+    <div class="stat-value {{if eq .Cert.Status "active"}}ok{{else}}danger{{end}}">{{.Cert.Status}}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Осталось дней</div>
+    <div class="stat-value {{badgeClass .Cert.ExpiresAt}}">{{.Detail.DaysLeft}}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Ключ</div>
+    <div class="stat-value" style="font-size:18px">{{.Detail.PublicKey}}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Домен</div>
+    <div class="stat-value" style="font-size:18px;overflow-wrap:anywhere">{{.Cert.Domain}}</div>
+  </div>
+</div>
+{{end}}
+
+<div class="card">
+  <div class="card-header"><h3>Validation</h3></div>
+  <div class="card-body" style="padding:0">
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <thead><tr><th>Проверка</th><th>Статус</th><th>Детали</th></tr></thead>
+        <tbody>
+          {{range .Validations}}
+          <tr>
+            <td><strong>{{.Name}}</strong></td>
+            <td>
+              {{if eq .Status "ok"}}<span class="badge ok">OK</span>{{end}}
+              {{if eq .Status "warn"}}<span class="badge warn">WARN</span>{{end}}
+              {{if eq .Status "err"}}<span class="badge danger">ERROR</span>{{end}}
+            </td>
+            <td><code style="white-space:normal;overflow-wrap:anywhere">{{.Detail}}</code></td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+{{if .Detail}}
+<div class="card">
+  <div class="card-header"><h3>Certificate</h3></div>
+  <div class="card-body">
+    <div class="info-row"><div class="info-key">Subject</div><div class="info-val"><code>{{.Detail.Subject}}</code></div></div>
+    <div class="info-row"><div class="info-key">Issuer</div><div class="info-val"><code>{{.Detail.Issuer}}</code></div></div>
+    <div class="info-row"><div class="info-key">Serial</div><div class="info-val"><code>{{.Detail.Serial}}</code></div></div>
+    <div class="info-row"><div class="info-key">Serial hex</div><div class="info-val"><code>{{.Detail.SerialHex}}</code></div></div>
+    <div class="info-row"><div class="info-key">SHA-256</div><div class="info-val"><code>{{.Detail.Fingerprint256}}</code></div></div>
+    <div class="info-row"><div class="info-key">SHA-1</div><div class="info-val"><code>{{.Detail.FingerprintSHA1}}</code></div></div>
+    <div class="info-row"><div class="info-key">Valid from</div><div class="info-val">{{fmtLog .Detail.NotBefore}}</div></div>
+    <div class="info-row"><div class="info-key">Valid until</div><div class="info-val">{{fmtLog .Detail.NotAfter}}</div></div>
+    <div class="info-row"><div class="info-key">Signature</div><div class="info-val">{{.Detail.Signature}}</div></div>
+    <div class="info-row"><div class="info-key">Cert path</div><div class="info-val"><code>{{.Detail.CertPath}}</code></div></div>
+    <div class="info-row"><div class="info-key">Key path</div><div class="info-val"><code>{{.Detail.KeyPath}}</code></div></div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+  <div class="card">
+    <div class="card-header"><h3>Subject Alternative Names</h3></div>
+    <div class="card-body">
+      <div class="info-row">
+        <div class="info-key">DNS</div>
+        <div class="info-val">
+          {{range .Detail.DNSNames}}<span class="badge blue" style="margin:2px">{{.}}</span>{{else}}<span style="color:var(--muted)">—</span>{{end}}
+        </div>
+      </div>
+      <div class="info-row">
+        <div class="info-key">IP</div>
+        <div class="info-val">
+          {{range .Detail.IPAddresses}}<span class="badge purple" style="margin:2px">{{.}}</span>{{else}}<span style="color:var(--muted)">—</span>{{end}}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><h3>Key Usage</h3></div>
+    <div class="card-body">
+      <div class="info-row">
+        <div class="info-key">Key usage</div>
+        <div class="info-val">
+          {{range .Detail.KeyUsage}}<span class="badge gray" style="margin:2px">{{.}}</span>{{else}}<span style="color:var(--muted)">—</span>{{end}}
+        </div>
+      </div>
+      <div class="info-row">
+        <div class="info-key">Extended</div>
+        <div class="info-val">
+          {{range .Detail.ExtKeyUsage}}<span class="badge gray" style="margin:2px">{{.}}</span>{{else}}<span style="color:var(--muted)">—</span>{{end}}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{{end}}
+{{end}}

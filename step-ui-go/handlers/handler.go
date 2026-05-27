@@ -19,7 +19,7 @@ var StartedAt time.Time
 
 // Версионирование — переопределяется через ldflags при сборке
 var (
-	Version   = "1.5.0"
+	Version   = "1.5.1"
 	BuildDate = "2026-05-27"
 	GitCommit = "unknown"
 )
@@ -43,6 +43,7 @@ func (h *Handler) loadTemplates() {
 		"home",
 		"dashboard",
 		"certificates",
+		"certificate_detail",
 		"issue",
 		"import",
 		"provisioners",

@@ -160,6 +160,7 @@ func main() {
 
 		// Сертификаты (viewer+)
 		r.Get("/certificates", h.Certificates)
+		r.Get("/certificates/{id}", h.CertificateDetails)
 		r.Get("/history", h.History)
 		r.Get("/provisioners", h.Provisioners)
 

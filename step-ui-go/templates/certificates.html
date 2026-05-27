@@ -50,7 +50,7 @@
     <tbody>
     {{range .Certs}}
     <tr data-name="{{.Name}}" data-domain="{{.Domain}}" data-status="{{.Status}}" data-type="{{.KeyType}}">
-      <td><strong>{{.Name}}</strong></td>
+      <td><a href="/certificates/{{.ID}}" style="color:var(--text);text-decoration:none"><strong>{{.Name}}</strong></a></td>
       <td><code>{{.Domain}}</code></td>
       <td style="color:var(--muted)">{{fmtTime .IssuedAt}}</td>
       <td>{{fmtTime .ExpiresAt}}</td>
@@ -58,6 +58,7 @@
       <td><span class="badge gray">{{.KeyType}}</span></td>
       <td style="font-family:var(--mono);font-size:10px;color:var(--muted)">{{.Serial}}</td>
       <td>
+        <a href="/certificates/{{.ID}}" class="btn btn-ghost btn-sm">Детали</a>
         {{if hasRole $.Session.Role "manager"}}
         <a href="/renew/{{.ID}}" class="btn btn-warn btn-sm confirm-renew" data-name="{{.Name}}" title="Перевыпустить">&#x21BA;</a>
         <a href="/download/cert/{{.ID}}" class="btn btn-ghost btn-sm">CRT</a>
