@@ -1,0 +1,58 @@
+version: 2
+updates:
+  # Go modules — weekly, group minor+patch, majors separate
+  - package-ecosystem: gomod
+    directory: /step-ui-go
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: UTC
+    target-branch: main
+    open-pull-requests-limit: 5
+    groups:
+      go-minor-patch:
+        update-types:
+          - minor
+          - patch
+    commit-message:
+      prefix: "chore(deps)"
+      include: scope
+
+  # Docker base images
+  - package-ecosystem: docker
+    directory: /step-ui-go
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: UTC
+    target-branch: main
+    open-pull-requests-limit: 5
+    groups:
+      docker-all:
+        update-types:
+          - minor
+          - patch
+    commit-message:
+      prefix: "chore(deps)"
+      include: scope
+
+  # GitHub Actions
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: UTC
+    target-branch: main
+    open-pull-requests-limit: 5
+    groups:
+      actions-all:
+        update-types:
+          - minor
+          - patch
+    commit-message:
+      prefix: "chore(ci)"
+      include: scope
