@@ -1,0 +1,23 @@
+version: "2"
+
+linters:
+  default: none
+  enable:
+    - govet
+    - staticcheck
+    - errcheck
+    - ineffassign
+    - gofmt
+    - misspell
+
+linters-settings:
+  errcheck:
+    # Permissive: only flag unhandled errors not explicitly ignored
+    check-type-assertions: false
+    check-blank: false
+
+issues:
+  max-issues-per-linter: 50
+  max-same-issues: 10
+  # Allow existing issues in first pass — tighten after baseline
+  new-from-rev: ""
