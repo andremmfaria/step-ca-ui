@@ -2,10 +2,12 @@ package handlers
 
 import (
 	"context"
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -13,6 +15,93 @@ import (
 	"strings"
 	"time"
 )
+
+// Liveness is GET /health — unconditional 200 when the process is serving.
+// No DB, no CA. Called by NLB/ECS/Docker probes.
+func (h *Handler) Liveness(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(`{"status":"ok"}`))
+}
+
+// Readiness is GET /ready — cheap DB ping + CA reachability check.
+// Returns 200 {"status":"ready"} or 503 with per-component detail.
+func (h *Handler) Readiness(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	dbStatus := "ok"
+	if h.db == nil {
+		dbStatus = "unavailable"
+	} else {
+		dbCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		defer cancel()
+		if err := h.db.PingContext(dbCtx); err != nil {
+			dbStatus = "unreachable"
+		}
+	}
+
+	caStatus := h.checkCAReachability(ctx)
+
+	w.Header().Set("Content-Type", "application/json")
+	if dbStatus == "ok" && caStatus == "ok" {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":"ready"}`))
+		return
+	}
+
+	w.WriteHeader(http.StatusServiceUnavailable)
+	body, _ := json.Marshal(map[string]string{
+		"status": "not ready",
+		"db":     dbStatus,
+		"ca":     caStatus,
+	})
+	_, _ = w.Write(body)
+}
+
+// checkCAReachability does a lightweight HTTPS GET to ${CAURL}/health.
+// Uses RootCert pool when available; falls back to system pool.
+// Returns "ok" or a short error string.
+func (h *Handler) checkCAReachability(ctx context.Context) string {
+	caCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	tlsCfg := &tls.Config{MinVersion: tls.VersionTLS12}
+
+	if h.cfg != nil && h.cfg.RootCert != "" {
+		raw, err := os.ReadFile(h.cfg.RootCert)
+		if err == nil {
+			pool := x509.NewCertPool()
+			pool.AppendCertsFromPEM(raw)
+			tlsCfg.RootCAs = pool
+		}
+	}
+
+	transport := &http.Transport{TLSClientConfig: tlsCfg}
+	client := &http.Client{Transport: transport}
+
+	caURL := ""
+	if h.cfg != nil {
+		caURL = h.cfg.CAURL
+	}
+	if caURL == "" {
+		return "unconfigured"
+	}
+
+	req, err := http.NewRequestWithContext(caCtx, http.MethodGet, caURL+"/health", nil)
+	if err != nil {
+		return "bad-url"
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return "unreachable"
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		return "ok"
+	}
+	return fmt.Sprintf("http-%d", resp.StatusCode)
+}
 
 type HealthCheck struct {
 	Name     string

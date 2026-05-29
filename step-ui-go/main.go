@@ -165,6 +165,8 @@ func main() {
 	r.Use(mw.SecurityHeaders(cfg.EnableHSTS))
 
 	// Публичные маршруты
+	r.Get("/health", h.Liveness)
+	r.Get("/ready", h.Readiness)
 	r.Get("/login", h.LoginGet)
 	r.Post("/login", h.LoginPost)
 	r.Get("/logout", h.Logout)
