@@ -12,12 +12,7 @@ until nc -z postgres 5432 2>/dev/null; do
 done
 echo "[*] PostgreSQL is ready!"
 
-# Ждём Step-CA
-echo "[*] Waiting for Step-CA at ${CA_URL}..."
-until curl -sk "${CA_URL}/health" >/dev/null 2>&1; do
-  sleep 2
-done
-echo "[*] Step-CA is ready!"
+echo "[*] CA readiness is now reported via /ready — not blocking startup on Step-CA"
 
 # SSL сертификат для UI
 if [ ! -f /opt/step-ui/ssl/server.crt ]; then
