@@ -15,11 +15,28 @@ type Config struct {
 	SecretKey     string
 	SessionSecure bool
 	EnableHSTS    bool
+	TrustProxy    bool
 	Port          int
 	CertsDir      string
 	UploadDir     string
 	SSLCert       string
 	SSLKey        string
+
+	// OIDC / JumpCloud SSO
+	OIDCEnabled       bool
+	OIDCIssuerURL     string
+	OIDCClientID      string
+	OIDCClientSecret  string
+	OIDCRedirectURL   string
+	OIDCGroupClaim    string
+	OIDCGroupAdmin    string
+	OIDCGroupManager  string
+	OIDCGroupViewer   string
+	OIDCDefaultRole   string
+	OIDCSyncRole      bool
+
+	// Local password login (break-glass when OIDC is primary)
+	LocalLoginEnabled bool
 }
 
 func Load() *Config {
@@ -34,11 +51,26 @@ func Load() *Config {
 		SecretKey:     getEnv("SECRET_KEY", "change-me-in-production-32chars!"),
 		SessionSecure: getEnvBool("SESSION_SECURE", true),
 		EnableHSTS:    getEnvBool("ENABLE_HSTS", false),
+		TrustProxy:    getEnvBool("TRUST_PROXY", false),
 		Port:          port,
 		CertsDir:      "/opt/step-ui/certs",
 		UploadDir:     "/opt/step-ui/uploads",
 		SSLCert:       "/opt/step-ui/ssl/server.crt",
 		SSLKey:        "/opt/step-ui/ssl/server.key",
+
+		OIDCEnabled:      getEnvBool("OIDC_ENABLED", false),
+		OIDCIssuerURL:    getEnv("OIDC_ISSUER_URL", ""),
+		OIDCClientID:     getEnv("OIDC_CLIENT_ID", ""),
+		OIDCClientSecret: getEnv("OIDC_CLIENT_SECRET", ""),
+		OIDCRedirectURL:  getEnv("OIDC_REDIRECT_URL", ""),
+		OIDCGroupClaim:   getEnv("OIDC_GROUP_CLAIM", "groups"),
+		OIDCGroupAdmin:   getEnv("OIDC_GROUP_ADMIN", ""),
+		OIDCGroupManager: getEnv("OIDC_GROUP_MANAGER", ""),
+		OIDCGroupViewer:  getEnv("OIDC_GROUP_VIEWER", ""),
+		OIDCDefaultRole:  getEnv("OIDC_DEFAULT_ROLE", ""),
+		OIDCSyncRole:     getEnvBool("OIDC_SYNC_ROLE", true),
+
+		LocalLoginEnabled: getEnvBool("LOCAL_LOGIN_ENABLED", true),
 	}
 }
 

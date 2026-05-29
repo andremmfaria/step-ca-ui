@@ -107,6 +107,15 @@ func main() {
 	gob.Register("")
 	cfg := config.Load()
 
+	// ─── Startup security checks ─────────────────────────────────────────────
+	const weakKey = "change-me-in-production-32chars!"
+	if cfg.SecretKey == weakKey || len(cfg.SecretKey) < 32 {
+		log.Fatal("FATAL: SECRET_KEY is the default or shorter than 32 chars — set a strong SECRET_KEY before starting")
+	}
+	if !cfg.SessionSecure {
+		log.Println("WARN: SESSION_SECURE=false — session cookies will not carry the Secure flag; do not use this in production")
+	}
+
 	// ─── Database ────────────────────────────────────────────────────────────
 	conn, err := appdb.Connect(cfg.DatabaseURL)
 	if err != nil {
@@ -146,7 +155,13 @@ func main() {
 	// ─── Router ──────────────────────────────────────────────────────────────
 	r := chi.NewRouter()
 	r.Use(chiMiddleware.Recoverer)
-	r.Use(chiMiddleware.RealIP)
+	// RealIP rewrites r.RemoteAddr from X-Forwarded-For / X-Real-IP headers.
+	// Only enable when the app sits behind a trusted reverse proxy; leaving it
+	// off means the rate limiter and auth log always see the real socket peer
+	// and cannot be spoofed by a client crafting forwarding headers.
+	if cfg.TrustProxy {
+		r.Use(chiMiddleware.RealIP)
+	}
 	r.Use(mw.SecurityHeaders(cfg.EnableHSTS))
 
 	// Публичные маршруты
