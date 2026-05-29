@@ -35,13 +35,15 @@ jobs:
         # Write SARIF to workspace-relative path so runner and upload step agree.
         uses: securego/gosec@4a3bd8af174872c778439083ded7adbf3747e770 # v2.26.1
         with:
-          args: -no-fail -fmt sarif -out ${{ github.workspace }}/gosec.sarif ./step-ui-go/...
+          # Path is relative to the container workdir (/github/workspace); an absolute
+          # host path like ${{ github.workspace }} does not exist inside the gosec container.
+          args: -no-fail -fmt sarif -out gosec.sarif ./step-ui-go/...
 
       - name: Upload gosec SARIF
         if: ${{ hashFiles('gosec.sarif') != '' }}
         uses: github/codeql-action/upload-sarif@03e4368ac7daa2bd82b3e85262f3bf87ee112f57 # v3.36.0
         with:
-          sarif_file: ${{ github.workspace }}/gosec.sarif
+          sarif_file: gosec.sarif
           category: gosec
 
   govulncheck:
