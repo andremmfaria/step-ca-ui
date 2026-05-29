@@ -301,9 +301,49 @@ func DeleteUser(d *sql.DB, id int) error {
 	return err
 }
 
+// UpsertOIDCUser inserts or updates a user authenticated via OIDC.
+// The sentinel password_hash "oidc:jumpcloud" is structurally rejected by
+// VerifyPassword (not a bcrypt or legacy-SHA256 hash), so the account
+// cannot be used for password login regardless of LOCAL_LOGIN_ENABLED.
+// When syncRole is true the role column is updated on every login so the
+// IdP groups remain authoritative.
+func UpsertOIDCUser(d *sql.DB, username, displayName, role string, syncRole bool) (*models.User, error) {
+	if d == nil {
+		return nil, fmt.Errorf("db: nil connection")
+	}
+	if syncRole {
+		_, err := d.Exec(`
+			INSERT INTO users (username, password_hash, display_name, role, is_active)
+			VALUES ($1, 'oidc:jumpcloud', $2, $3, true)
+			ON CONFLICT (username) DO UPDATE
+				SET display_name = EXCLUDED.display_name,
+				    role         = EXCLUDED.role,
+				    last_login   = NOW()`,
+			username, displayName, role)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		_, err := d.Exec(`
+			INSERT INTO users (username, password_hash, display_name, role, is_active)
+			VALUES ($1, 'oidc:jumpcloud', $2, $3, true)
+			ON CONFLICT (username) DO UPDATE
+				SET display_name = EXCLUDED.display_name,
+				    last_login   = NOW()`,
+			username, displayName, role)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return GetUserByUsername(d, username)
+}
+
 // ─── Auth Log ─────────────────────────────────────────────────────────────────
 
 func LogAuth(d *sql.DB, username, ip string, success bool, reason string) error {
+	if d == nil {
+		return nil
+	}
 	_, err := d.Exec(`INSERT INTO auth_log (username,ip,success,reason) VALUES ($1,$2,$3,$4)`,
 		username, ip, success, reason)
 	if success {

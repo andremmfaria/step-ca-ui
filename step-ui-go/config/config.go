@@ -23,17 +23,17 @@ type Config struct {
 	SSLKey        string
 
 	// OIDC / JumpCloud SSO
-	OIDCEnabled       bool
-	OIDCIssuerURL     string
-	OIDCClientID      string
-	OIDCClientSecret  string
-	OIDCRedirectURL   string
-	OIDCGroupClaim    string
-	OIDCGroupAdmin    string
-	OIDCGroupManager  string
-	OIDCGroupViewer   string
-	OIDCDefaultRole   string
-	OIDCSyncRole      bool
+	OIDCEnabled      bool
+	OIDCIssuerURL    string
+	OIDCClientID     string
+	OIDCClientSecret string
+	OIDCRedirectURL  string
+	OIDCGroupClaim   string
+	OIDCGroupAdmin   string
+	OIDCGroupManager string
+	OIDCGroupViewer  string
+	OIDCDefaultRole  string
+	OIDCSyncRole     bool
 
 	// Local password login (break-glass when OIDC is primary)
 	LocalLoginEnabled bool
