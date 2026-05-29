@@ -35,4 +35,7 @@ RUN sed -i 's/\r$//' /entrypoint.sh && chmod +x /entrypoint.sh
 
 EXPOSE 8443
 
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD curl -fsk https://localhost:8443/health || exit 1
+
 ENTRYPOINT ["/entrypoint.sh"]
