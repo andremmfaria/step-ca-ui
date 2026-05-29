@@ -5,7 +5,7 @@
 **Self-hosted web interface for [Smallstep step-ca](https://smallstep.com/docs/step-ca/) — manage your private PKI from a browser.**
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
-[![Made with Go](https://img.shields.io/badge/Made%20with-Go%201.22-00ADD8.svg)](https://go.dev)
+[![Made with Go](https://img.shields.io/badge/Made%20with-Go%201.26-00ADD8.svg)](https://go.dev)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED.svg)](https://docs.docker.com/compose/)
 [![Current version](https://img.shields.io/badge/version-v1.6.0-success.svg)](https://github.com/UncleFi1/step-ca-ui/releases/tag/v1.6.0)
 [![Latest release](https://img.shields.io/badge/release-v1.6.0-success.svg)](https://github.com/UncleFi1/step-ca-ui/releases/latest)
@@ -45,6 +45,7 @@ Highlights:
 - 🧩 **Certificate templates** — server, internal service, wildcard and client identity presets *(new in v1.5.2)*
 - 🔔 **Webhook notifications** — test webhook, failed issue/renew alerts, login burst alerts and expiry watcher *(new in v1.5.3)*
 - 🔐 **TOTP 2FA** — authenticator app enrollment, QR code login challenge and recovery codes *(new in v1.6.0)*
+- **OIDC SSO** — group-to-role mapping via any OIDC provider (JumpCloud reference); feature-flagged, off by default
 
 ## Quick Start
 
@@ -98,12 +99,12 @@ The whole thing takes 2–4 minutes on a fresh VM.
 
 | Layer        | Technology                  |
 |--------------|-----------------------------|
-| Backend      | Go 1.22, [chi](https://github.com/go-chi/chi) router |
+| Backend      | Go 1.26, [chi](https://github.com/go-chi/chi) router |
 | Frontend     | Server-rendered HTML + vanilla JS, no build step |
 | Database     | PostgreSQL 16 |
 | CA           | [smallstep/step-ca](https://hub.docker.com/r/smallstep/step-ca) |
 | Deploy       | Docker Compose |
-| Container OS | Alpine 3.19 + tzdata        |
+| Container OS | Alpine 3.23 + tzdata        |
 
 ## Architecture
 
@@ -134,21 +135,97 @@ The whole thing takes 2–4 minutes on a fresh VM.
 
 **Temporary users** can have any role; they're auto-blocked when `expires_at` passes (a goroutine checks every minute).
 
+## Authentication / SSO
+
+Step-CA UI supports local password login and OIDC SSO. Both can be active simultaneously; the installer leaves OIDC off so existing deployments are unaffected.
+
+### Local login
+
+Username/password login is on by default (`LOCAL_LOGIN_ENABLED=true`). Keep it enabled while you set up OIDC — disabling it before SSO is verified will lock you out. It acts as a break-glass path if your IdP is unreachable.
+
+TOTP/2FA applies to local accounts only. SSO users rely on the IdP's MFA.
+
+### OIDC SSO
+
+Set `OIDC_ENABLED=true` to activate SSO. The implementation uses the authorization code flow with PKCE and validates state, nonce, and the ID token signature against the issuer's JWKS. JumpCloud is the reference IdP, but any standards-compliant OIDC provider works.
+
+**Routes registered when `OIDC_ENABLED=true`:**
+
+| Route | Purpose |
+|-------|---------|
+| `GET /auth/oidc/login` | Initiates the authorization code + PKCE flow |
+| `GET /auth/oidc/callback` | Receives the provider redirect and completes login |
+
+**Group-to-role mapping**
+
+The ID token claim named by `OIDC_GROUP_CLAIM` (default `groups`) carries the user's group memberships. The app maps those groups to roles with highest-privilege precedence:
+
+```
+admin > manager > viewer
+```
+
+If none of the three group names match and `OIDC_DEFAULT_ROLE` is empty, access is denied. Set `OIDC_DEFAULT_ROLE` to `viewer` only if every authenticated user in your IdP should have read access.
+
+When `OIDC_SYNC_ROLE=true` (default), the role is updated on every login so IdP group membership stays authoritative. Set `OIDC_SYNC_ROLE=false` to preserve roles assigned manually inside the app.
+
+**Environment variables**
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OIDC_ENABLED` | `false` | Set `true` to enable SSO |
+| `OIDC_ISSUER_URL` | — | Provider issuer URL (e.g. `https://oauth.id.jumpcloud.com/`) |
+| `OIDC_CLIENT_ID` | — | OAuth2 client ID from the IdP |
+| `OIDC_CLIENT_SECRET` | — | OAuth2 client secret from the IdP |
+| `OIDC_REDIRECT_URL` | — | Must be `https://<your-host>/auth/oidc/callback` |
+| `OIDC_GROUP_CLAIM` | `groups` | ID token claim that carries group membership |
+| `OIDC_GROUP_ADMIN` | — | IdP group name that maps to the `admin` role |
+| `OIDC_GROUP_MANAGER` | — | IdP group name that maps to the `manager` role |
+| `OIDC_GROUP_VIEWER` | — | IdP group name that maps to the `viewer` role |
+| `OIDC_DEFAULT_ROLE` | _(empty — deny)_ | Role assigned when no group matches |
+| `OIDC_SYNC_ROLE` | `true` | Re-sync role from IdP groups on every login |
+| `LOCAL_LOGIN_ENABLED` | `true` | Show the username/password form (break-glass) |
+
+**JumpCloud setup checklist:**
+
+1. SSO > + Add New Application > Custom OIDC App
+2. Set Redirect URI to `https://<your-host>/auth/oidc/callback`
+3. Copy Client ID and Client Secret into `.env`
+4. Add a group attribute with Attribute Name `groups`
+5. Set `OIDC_GROUP_ADMIN` / `OIDC_GROUP_MANAGER` / `OIDC_GROUP_VIEWER` to the JumpCloud group names
+
 ## Security
 
-- ✅ **CSRF protection** — tokens on every form and server-side checks on POST routes
-- ✅ **Rate limiting** — 5 failed login attempts → 15-minute IP block
-- ✅ **Security headers** — CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, optional HSTS
-- ✅ **Session timeout** — 8 hours, sliding
-- ✅ **Login audit log** — every login attempt is recorded with IP and User-Agent
-- ✅ **Self-signed TLS** — auto-generated on first boot, 10-year validity
-- ✅ **Password hashing** — bcrypt for new/updated passwords, with transparent migration from legacy SHA-256 hashes on next successful login
+- **CSRF protection** — tokens on every form and server-side checks on POST routes
+- **Rate limiting** — 5 failed login attempts → 15-minute IP block
+- **Security headers** — CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, optional HSTS
+- **Session timeout** — 8 hours, sliding
+- **Login audit log** — every login attempt is recorded with IP and User-Agent
+- **Self-signed TLS** — auto-generated on first boot, 10-year validity
+- **Password hashing** — bcrypt for new/updated passwords, with transparent migration from legacy SHA-256 hashes on next successful login
 
-> 🔒 **Production tip:** put step-ui behind a reverse proxy (Caddy/nginx) with a real TLS certificate, restrict access via VPN/Tailscale, and back up the `step-ca-data` volume regularly.
+**`SECRET_KEY` is mandatory.** The app refuses to start if `SECRET_KEY` is the default placeholder or shorter than 32 characters. This key signs session cookies and CSRF tokens; leaking it allows forging any user's session.
+
+```bash
+# Generate a suitable value:
+openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | head -c 48
+```
+
+**`SESSION_SECURE`** (default `true`) sets the `Secure` flag on session cookies. Set `false` only for local HTTP development; the app logs a warning at startup when it is false.
+
+**`TRUST_PROXY`** controls how the app determines the client IP:
+
+| Value | Behaviour |
+|-------|-----------|
+| `false` (default) | Uses the real TCP socket peer. Rate limiter and auth log cannot be spoofed by crafted `X-Forwarded-For` headers. Use when the app is directly internet-facing or behind a proxy you do not control. |
+| `true` | Rewrites `RemoteAddr` from `X-Forwarded-For` / `X-Real-IP` (via chi's `RealIP` middleware). Use only when a trusted reverse proxy (nginx, Traefik, Caddy) strips or rewrites those headers before forwarding. |
+
+> **Production tip:** put step-ui behind a reverse proxy with a real TLS certificate, restrict access via VPN/Tailscale, and back up the `step-ca-data` volume regularly.
 
 ## Configuration
 
-All configuration lives in `.env`. The installer creates this file for you, but you can edit it manually:
+All configuration lives in `.env`. The installer creates this file for you, but you can edit it manually. See `.env.example` for the full annotated list.
+
+**Core variables:**
 
 ```env
 HOST_IP=192.168.1.100              # SAN in self-signed cert; step-ca DNS
@@ -156,13 +233,31 @@ UI_HTTPS_PORT=443                  # external HTTPS port
 PROVISIONER=admin                  # step-ca provisioner identifier
 CA_PASSWORD=<generated>            # step-ca provisioner password
 STEP_CA_IMAGE=smallstep/step-ca:0.30.2 # pinned step-ca image
-SECRET_KEY=<generated>             # session/CSRF signing key
-SESSION_SECURE=true                # secure session cookie over HTTPS
+SECRET_KEY=<generated>             # session/CSRF signing key — MANDATORY, min 32 chars
+SESSION_SECURE=true                # secure session cookie over HTTPS (warn if false)
 ENABLE_HSTS=false                  # enable only when using a trusted TLS certificate
 POSTGRES_PASSWORD=<generated>      # database password
 TZ=UTC                             # container timezone
 STEPCA_DEFAULT_TLS_CERT_DURATION=8760h
 STEPCA_MAX_TLS_CERT_DURATION=87600h
+```
+
+**Reverse-proxy and OIDC variables** (off by default — set only what you need):
+
+```env
+TRUST_PROXY=false                  # true only behind a trusted proxy that strips XFF
+LOCAL_LOGIN_ENABLED=true           # false to hide password form (keep true until OIDC is verified)
+OIDC_ENABLED=false
+OIDC_ISSUER_URL=https://oauth.id.jumpcloud.com/
+OIDC_CLIENT_ID=
+OIDC_CLIENT_SECRET=
+OIDC_REDIRECT_URL=https://<your-host>/auth/oidc/callback
+OIDC_GROUP_CLAIM=groups
+OIDC_GROUP_ADMIN=step-ca-admins
+OIDC_GROUP_MANAGER=step-ca-managers
+OIDC_GROUP_VIEWER=step-ca-viewers
+OIDC_DEFAULT_ROLE=                 # empty = deny when no group matches (recommended)
+OIDC_SYNC_ROLE=true
 ```
 
 After changing `.env`, recreate the containers:
@@ -233,6 +328,73 @@ sudo ./install.sh --mode update --lang en
 ```
 The update mode creates a backup first, keeps existing Docker volumes, optionally checks out a selected tag, and runs migrations automatically on startup. Always check the [release notes](https://github.com/UncleFi1/step-ca-ui/releases) first — major versions may have breaking changes.
 </details>
+
+## Container image
+
+The published image is `ghcr.io/andremmfaria/step-ca-ui`.
+
+```bash
+docker pull ghcr.io/andremmfaria/step-ca-ui:main
+```
+
+The image is built on Alpine 3.23 with the smallstep CLI v0.30.2 bundled. It exposes port 8443; map it to your desired host port.
+
+Running standalone (without Compose) is possible but requires a reachable PostgreSQL instance and a running step-ca. For most deployments, use the provided `docker-compose.yml`:
+
+```bash
+git clone https://github.com/andremmfaria/step-ca-ui.git
+cd step-ca-ui
+cp .env.example .env   # edit values
+sudo docker compose up -d
+```
+
+To build locally without pushing:
+
+```bash
+docker build -f step-ui-go/Dockerfile step-ui-go
+```
+
+**Publish behaviour:**
+
+| Trigger | Image pushed? | Tags applied |
+|---------|---------------|-------------|
+| Push to `main` | Yes | `main`, short SHA |
+| Version tag (`v*`) | Yes | semver (e.g. `1.7.0`, `1.7`) |
+| Pull request | No (build only) | PR ref |
+
+## CI/CD and supply-chain security
+
+Five GitHub Actions workflows run on every push and pull request.
+
+### CI
+
+Runs `gofmt` formatting check, `go vet`, `go build`, `go test -race`, and golangci-lint v2. All checks must pass before merge.
+
+### Meta Lint
+
+Lints the Dockerfile with hadolint, workflow files with actionlint, and YAML files under `.github/` with yamllint.
+
+### Security Scanning
+
+Runs four scanners and uploads SARIF results to the GitHub Security tab:
+
+| Scanner | What it checks |
+|---------|---------------|
+| gosec | Go source code for security anti-patterns |
+| govulncheck | Known CVEs in Go module dependencies |
+| gitleaks | Secrets accidentally committed to the repository |
+| trivy (filesystem) | Dependency and config vulnerabilities across the repo |
+| trivy (image) | Vulnerabilities in the built container image |
+
+All scanners run in non-blocking mode while an initial baseline is being established. Exit codes will be tightened after the baseline is triaged.
+
+### CodeQL
+
+GitHub's own Go code scanning, running on push to `main`, pull requests, and weekly.
+
+### Dependabot
+
+Automated dependency PRs are grouped and opened weekly (Monday 06:00 UTC) for Go modules, Docker base images, and GitHub Actions. All third-party actions in the workflows are pinned to commit SHAs.
 
 ## Contributing
 
