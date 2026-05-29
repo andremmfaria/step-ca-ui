@@ -31,15 +31,17 @@ jobs:
           cache-dependency-path: step-ui-go/go.sum
 
       - name: Run gosec
-        # Non-failing on first pass — tighten after baseline triage
+        # Non-failing on first pass — tighten after baseline triage.
+        # Write SARIF to workspace-relative path so runner and upload step agree.
         uses: securego/gosec@4a3bd8af174872c778439083ded7adbf3747e770 # v2.26.1
         with:
-          args: -no-fail -fmt sarif -out /tmp/gosec.sarif ./step-ui-go/...
+          args: -no-fail -fmt sarif -out ${{ github.workspace }}/gosec.sarif ./step-ui-go/...
 
       - name: Upload gosec SARIF
+        if: ${{ hashFiles('gosec.sarif') != '' }}
         uses: github/codeql-action/upload-sarif@03e4368ac7daa2bd82b3e85262f3bf87ee112f57 # v3.36.0
         with:
-          sarif_file: /tmp/gosec.sarif
+          sarif_file: ${{ github.workspace }}/gosec.sarif
           category: gosec
 
   govulncheck:
@@ -112,6 +114,7 @@ jobs:
           exit-code: "0"
 
       - name: Upload Trivy fs SARIF
+        if: ${{ hashFiles('trivy-fs.sarif') != '' }}
         uses: github/codeql-action/upload-sarif@03e4368ac7daa2bd82b3e85262f3bf87ee112f57 # v3.36.0
         with:
           sarif_file: trivy-fs.sarif
@@ -143,6 +146,7 @@ jobs:
           exit-code: "0"
 
       - name: Upload Trivy image SARIF
+        if: ${{ hashFiles('trivy-image.sarif') != '' }}
         uses: github/codeql-action/upload-sarif@03e4368ac7daa2bd82b3e85262f3bf87ee112f57 # v3.36.0
         with:
           sarif_file: trivy-image.sarif

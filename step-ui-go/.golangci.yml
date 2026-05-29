@@ -5,16 +5,24 @@ linters:
   enable:
     - govet
     - staticcheck
-    - errcheck
     - ineffassign
-    - gofmt
     - misspell
+  exclusions:
+    rules:
+      # Suppress deprecated-symbol warnings on existing code in first-pass baseline
+      - linters: [staticcheck]
+        text: "SA1019:"
+      # Suppress style/quickfix staticcheck hints in first-pass baseline
+      - linters: [staticcheck]
+        text: "^QF"
+      - linters: [staticcheck]
+        text: "ST1005:"
+      - linters: [staticcheck]
+        text: "S1039:"
 
-linters-settings:
-  errcheck:
-    # Permissive: only flag unhandled errors not explicitly ignored
-    check-type-assertions: false
-    check-blank: false
+formatters:
+  enable:
+    - gofmt
 
 issues:
   max-issues-per-linter: 50

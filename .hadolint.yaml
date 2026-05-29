@@ -1,0 +1,4 @@
+ignore:
+  - DL3018  # Do not require pinned versions in Alpine apk add — brittle and commonly waived
+  - DL3008  # Do not require pinned versions in apt-get install — defensive
+failure-threshold: error
