@@ -1,32 +1,26 @@
 module step-ui
 
-go 1.22
+go 1.26
 
 require (
-	github.com/go-acme/lego/v4 v4.17.4
-	github.com/go-chi/chi/v5 v5.0.12
-	github.com/gorilla/sessions v1.2.2
-	github.com/lib/pq v1.10.9
+	github.com/go-acme/lego/v4 v4.35.2
+	github.com/go-chi/chi/v5 v5.3.0
+	github.com/gorilla/sessions v1.4.0
+	github.com/lib/pq v1.12.3
+	github.com/pquerna/otp v1.5.0
+	golang.org/x/crypto v0.52.0
 )
 
 require (
-	github.com/boombuler/barcode v1.0.1-0.20190219062509-6c824513bacc // indirect
-	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
-	github.com/cloudflare/cloudflare-go v0.97.0 // indirect
-	github.com/go-jose/go-jose/v4 v4.0.2 // indirect
-	github.com/goccy/go-json v0.10.3 // indirect
-	github.com/google/go-querystring v1.1.0 // indirect
+	github.com/boombuler/barcode v1.1.0 // indirect
+	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
+	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
 	github.com/gorilla/securecookie v1.1.2 // indirect
-	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
-	github.com/hashicorp/go-retryablehttp v0.7.7 // indirect
-	github.com/miekg/dns v1.1.59 // indirect
-	github.com/pquerna/otp v1.4.0 // indirect
-	golang.org/x/crypto v0.24.0 // indirect
-	golang.org/x/mod v0.18.0 // indirect
-	golang.org/x/net v0.26.0 // indirect
-	golang.org/x/sync v0.7.0 // indirect
-	golang.org/x/sys v0.21.0 // indirect
-	golang.org/x/text v0.16.0 // indirect
-	golang.org/x/time v0.5.0 // indirect
-	golang.org/x/tools v0.22.0 // indirect
+	github.com/miekg/dns v1.1.72 // indirect
+	golang.org/x/mod v0.36.0 // indirect
+	golang.org/x/net v0.55.0 // indirect
+	golang.org/x/sync v0.20.0 // indirect
+	golang.org/x/sys v0.45.0 // indirect
+	golang.org/x/text v0.37.0 // indirect
+	golang.org/x/tools v0.45.0 // indirect
 )
