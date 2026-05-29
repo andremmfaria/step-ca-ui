@@ -87,7 +87,8 @@ func issueCert(domain, certPath, keyPath, duration, keyType string, cfg *config.
 }
 
 func revokeStep(certPath, keyPath string, cfg *config.Config) {
-	exec.Command("step", "ca", "revoke",
+	// best-effort: revoke via step CLI; errors are non-fatal (status updated in DB regardless)
+	_ = exec.Command("step", "ca", "revoke",
 		"--cert", certPath,
 		"--key", keyPath,
 		"--ca-url", cfg.CAURL,
@@ -142,7 +143,8 @@ func getCertKeyType(certPath string) string {
 
 func scanExistingCerts(certsDir string, d *sql.DB) []map[string]string {
 	var found []map[string]string
-	filepath.WalkDir(certsDir, func(path string, de os.DirEntry, err error) error {
+	// best-effort filesystem scan; individual walk errors are handled inside the closure
+	_ = filepath.WalkDir(certsDir, func(path string, de os.DirEntry, err error) error {
 		if err != nil || de.IsDir() {
 			return nil
 		}
@@ -183,7 +185,7 @@ func saveUploadedFile(file multipart.File, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	_, err = io.Copy(f, file)
 	return err
 }

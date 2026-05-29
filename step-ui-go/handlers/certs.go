@@ -41,7 +41,7 @@ func (h *Handler) Home(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var leCount int
-	h.db.QueryRow("SELECT COUNT(*) FROM le_certificates WHERE status='active'").Scan(&leCount)
+	_ = h.db.QueryRow("SELECT COUNT(*) FROM le_certificates WHERE status='active'").Scan(&leCount)
 
 	data := h.base(w, r, "home")
 	data["CAOnline"] = caOnline
@@ -77,9 +77,9 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 
 	// ── Общая статистика ──
 	var allCerts, leCerts, usersCount int
-	h.db.QueryRow("SELECT COUNT(*) FROM certificates").Scan(&allCerts)
-	h.db.QueryRow("SELECT COUNT(*) FROM le_certificates").Scan(&leCerts)
-	h.db.QueryRow("SELECT COUNT(*) FROM users WHERE is_active = true").Scan(&usersCount)
+	_ = h.db.QueryRow("SELECT COUNT(*) FROM certificates").Scan(&allCerts)
+	_ = h.db.QueryRow("SELECT COUNT(*) FROM le_certificates").Scan(&leCerts)
+	_ = h.db.QueryRow("SELECT COUNT(*) FROM users WHERE is_active = true").Scan(&usersCount)
 
 	// ── Аптайм сервера ──
 	uptime := time.Since(StartedAt)
@@ -112,7 +112,7 @@ func dashCountActions(db *sql.DB, since time.Duration) map[string]int {
 	if err != nil {
 		return result
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	for rows.Next() {
 		var action string
 		var count int
@@ -171,7 +171,11 @@ func (h *Handler) IssuePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	certDir := filepath.Join(h.cfg.CertsDir, sanitizeName(name))
-	os.MkdirAll(certDir, 0755)
+	if err := os.MkdirAll(certDir, 0755); err != nil {
+		data["Msgs"] = []models.FlashMsg{{Type: "err", Text: "Ошибка создания директории: " + err.Error()}}
+		h.render(w, "issue", data)
+		return
+	}
 	certPath := filepath.Join(certDir, "certificate.crt")
 	keyPath := filepath.Join(certDir, "private.key")
 	if err := issueCert(domain, certPath, keyPath, policy.Duration, policy.KeyType, h.cfg); err != nil {
@@ -184,11 +188,15 @@ func (h *Handler) IssuePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	issued, expires, serial, _ := parseCertDates(certPath)
-	appdb.InsertCert(h.db, &models.Certificate{
+	if err := appdb.InsertCert(h.db, &models.Certificate{
 		Name: name, Domain: domain, CertPath: certPath, KeyPath: keyPath,
 		IssuedAt: issued, ExpiresAt: expires, Serial: serial, KeyType: policy.KeyType,
-	})
-	appdb.InsertHistory(h.db, "issue", name, domain, fmt.Sprintf("Шаблон: %s, тип: %s, срок: %s", policy.Template, policy.KeyType, policy.Duration), si.Username, si.Role)
+	}); err != nil {
+		data["Msgs"] = []models.FlashMsg{{Type: "err", Text: "Ошибка записи в базу: " + err.Error()}}
+		h.render(w, "issue", data)
+		return
+	}
+	_ = appdb.InsertHistory(h.db, "issue", name, domain, fmt.Sprintf("Шаблон: %s, тип: %s, срок: %s", policy.Template, policy.KeyType, policy.Duration), si.Username, si.Role)
 	h.flash(w, r, "ok", fmt.Sprintf("Сертификат %s для %s выпущен (%s)!", name, domain, policy.KeyType))
 	http.Redirect(w, r, "/issue", http.StatusFound)
 }
@@ -204,11 +212,11 @@ func (h *Handler) Renew(w http.ResponseWriter, r *http.Request) {
 		}
 		if err := issueCert(c.Domain, c.CertPath, c.KeyPath, "8760h", keyType, h.cfg); err == nil {
 			issued, expires, serial, _ := parseCertDates(c.CertPath)
-			appdb.InsertCert(h.db, &models.Certificate{
+			_ = appdb.InsertCert(h.db, &models.Certificate{
 				Name: c.Name, Domain: c.Domain, CertPath: c.CertPath, KeyPath: c.KeyPath,
 				IssuedAt: issued, ExpiresAt: expires, Serial: serial, KeyType: keyType,
 			})
-			appdb.InsertHistory(h.db, "renew", c.Name, c.Domain, "Перевыпуск, тип: "+keyType, si.Username, si.Role)
+			_ = appdb.InsertHistory(h.db, "renew", c.Name, c.Domain, "Перевыпуск, тип: "+keyType, si.Username, si.Role)
 			h.flash(w, r, "ok", "Сертификат перевыпущен")
 		} else {
 			h.notifyAsync("", "certificate.renew_failed", "error",
@@ -227,8 +235,8 @@ func (h *Handler) Revoke(w http.ResponseWriter, r *http.Request) {
 	c, _ := appdb.GetCert(h.db, id)
 	if c != nil {
 		revokeStep(c.CertPath, c.KeyPath, h.cfg)
-		appdb.UpdateCertStatus(h.db, id, "revoked")
-		appdb.InsertHistory(h.db, "revoke", c.Name, c.Domain, "Отозван (CRL)", si.Username, si.Role)
+		_ = appdb.UpdateCertStatus(h.db, id, "revoked")
+		_ = appdb.InsertHistory(h.db, "revoke", c.Name, c.Domain, "Отозван (CRL)", si.Username, si.Role)
 		h.flash(w, r, "ok", "Сертификат отозван")
 	}
 	http.Redirect(w, r, "/certificates", http.StatusFound)
@@ -328,7 +336,7 @@ func (h *Handler) ImportPost(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) importUpload(w http.ResponseWriter, r *http.Request, si *models.SessionInfo) {
-	r.ParseMultipartForm(10 << 20)
+	_ = r.ParseMultipartForm(10 << 20)
 	name := trimStr(r.FormValue("name"))
 	domain := trimStr(r.FormValue("domain"))
 	data := h.base(w, r, "import")
@@ -339,9 +347,13 @@ func (h *Handler) importUpload(w http.ResponseWriter, r *http.Request, si *model
 		h.render(w, "import", data)
 		return
 	}
-	defer certFile.Close()
+	defer func() { _ = certFile.Close() }()
 	certDir := filepath.Join(h.cfg.CertsDir, sanitizeName(name))
-	os.MkdirAll(certDir, 0755)
+	if err := os.MkdirAll(certDir, 0755); err != nil {
+		data["Msgs"] = []models.FlashMsg{{Type: "err", Text: "Ошибка создания директории"}}
+		h.render(w, "import", data)
+		return
+	}
 	certPath := filepath.Join(certDir, "certificate.crt")
 	keyPath := filepath.Join(certDir, "private.key")
 	if err := saveUploadedFile(certFile, certPath); err != nil {
@@ -350,8 +362,8 @@ func (h *Handler) importUpload(w http.ResponseWriter, r *http.Request, si *model
 		return
 	}
 	if kf, _, err := r.FormFile("key_file"); err == nil {
-		saveUploadedFile(kf, keyPath)
-		kf.Close()
+		_ = saveUploadedFile(kf, keyPath)
+		_ = kf.Close()
 	} else {
 		keyPath = ""
 	}
@@ -370,7 +382,7 @@ func (h *Handler) importUpload(w http.ResponseWriter, r *http.Request, si *model
 		h.render(w, "import", data)
 		return
 	}
-	appdb.InsertHistory(h.db, "import", name, domain, "Загрузка с ПК, тип: "+kt, si.Username, si.Role)
+	_ = appdb.InsertHistory(h.db, "import", name, domain, "Загрузка с ПК, тип: "+kt, si.Username, si.Role)
 	h.flash(w, r, "ok", fmt.Sprintf("Сертификат %s загружен!", name))
 	http.Redirect(w, r, "/import?tab=upload", http.StatusFound)
 }
@@ -388,7 +400,7 @@ func (h *Handler) importScan(w http.ResponseWriter, r *http.Request, si *models.
 			CertPath: item["cert_path"], KeyPath: item["key_path"],
 			IssuedAt: issued, ExpiresAt: expires, Serial: serial, KeyType: kt,
 		}) == nil {
-			appdb.InsertHistory(h.db, "import", item["name"], item["name"], "Скан сервера", si.Username, si.Role)
+			_ = appdb.InsertHistory(h.db, "import", item["name"], item["name"], "Скан сервера", si.Username, si.Role)
 			count++
 		}
 	}
@@ -427,7 +439,7 @@ func (h *Handler) importManual(w http.ResponseWriter, r *http.Request, si *model
 		h.render(w, "import", data)
 		return
 	}
-	appdb.InsertHistory(h.db, "import", name, domain, "Путь вручную", si.Username, si.Role)
+	_ = appdb.InsertHistory(h.db, "import", name, domain, "Путь вручную", si.Username, si.Role)
 	h.flash(w, r, "ok", fmt.Sprintf("Сертификат %s импортирован", name))
 	http.Redirect(w, r, "/import?tab=manual", http.StatusFound)
 }
@@ -446,7 +458,7 @@ func (h *Handler) APIStatus(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"total": len(certs), "expiring_soon": expiring,
 	})
 }

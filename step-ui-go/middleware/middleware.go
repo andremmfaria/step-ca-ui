@@ -54,13 +54,13 @@ func RequireLogin(store *sessions.CookieStore) func(http.Handler) http.Handler {
 			if last, ok := sess.Values["last_activity"].(int64); ok {
 				if time.Since(time.Unix(last, 0)) > SessionTimeout {
 					sess.Values = map[interface{}]interface{}{}
-					sess.Save(r, w)
+					_ = sess.Save(r, w)
 					http.Redirect(w, r, "/login", http.StatusFound)
 					return
 				}
 			}
 			sess.Values["last_activity"] = time.Now().Unix()
-			sess.Save(r, w)
+			_ = sess.Save(r, w)
 			next.ServeHTTP(w, r)
 		})
 	}

@@ -65,7 +65,7 @@ func staticHandlerWithMIME(rootDir string) http.Handler {
 			http.NotFound(w, r)
 			return
 		}
-		defer f.Close()
+		defer func() { _ = f.Close() }()
 		st, err := f.Stat()
 		if err != nil || st.IsDir() {
 			http.NotFound(w, r)
@@ -78,7 +78,7 @@ func staticHandlerWithMIME(rootDir string) http.Handler {
 			w.Header().Set("Content-Type", "application/octet-stream")
 		}
 		w.Header().Set("Cache-Control", "public, max-age=3600")
-		io.Copy(w, f)
+		_, _ = io.Copy(w, f)
 	})
 }
 
@@ -86,17 +86,17 @@ func init() {
 	// Принудительно регистрируем корректные MIME-типы для статики.
 	// http.ServeContent использует mime.TypeByExtension() и перезаписывает
 	// любой ранее установленный Content-Type, поэтому только этот способ работает.
-	mime.AddExtensionType(".css", "text/css; charset=utf-8")
-	mime.AddExtensionType(".js", "application/javascript; charset=utf-8")
-	mime.AddExtensionType(".mjs", "application/javascript; charset=utf-8")
-	mime.AddExtensionType(".json", "application/json; charset=utf-8")
-	mime.AddExtensionType(".svg", "image/svg+xml")
-	mime.AddExtensionType(".webp", "image/webp")
-	mime.AddExtensionType(".woff", "font/woff")
-	mime.AddExtensionType(".woff2", "font/woff2")
-	mime.AddExtensionType(".ttf", "font/ttf")
-	mime.AddExtensionType(".otf", "font/otf")
-	mime.AddExtensionType(".map", "application/json; charset=utf-8")
+	_ = mime.AddExtensionType(".css", "text/css; charset=utf-8")
+	_ = mime.AddExtensionType(".js", "application/javascript; charset=utf-8")
+	_ = mime.AddExtensionType(".mjs", "application/javascript; charset=utf-8")
+	_ = mime.AddExtensionType(".json", "application/json; charset=utf-8")
+	_ = mime.AddExtensionType(".svg", "image/svg+xml")
+	_ = mime.AddExtensionType(".webp", "image/webp")
+	_ = mime.AddExtensionType(".woff", "font/woff")
+	_ = mime.AddExtensionType(".woff2", "font/woff2")
+	_ = mime.AddExtensionType(".ttf", "font/ttf")
+	_ = mime.AddExtensionType(".otf", "font/otf")
+	_ = mime.AddExtensionType(".map", "application/json; charset=utf-8")
 }
 
 func main() {
@@ -121,7 +121,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Cannot connect to database: %v", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	if err := appdb.InitSchema(conn); err != nil {
 		log.Fatalf("Cannot init DB schema: %v", err)
@@ -265,7 +265,7 @@ func main() {
 	r.Handle("/static/*", http.StripPrefix("/static/", staticHandlerWithMIME("static")))
 	// ─── Start server ─────────────────────────────────────────────────────────
 	for _, dir := range []string{cfg.CertsDir, cfg.UploadDir, "/opt/step-ui/ssl", "/opt/step-ui/data"} {
-		os.MkdirAll(dir, 0755)
+		_ = os.MkdirAll(dir, 0755)
 	}
 
 	// // temp_users_expire_ticker

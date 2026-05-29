@@ -64,12 +64,16 @@ func runRenewal(db *sql.DB) {
 			R53Region: settings.R53Region,
 		})
 		if err != nil {
-			appdb.UpdateLECertStatus(db, cert.ID, "error", err.Error())
+			if dbErr := appdb.UpdateLECertStatus(db, cert.ID, "error", err.Error()); dbErr != nil {
+				log.Printf("[LE] Failed to update cert status for %s: %v", cert.Domain, dbErr)
+			}
 			appdb.AddLELog(db, cert.Domain, "error", fmt.Sprintf("Ошибка обновления: %v", err))
 			log.Printf("[LE] Renewal failed for %s: %v", cert.Domain, err)
 			continue
 		}
-		appdb.UpdateLECertPaths(db, cert.ID, result.CertPath, result.KeyPath, result.IssuedAt, result.ExpiresAt)
+		if dbErr := appdb.UpdateLECertPaths(db, cert.ID, result.CertPath, result.KeyPath, result.IssuedAt, result.ExpiresAt); dbErr != nil {
+			log.Printf("[LE] Failed to update cert paths for %s: %v", cert.Domain, dbErr)
+		}
 		appdb.AddLELog(db, cert.Domain, "renew", "Сертификат успешно обновлён")
 		log.Printf("[LE] Successfully renewed %s", cert.Domain)
 	}

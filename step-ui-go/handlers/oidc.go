@@ -61,7 +61,7 @@ func (h *Handler) OIDCLogin(w http.ResponseWriter, r *http.Request) {
 	s.Values["oidc_state"] = state
 	s.Values["oidc_nonce"] = nonce
 	s.Values["oidc_verifier"] = verifier
-	s.Save(r, w)
+	_ = s.Save(r, w)
 
 	url := h.oidcOAuth2Config.AuthCodeURL(
 		state,
@@ -85,7 +85,7 @@ func (h *Handler) OIDCCallback(w http.ResponseWriter, r *http.Request) {
 	// --- state check ---
 	savedState, _ := s.Values["oidc_state"].(string)
 	if savedState == "" || r.URL.Query().Get("state") != savedState {
-		appdb.LogAuth(h.db, "", ip, false, "OIDC callback: state mismatch")
+		_ = appdb.LogAuth(h.db, "", ip, false, "OIDC callback: state mismatch")
 		h.flash(w, r, "err", "OIDC state mismatch — possible CSRF attack")
 		http.Redirect(w, r, "/login", http.StatusFound)
 		return
@@ -98,13 +98,13 @@ func (h *Handler) OIDCCallback(w http.ResponseWriter, r *http.Request) {
 	delete(s.Values, "oidc_state")
 	delete(s.Values, "oidc_nonce")
 	delete(s.Values, "oidc_verifier")
-	s.Save(r, w)
+	_ = s.Save(r, w)
 
 	// --- exchange code ---
 	ctx := context.Background()
 	token, err := h.oidcOAuth2Config.Exchange(ctx, r.URL.Query().Get("code"), oauth2.VerifierOption(savedVerifier))
 	if err != nil {
-		appdb.LogAuth(h.db, "", ip, false, "OIDC token exchange failed: "+err.Error())
+		_ = appdb.LogAuth(h.db, "", ip, false, "OIDC token exchange failed: "+err.Error())
 		h.flash(w, r, "err", "OIDC authentication failed")
 		http.Redirect(w, r, "/login", http.StatusFound)
 		return
@@ -113,14 +113,14 @@ func (h *Handler) OIDCCallback(w http.ResponseWriter, r *http.Request) {
 	// --- verify ID token ---
 	rawIDToken, ok := token.Extra("id_token").(string)
 	if !ok {
-		appdb.LogAuth(h.db, "", ip, false, "OIDC: no id_token in response")
+		_ = appdb.LogAuth(h.db, "", ip, false, "OIDC: no id_token in response")
 		h.flash(w, r, "err", "OIDC authentication failed: missing id_token")
 		http.Redirect(w, r, "/login", http.StatusFound)
 		return
 	}
 	idToken, err := h.oidcVerifier.Verify(ctx, rawIDToken)
 	if err != nil {
-		appdb.LogAuth(h.db, "", ip, false, "OIDC id_token verification failed: "+err.Error())
+		_ = appdb.LogAuth(h.db, "", ip, false, "OIDC id_token verification failed: "+err.Error())
 		h.flash(w, r, "err", "OIDC token verification failed")
 		http.Redirect(w, r, "/login", http.StatusFound)
 		return
@@ -128,7 +128,7 @@ func (h *Handler) OIDCCallback(w http.ResponseWriter, r *http.Request) {
 
 	// --- check nonce ---
 	if idToken.Nonce != savedNonce {
-		appdb.LogAuth(h.db, "", ip, false, "OIDC nonce mismatch")
+		_ = appdb.LogAuth(h.db, "", ip, false, "OIDC nonce mismatch")
 		h.flash(w, r, "err", "OIDC nonce mismatch — replay attack detected")
 		http.Redirect(w, r, "/login", http.StatusFound)
 		return
@@ -137,7 +137,7 @@ func (h *Handler) OIDCCallback(w http.ResponseWriter, r *http.Request) {
 	// --- extract claims ---
 	var claims map[string]interface{}
 	if err := idToken.Claims(&claims); err != nil {
-		appdb.LogAuth(h.db, "", ip, false, "OIDC claims parse failed: "+err.Error())
+		_ = appdb.LogAuth(h.db, "", ip, false, "OIDC claims parse failed: "+err.Error())
 		h.flash(w, r, "err", "OIDC claims error")
 		http.Redirect(w, r, "/login", http.StatusFound)
 		return
@@ -178,7 +178,7 @@ func (h *Handler) OIDCCallback(w http.ResponseWriter, r *http.Request) {
 		role = h.cfg.OIDCDefaultRole
 	}
 	if role == "" {
-		appdb.LogAuth(h.db, username, ip, false, "OIDC: no matching group, access denied")
+		_ = appdb.LogAuth(h.db, username, ip, false, "OIDC: no matching group, access denied")
 		h.flash(w, r, "err", "Access denied: your account is not in an authorised group")
 		http.Redirect(w, r, "/login", http.StatusFound)
 		return
@@ -187,7 +187,7 @@ func (h *Handler) OIDCCallback(w http.ResponseWriter, r *http.Request) {
 	// --- upsert user ---
 	user, err := appdb.UpsertOIDCUser(h.db, username, displayName, role, h.cfg.OIDCSyncRole)
 	if err != nil || user == nil {
-		appdb.LogAuth(h.db, username, ip, false, "OIDC upsert failed: "+func() string {
+		_ = appdb.LogAuth(h.db, username, ip, false, "OIDC upsert failed: "+func() string {
 			if err != nil {
 				return err.Error()
 			}
@@ -199,7 +199,7 @@ func (h *Handler) OIDCCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !user.IsActive {
-		appdb.LogAuth(h.db, username, ip, false, "OIDC: account inactive")
+		_ = appdb.LogAuth(h.db, username, ip, false, "OIDC: account inactive")
 		h.flash(w, r, "err", "Account is disabled. Contact an administrator.")
 		http.Redirect(w, r, "/login", http.StatusFound)
 		return

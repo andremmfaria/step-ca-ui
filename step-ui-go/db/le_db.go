@@ -2,7 +2,6 @@ package db
 
 import (
 	"database/sql"
-	"fmt"
 	"time"
 
 	"step-ui/models"
@@ -64,13 +63,15 @@ func GetLECerts(d *sql.DB) ([]*models.LECertificate, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var certs []*models.LECertificate
 	for rows.Next() {
 		c := &models.LECertificate{}
-		rows.Scan(&c.ID, &c.Domain, &c.Email, &c.Provider,
+		if err := rows.Scan(&c.ID, &c.Domain, &c.Email, &c.Provider,
 			&c.CertPath, &c.KeyPath, &c.IssuedAt, &c.ExpiresAt,
-			&c.AutoRenew, &c.Status, &c.LastError, &c.CreatedAt, &c.UpdatedAt)
+			&c.AutoRenew, &c.Status, &c.LastError, &c.CreatedAt, &c.UpdatedAt); err != nil {
+			return nil, err
+		}
 		certs = append(certs, c)
 	}
 	return certs, nil
@@ -132,13 +133,15 @@ func GetLECertsForRenewal(d *sql.DB) ([]*models.LECertificate, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var certs []*models.LECertificate
 	for rows.Next() {
 		c := &models.LECertificate{}
-		rows.Scan(&c.ID, &c.Domain, &c.Email, &c.Provider,
+		if err := rows.Scan(&c.ID, &c.Domain, &c.Email, &c.Provider,
 			&c.CertPath, &c.KeyPath, &c.IssuedAt, &c.ExpiresAt,
-			&c.AutoRenew, &c.Status, &c.LastError, &c.CreatedAt, &c.UpdatedAt)
+			&c.AutoRenew, &c.Status, &c.LastError, &c.CreatedAt, &c.UpdatedAt); err != nil {
+			return nil, err
+		}
 		certs = append(certs, c)
 	}
 	return certs, nil
@@ -174,7 +177,7 @@ func SaveLESettings(d *sql.DB, s *models.LESettings) error {
 // ─── LE Logs ──────────────────────────────────────────────────────────────────
 
 func AddLELog(d *sql.DB, domain, action, message string) {
-	d.Exec(`INSERT INTO le_logs (domain,action,message) VALUES ($1,$2,$3)`, domain, action, message)
+	_, _ = d.Exec(`INSERT INTO le_logs (domain,action,message) VALUES ($1,$2,$3)`, domain, action, message)
 }
 
 func GetLELogs(d *sql.DB, domain string, limit int) ([]*models.LELog, error) {
@@ -190,11 +193,13 @@ func GetLELogs(d *sql.DB, domain string, limit int) ([]*models.LELog, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var logs []*models.LELog
 	for rows.Next() {
 		l := &models.LELog{}
-		rows.Scan(&l.ID, &l.Domain, &l.Action, &l.Message, &l.CreatedAt)
+		if err := rows.Scan(&l.ID, &l.Domain, &l.Action, &l.Message, &l.CreatedAt); err != nil {
+			return nil, err
+		}
 		logs = append(logs, l)
 	}
 	return logs, nil
@@ -203,10 +208,10 @@ func GetLELogs(d *sql.DB, domain string, limit int) ([]*models.LELog, error) {
 // ─── Stats ────────────────────────────────────────────────────────────────────
 
 func GetLEStats(d *sql.DB) (total, active, expiringSoon, expired int) {
-	d.QueryRow(`SELECT COUNT(*) FROM le_certificates`).Scan(&total)
-	d.QueryRow(`SELECT COUNT(*) FROM le_certificates WHERE status='active'`).Scan(&active)
-	d.QueryRow(`SELECT COUNT(*) FROM le_certificates WHERE status='active' AND expires_at < NOW() + INTERVAL '30 days'`).Scan(&expiringSoon)
-	d.QueryRow(`SELECT COUNT(*) FROM le_certificates WHERE expires_at < NOW() OR status='expired'`).Scan(&expired)
+	_ = d.QueryRow(`SELECT COUNT(*) FROM le_certificates`).Scan(&total)
+	_ = d.QueryRow(`SELECT COUNT(*) FROM le_certificates WHERE status='active'`).Scan(&active)
+	_ = d.QueryRow(`SELECT COUNT(*) FROM le_certificates WHERE status='active' AND expires_at < NOW() + INTERVAL '30 days'`).Scan(&expiringSoon)
+	_ = d.QueryRow(`SELECT COUNT(*) FROM le_certificates WHERE expires_at < NOW() OR status='expired'`).Scan(&expired)
 	return
 }
 
@@ -214,7 +219,7 @@ func GetLEStats(d *sql.DB) (total, active, expiringSoon, expired int) {
 
 func LECertExists(d *sql.DB, domain string) bool {
 	var n int
-	d.QueryRow(`SELECT COUNT(*) FROM le_certificates WHERE domain=$1`, domain).Scan(&n)
+	_ = d.QueryRow(`SELECT COUNT(*) FROM le_certificates WHERE domain=$1`, domain).Scan(&n)
 	return n > 0
 }
 
@@ -236,6 +241,6 @@ func GetLECertByDomain(d *sql.DB, domain string) (*models.LECertificate, error) 
 // GetLECertCount возвращает количество LE сертификатов
 func GetLECertCount(d *sql.DB) int {
 	var n int
-	d.QueryRow(fmt.Sprintf(`SELECT COUNT(*) FROM le_certificates`)).Scan(&n)
+	_ = d.QueryRow(`SELECT COUNT(*) FROM le_certificates`).Scan(&n)
 	return n
 }

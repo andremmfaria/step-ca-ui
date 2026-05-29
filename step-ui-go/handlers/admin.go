@@ -66,7 +66,7 @@ func (h *Handler) AdminGet(w http.ResponseWriter, r *http.Request) {
 		LIMIT 10
 	`)
 	if err == nil && rows != nil {
-		defer rows.Close()
+		defer func() { _ = rows.Close() }()
 		for rows.Next() {
 			var l AdminLogin
 			if err := rows.Scan(&l.Username, &l.IP, &l.CreatedAt); err == nil {

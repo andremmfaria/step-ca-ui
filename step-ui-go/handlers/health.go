@@ -159,8 +159,8 @@ func (h *Handler) checkDir(checks *[]HealthCheck, name, path string, critical bo
 		return
 	}
 	tmp := f.Name()
-	f.Close()
-	os.Remove(tmp)
+	_ = f.Close()
+	_ = os.Remove(tmp)
 	*checks = append(*checks, HealthCheck{Name: name, Status: "ok", Detail: path + " is writable", Critical: critical})
 }
 

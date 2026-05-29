@@ -208,13 +208,13 @@ func (h *Handler) sessionInfo(r *http.Request) *models.SessionInfo {
 func (h *Handler) flash(w http.ResponseWriter, r *http.Request, t, text string) {
 	s := h.sess(r)
 	s.AddFlash(models.FlashMsg{Type: t, Text: text})
-	s.Save(r, w)
+	_ = s.Save(r, w)
 }
 
 func (h *Handler) popFlash(w http.ResponseWriter, r *http.Request) []models.FlashMsg {
 	s := h.sess(r)
 	flashes := s.Flashes()
-	s.Save(r, w)
+	_ = s.Save(r, w)
 	var msgs []models.FlashMsg
 	for _, f := range flashes {
 		if m, ok := f.(models.FlashMsg); ok {
@@ -234,7 +234,7 @@ func (h *Handler) csrf(w http.ResponseWriter, r *http.Request) string {
 	if !ok || token == "" {
 		token = security.GenerateToken()
 		s.Values["csrf_token"] = token
-		s.Save(r, w)
+		_ = s.Save(r, w)
 	}
 	return token
 }

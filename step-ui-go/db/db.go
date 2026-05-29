@@ -116,7 +116,9 @@ func InitSchema(d *sql.DB) error {
 
 	// Создаём admin если нет пользователей
 	var count int
-	d.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&count)
+	if err := d.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&count); err != nil {
+		return fmt.Errorf("counting users: %w", err)
+	}
 	if count == 0 {
 		// Seed first admin. Honor STEPUI_ADMIN_PASSWORD if provided,
 		// otherwise fall back to the legacy default with a warning.
@@ -127,8 +129,10 @@ func InitSchema(d *sql.DB) error {
 		} else {
 			fmt.Println("[*] Seeding admin user with password from STEPUI_ADMIN_PASSWORD")
 		}
-		d.Exec(`INSERT INTO users (username,password_hash,role,is_active) VALUES ($1,$2,'admin',true)`,
-			"admin", security.HashPassword(adminPwd))
+		if _, err := d.Exec(`INSERT INTO users (username,password_hash,role,is_active) VALUES ($1,$2,'admin',true)`,
+			"admin", security.HashPassword(adminPwd)); err != nil {
+			return fmt.Errorf("seeding admin user: %w", err)
+		}
 		fmt.Println("[*] Default admin user is ready (login: admin)")
 	}
 
@@ -182,11 +186,13 @@ func GetAllUsers(d *sql.DB) ([]*models.User, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var users []*models.User
 	for rows.Next() {
 		u := &models.User{}
-		rows.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.IsActive, &u.CreatedAt, &u.LastLogin, &u.LastIP)
+		if err := rows.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.IsActive, &u.CreatedAt, &u.LastLogin, &u.LastIP); err != nil {
+			return nil, err
+		}
 		users = append(users, u)
 	}
 	return users, nil
@@ -248,7 +254,7 @@ func ReplaceRecoveryCodes(d *sql.DB, userID int, hashes []string) error {
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	if _, err := tx.Exec(`DELETE FROM user_recovery_codes WHERE user_id=$1`, userID); err != nil {
 		return err
 	}
@@ -270,14 +276,15 @@ func GetUnusedRecoveryCodes(d *sql.DB, userID int) (map[int]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	out := map[int]string{}
 	for rows.Next() {
 		var id int
 		var hash string
-		if err := rows.Scan(&id, &hash); err == nil {
-			out[id] = hash
+		if err := rows.Scan(&id, &hash); err != nil {
+			return nil, err
 		}
+		out[id] = hash
 	}
 	return out, nil
 }
@@ -295,8 +302,13 @@ func UpdateUserLogin(d *sql.DB, username, ip string) error {
 
 func DeleteUser(d *sql.DB, id int) error {
 	var username string
-	d.QueryRow(`SELECT username FROM users WHERE id=$1`, id).Scan(&username)
-	d.Exec(`DELETE FROM auth_log WHERE username=$1`, username)
+	// best-effort: retrieve username for cascading auth_log cleanup; ignore errors
+	_ = d.QueryRow(`SELECT username FROM users WHERE id=$1`, id).Scan(&username)
+	if username != "" {
+		if _, err := d.Exec(`DELETE FROM auth_log WHERE username=$1`, username); err != nil {
+			return err
+		}
+	}
 	_, err := d.Exec(`DELETE FROM users WHERE id=$1`, id)
 	return err
 }
@@ -347,7 +359,9 @@ func LogAuth(d *sql.DB, username, ip string, success bool, reason string) error 
 	_, err := d.Exec(`INSERT INTO auth_log (username,ip,success,reason) VALUES ($1,$2,$3,$4)`,
 		username, ip, success, reason)
 	if success {
-		UpdateUserLogin(d, username, ip)
+		if loginErr := UpdateUserLogin(d, username, ip); loginErr != nil {
+			fmt.Printf("[warn] UpdateUserLogin: %v\n", loginErr)
+		}
 	}
 	return err
 }
@@ -371,7 +385,9 @@ func GetAuthLogs(d *sql.DB, search, filter string, page, limit int) ([]*models.A
 		i++
 	}
 	var total int
-	d.QueryRow(`SELECT COUNT(*) FROM auth_log `+where, args...).Scan(&total)
+	if err := d.QueryRow(`SELECT COUNT(*) FROM auth_log `+where, args...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
 	offset := (page - 1) * limit
 	rows, err := d.Query(`SELECT id,username,ip,success,COALESCE(reason,''),created_at FROM auth_log `+where+
 		fmt.Sprintf(` ORDER BY created_at DESC LIMIT $%d OFFSET $%d`, i, i+1),
@@ -379,11 +395,13 @@ func GetAuthLogs(d *sql.DB, search, filter string, page, limit int) ([]*models.A
 	if err != nil {
 		return nil, 0, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var logs []*models.AuthLog
 	for rows.Next() {
 		l := &models.AuthLog{}
-		rows.Scan(&l.ID, &l.Username, &l.IP, &l.Success, &l.Reason, &l.CreatedAt)
+		if err := rows.Scan(&l.ID, &l.Username, &l.IP, &l.Success, &l.Reason, &l.CreatedAt); err != nil {
+			return nil, 0, err
+		}
 		logs = append(logs, l)
 	}
 	return logs, total, nil
@@ -395,11 +413,13 @@ func GetUserAuthLogs(d *sql.DB, username string, limit int) ([]*models.AuthLog, 
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var logs []*models.AuthLog
 	for rows.Next() {
 		l := &models.AuthLog{}
-		rows.Scan(&l.ID, &l.Username, &l.IP, &l.Success, &l.Reason, &l.CreatedAt)
+		if err := rows.Scan(&l.ID, &l.Username, &l.IP, &l.Success, &l.Reason, &l.CreatedAt); err != nil {
+			return nil, err
+		}
 		logs = append(logs, l)
 	}
 	return logs, nil
@@ -407,13 +427,13 @@ func GetUserAuthLogs(d *sql.DB, username string, limit int) ([]*models.AuthLog, 
 
 func GetFailCount(d *sql.DB, username string, since time.Time) int {
 	var n int
-	d.QueryRow(`SELECT COUNT(*) FROM auth_log WHERE username=$1 AND success=false AND created_at>$2`, username, since).Scan(&n)
+	_ = d.QueryRow(`SELECT COUNT(*) FROM auth_log WHERE username=$1 AND success=false AND created_at>$2`, username, since).Scan(&n)
 	return n
 }
 
 func GetAuthStats(d *sql.DB) (ok, fail int) {
-	d.QueryRow(`SELECT COUNT(*) FROM auth_log WHERE success=true`).Scan(&ok)
-	d.QueryRow(`SELECT COUNT(*) FROM auth_log WHERE success=false`).Scan(&fail)
+	_ = d.QueryRow(`SELECT COUNT(*) FROM auth_log WHERE success=true`).Scan(&ok)
+	_ = d.QueryRow(`SELECT COUNT(*) FROM auth_log WHERE success=false`).Scan(&fail)
 	return
 }
 
@@ -431,11 +451,13 @@ func GetCerts(d *sql.DB, statusFilter string) ([]*models.Certificate, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var certs []*models.Certificate
 	for rows.Next() {
 		c := &models.Certificate{}
-		rows.Scan(&c.ID, &c.Name, &c.Domain, &c.CertPath, &c.KeyPath, &c.IssuedAt, &c.ExpiresAt, &c.Serial, &c.Status, &c.KeyType, &c.CreatedAt)
+		if err := rows.Scan(&c.ID, &c.Name, &c.Domain, &c.CertPath, &c.KeyPath, &c.IssuedAt, &c.ExpiresAt, &c.Serial, &c.Status, &c.KeyType, &c.CreatedAt); err != nil {
+			return nil, err
+		}
 		certs = append(certs, c)
 	}
 	return certs, nil
@@ -492,7 +514,9 @@ func GetHistory(d *sql.DB, actions []string, cert string, page, limit int) ([]*m
 		i++
 	}
 	var total int
-	d.QueryRow(`SELECT COUNT(*) FROM cert_history `+where, args...).Scan(&total)
+	if err := d.QueryRow(`SELECT COUNT(*) FROM cert_history `+where, args...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
 	offset := (page - 1) * limit
 	rows, err := d.Query(`SELECT id,action,cert_name,COALESCE(domain,''),COALESCE(details,''),COALESCE(username,''),COALESCE(role,''),created_at FROM cert_history `+where+
 		fmt.Sprintf(` ORDER BY created_at DESC LIMIT $%d OFFSET $%d`, i, i+1),
@@ -500,7 +524,7 @@ func GetHistory(d *sql.DB, actions []string, cert string, page, limit int) ([]*m
 	if err != nil {
 		return nil, 0, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var list []*models.CertHistory
 	for rows.Next() {
 		h := &models.CertHistory{}
@@ -555,7 +579,7 @@ func ListTempUsers(db *sql.DB) ([]TempUserRow, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []TempUserRow
 	for rows.Next() {
 		var r TempUserRow

@@ -13,7 +13,7 @@ func (h *Handler) Provisioners(w http.ResponseWriter, r *http.Request) {
 		"--root", h.cfg.RootCert,
 	).Output()
 	if err == nil {
-		json.Unmarshal(out, &provs)
+		_ = json.Unmarshal(out, &provs)
 	}
 	data := h.base(w, r, "prov")
 	data["Provisioners"] = provs

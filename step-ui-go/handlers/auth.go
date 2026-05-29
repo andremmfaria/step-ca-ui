@@ -70,7 +70,7 @@ func (h *Handler) LoginPost(w http.ResponseWriter, r *http.Request) {
 	if user == nil || !security.VerifyPassword(password, user.PasswordHash) {
 		security.RL.Register(ip)
 		left := security.RL.Left(ip)
-		appdb.LogAuth(h.db, username, ip, false, fmt.Sprintf("Неверный пароль (%d попыток осталось)", left))
+		_ = appdb.LogAuth(h.db, username, ip, false, fmt.Sprintf("Неверный пароль (%d попыток осталось)", left))
 		if left > 0 {
 			h.flash(w, r, "err", fmt.Sprintf("Неверный логин или пароль. Осталось попыток: %d", left))
 		} else {
@@ -85,21 +85,21 @@ func (h *Handler) LoginPost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !user.IsActive {
-		appdb.LogAuth(h.db, username, ip, false, "Аккаунт заблокирован")
+		_ = appdb.LogAuth(h.db, username, ip, false, "Аккаунт заблокирован")
 		h.flash(w, r, "err", "Аккаунт заблокирован. Обратитесь к администратору.")
 		http.Redirect(w, r, "/login", http.StatusFound)
 		return
 	}
 
 	if security.NeedsPasswordRehash(user.PasswordHash) {
-		appdb.UpdateUserPassword(h.db, user.ID, security.HashPassword(password))
+		_ = appdb.UpdateUserPassword(h.db, user.ID, security.HashPassword(password))
 	}
 
 	if user.TOTPEnabled {
 		s := h.sess(r)
 		s.Values["pending_2fa_user_id"] = user.ID
 		s.Values["pending_2fa_expires"] = time.Now().Add(totpPendingTTL).Unix()
-		s.Save(r, w)
+		_ = s.Save(r, w)
 		http.Redirect(w, r, "/login", http.StatusFound)
 		return
 	}
@@ -128,7 +128,7 @@ func (h *Handler) loginPost2FA(w http.ResponseWriter, r *http.Request, uid int) 
 	if !ok {
 		security.RL.Register(ip)
 		left := security.RL.Left(ip)
-		appdb.LogAuth(h.db, user.Username, ip, false, fmt.Sprintf("Неверный 2FA код (%d попыток осталось)", left))
+		_ = appdb.LogAuth(h.db, user.Username, ip, false, fmt.Sprintf("Неверный 2FA код (%d попыток осталось)", left))
 		h.flash(w, r, "err", "Неверный 2FA или recovery код")
 		http.Redirect(w, r, "/login", http.StatusFound)
 		return
@@ -163,7 +163,7 @@ func (h *Handler) clearPending2FA(w http.ResponseWriter, r *http.Request) {
 	s := h.sess(r)
 	delete(s.Values, "pending_2fa_user_id")
 	delete(s.Values, "pending_2fa_expires")
-	s.Save(r, w)
+	_ = s.Save(r, w)
 }
 
 func (h *Handler) completeLogin(w http.ResponseWriter, r *http.Request, user *models.User, reason string) {
@@ -175,18 +175,18 @@ func (h *Handler) completeLogin(w http.ResponseWriter, r *http.Request, user *mo
 	s.Values["role"] = user.Role
 	s.Values["last_activity"] = time.Now().Unix()
 	s.Values["csrf_token"] = security.GenerateToken()
-	s.Save(r, w)
-	appdb.LogAuth(h.db, user.Username, r.RemoteAddr, true, reason)
+	_ = s.Save(r, w)
+	_ = appdb.LogAuth(h.db, user.Username, r.RemoteAddr, true, reason)
 }
 
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	si := h.sessionInfo(r)
 	if si.UserID != 0 {
-		appdb.LogAuth(h.db, si.Username, r.RemoteAddr, true, "Выход")
+		_ = appdb.LogAuth(h.db, si.Username, r.RemoteAddr, true, "Выход")
 	}
 	s := h.sess(r)
 	s.Values = map[interface{}]interface{}{}
 	s.Options.MaxAge = -1
-	s.Save(r, w)
+	_ = s.Save(r, w)
 	http.Redirect(w, r, "/login", http.StatusFound)
 }

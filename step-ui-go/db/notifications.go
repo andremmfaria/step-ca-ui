@@ -101,7 +101,7 @@ func GetNotificationLogs(d *sql.DB, limit int) ([]*models.NotificationLog, error
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var logs []*models.NotificationLog
 	for rows.Next() {
 		l := &models.NotificationLog{}

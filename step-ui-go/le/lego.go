@@ -63,7 +63,9 @@ type LEResult struct {
 
 // IssueCert выпускает сертификат Let's Encrypt
 func IssueCert(cfg LEConfig) (*LEResult, error) {
-	os.MkdirAll(filepath.Join(LEDirectory, cfg.Domain), 0700)
+	if err := os.MkdirAll(filepath.Join(LEDirectory, cfg.Domain), 0700); err != nil {
+		return nil, fmt.Errorf("creating cert directory: %w", err)
+	}
 
 	// Загружаем или создаём ключ аккаунта
 	privateKey, err := loadOrCreateKey(LEKeyFile)
@@ -97,18 +99,24 @@ func IssueCert(cfg LEConfig) (*LEResult, error) {
 	// Настраиваем challenge провайдер
 	switch cfg.Provider {
 	case "http01":
-		client.Challenge.SetHTTP01Provider(http01.NewProviderServer("", "80"))
+		if err := client.Challenge.SetHTTP01Provider(http01.NewProviderServer("", "80")); err != nil {
+			return nil, fmt.Errorf("setting http01 provider: %w", err)
+		}
 	case "cloudflare":
 		if cfg.CFToken == "" {
 			return nil, fmt.Errorf("Cloudflare API token не задан")
 		}
-		os.Setenv("CF_DNS_API_TOKEN", cfg.CFToken)
+		if err := os.Setenv("CF_DNS_API_TOKEN", cfg.CFToken); err != nil {
+			return nil, fmt.Errorf("setting CF_DNS_API_TOKEN: %w", err)
+		}
 		provider := cloudflare.NewDefaultConfig()
 		cp, err := cloudflare.NewDNSProviderConfig(provider)
 		if err != nil {
 			return nil, fmt.Errorf("cloudflare provider: %w", err)
 		}
-		client.Challenge.SetDNS01Provider(cp)
+		if err := client.Challenge.SetDNS01Provider(cp); err != nil {
+			return nil, fmt.Errorf("setting dns01 provider: %w", err)
+		}
 	default:
 		return nil, fmt.Errorf("неизвестный провайдер: %s", cfg.Provider)
 	}
@@ -183,8 +191,12 @@ func loadOrCreateKey(path string) (crypto.PrivateKey, error) {
 		return nil, err
 	}
 	data, _ := x509.MarshalECPrivateKey(key)
-	os.MkdirAll(filepath.Dir(path), 0700)
-	os.WriteFile(path, pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: data}), 0600)
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		return nil, fmt.Errorf("creating key directory: %w", err)
+	}
+	if err := os.WriteFile(path, pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: data}), 0600); err != nil {
+		return nil, fmt.Errorf("saving account key: %w", err)
+	}
 	return key, nil
 }
 
@@ -194,7 +206,8 @@ type savedRegistration struct {
 
 func saveRegistration(path string, reg *registration.Resource) {
 	data, _ := json.Marshal(&savedRegistration{Body: reg})
-	os.WriteFile(path, data, 0600)
+	// best-effort: failure to save registration does not abort the certificate issuance
+	_ = os.WriteFile(path, data, 0600)
 }
 
 func loadRegistration(path string) (*registration.Resource, error) {

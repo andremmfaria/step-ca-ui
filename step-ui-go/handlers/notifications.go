@@ -163,7 +163,7 @@ func (h *Handler) sendNotification(ctx context.Context, eventKey, eventType, sev
 		_ = appdb.AddNotificationLog(h.db, logEntry)
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		err = fmt.Errorf("webhook returned HTTP %d", resp.StatusCode)
 		logEntry.Success = false

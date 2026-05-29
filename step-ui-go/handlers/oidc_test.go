@@ -45,7 +45,7 @@ func newFakeProvider(t *testing.T) *fakeProvider {
 
 	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"issuer":                                issuer,
 			"authorization_endpoint":                issuer + "/auth",
 			"token_endpoint":                        issuer + "/token",
@@ -64,13 +64,13 @@ func newFakeProvider(t *testing.T) *fakeProvider {
 			Algorithm: string(gojose.RS256),
 			Use:       "sig",
 		}
-		json.NewEncoder(w).Encode(gojose.JSONWebKeySet{Keys: []gojose.JSONWebKey{jwk}})
+		_ = json.NewEncoder(w).Encode(gojose.JSONWebKeySet{Keys: []gojose.JSONWebKey{jwk}})
 	})
 
 	// /token will be replaced per-test; default returns empty id_token
 	mux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"access_token": "fake-access-token",
 			"token_type":   "Bearer",
 			"id_token":     "",
@@ -302,7 +302,7 @@ func TestOIDCCallback_ValidStateThenDBError(t *testing.T) {
 		switch r.URL.Path {
 		case "/.well-known/openid-configuration":
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
 				"issuer":                                issuer,
 				"authorization_endpoint":                issuer + "/auth",
 				"token_endpoint":                        issuer + "/token",
@@ -319,10 +319,10 @@ func TestOIDCCallback_ValidStateThenDBError(t *testing.T) {
 				Algorithm: string(gojose.RS256),
 				Use:       "sig",
 			}
-			json.NewEncoder(w).Encode(gojose.JSONWebKeySet{Keys: []gojose.JSONWebKey{jwk}})
+			_ = json.NewEncoder(w).Encode(gojose.JSONWebKeySet{Keys: []gojose.JSONWebKey{jwk}})
 		case "/token":
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
 				"access_token": "fake-access-token",
 				"token_type":   "Bearer",
 				"id_token":     rawIDToken,

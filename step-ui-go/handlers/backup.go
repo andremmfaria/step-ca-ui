@@ -57,7 +57,7 @@ func (h *Handler) AdminBackupDownload(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/admin/backup", http.StatusSeeOther)
 		return
 	}
-	defer os.RemoveAll(filepath.Dir(bundle))
+	defer func() { _ = os.RemoveAll(filepath.Dir(bundle)) }()
 
 	w.Header().Set("Content-Type", "application/gzip")
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
@@ -158,7 +158,7 @@ func (h *Handler) writePGDump(ctx context.Context, path string) error {
 	if err != nil {
 		return err
 	}
-	defer out.Close()
+	defer func() { _ = out.Close() }()
 	cmd.Stdout = out
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
@@ -214,7 +214,7 @@ func writeManifest(path string, manifest backupManifest) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	enc := json.NewEncoder(f)
 	enc.SetIndent("", "  ")
 	return enc.Encode(manifest)
@@ -225,7 +225,7 @@ func fileStatSHA256(path string) (int64, string, error) {
 	if err != nil {
 		return 0, "", err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	h := sha256.New()
 	size, err := io.Copy(h, f)
 	if err != nil {
@@ -247,11 +247,11 @@ func writeDirTGZ(source, target string) error {
 	if err != nil {
 		return err
 	}
-	defer out.Close()
+	defer func() { _ = out.Close() }()
 	gw := gzip.NewWriter(out)
-	defer gw.Close()
+	defer func() { _ = gw.Close() }()
 	tw := tar.NewWriter(gw)
-	defer tw.Close()
+	defer func() { _ = tw.Close() }()
 
 	return filepath.WalkDir(source, func(path string, d os.DirEntry, walkErr error) error {
 		if walkErr != nil {
@@ -301,11 +301,11 @@ func writeBundleTGZ(target string, files []string) error {
 	if err != nil {
 		return err
 	}
-	defer out.Close()
+	defer func() { _ = out.Close() }()
 	gw := gzip.NewWriter(out)
-	defer gw.Close()
+	defer func() { _ = gw.Close() }()
 	tw := tar.NewWriter(gw)
-	defer tw.Close()
+	defer func() { _ = tw.Close() }()
 
 	for _, path := range files {
 		info, err := os.Stat(path)
@@ -325,10 +325,10 @@ func writeBundleTGZ(target string, files []string) error {
 			return err
 		}
 		if _, err := io.Copy(tw, f); err != nil {
-			f.Close()
+			_ = f.Close()
 			return err
 		}
-		f.Close()
+		_ = f.Close()
 	}
 	return nil
 }

@@ -84,11 +84,11 @@ func (h *Handler) LEIssuePost(w http.ResponseWriter, r *http.Request) {
 			R53Region: settings.R53Region,
 		})
 		if err != nil {
-			appdb.UpdateLECertStatus(h.db, id, "error", err.Error())
+			_ = appdb.UpdateLECertStatus(h.db, id, "error", err.Error())
 			appdb.AddLELog(h.db, domain, "error", fmt.Sprintf("Ошибка: %v", err))
 			return
 		}
-		appdb.UpdateLECertPaths(h.db, id, result.CertPath, result.KeyPath, result.IssuedAt, result.ExpiresAt)
+		_ = appdb.UpdateLECertPaths(h.db, id, result.CertPath, result.KeyPath, result.IssuedAt, result.ExpiresAt)
 		appdb.AddLELog(h.db, domain, "issue", "Сертификат успешно выпущен")
 	}()
 
@@ -110,7 +110,7 @@ func (h *Handler) LERenew(w http.ResponseWriter, r *http.Request) {
 	}
 
 	settings, _ := appdb.GetLESettings(h.db)
-	appdb.UpdateLECertStatus(h.db, id, "pending", "")
+	_ = appdb.UpdateLECertStatus(h.db, id, "pending", "")
 	appdb.AddLELog(h.db, cert.Domain, "renew", "Ручное обновление запущено")
 
 	go func() {
@@ -122,11 +122,11 @@ func (h *Handler) LERenew(w http.ResponseWriter, r *http.Request) {
 			CFZoneID: settings.CFZoneID,
 		})
 		if err != nil {
-			appdb.UpdateLECertStatus(h.db, id, "error", err.Error())
+			_ = appdb.UpdateLECertStatus(h.db, id, "error", err.Error())
 			appdb.AddLELog(h.db, cert.Domain, "error", fmt.Sprintf("Ошибка обновления: %v", err))
 			return
 		}
-		appdb.UpdateLECertPaths(h.db, id, result.CertPath, result.KeyPath, result.IssuedAt, result.ExpiresAt)
+		_ = appdb.UpdateLECertPaths(h.db, id, result.CertPath, result.KeyPath, result.IssuedAt, result.ExpiresAt)
 		appdb.AddLELog(h.db, cert.Domain, "renew", "Сертификат успешно обновлён")
 	}()
 
@@ -144,7 +144,7 @@ func (h *Handler) LEDelete(w http.ResponseWriter, r *http.Request) {
 	cert, _ := appdb.GetLECert(h.db, id)
 	if cert != nil {
 		appdb.AddLELog(h.db, cert.Domain, "delete", "Сертификат удалён из системы")
-		appdb.DeleteLECert(h.db, id)
+		_ = appdb.DeleteLECert(h.db, id)
 	}
 	h.flash(w, r, "ok", "Сертификат удалён")
 	http.Redirect(w, r, "/le", http.StatusFound)
@@ -159,7 +159,7 @@ func (h *Handler) LEToggleAutoRenew(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
 	cert, _ := appdb.GetLECert(h.db, id)
 	if cert != nil {
-		appdb.UpdateLECertAutoRenew(h.db, id, !cert.AutoRenew)
+		_ = appdb.UpdateLECertAutoRenew(h.db, id, !cert.AutoRenew)
 		if !cert.AutoRenew {
 			h.flash(w, r, "ok", "Авто-обновление включено")
 		} else {

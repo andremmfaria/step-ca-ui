@@ -55,7 +55,10 @@ func (h *Handler) UsersPost(w http.ResponseWriter, r *http.Request) {
 			h.flash(w, r, "err", "Нельзя удалить себя")
 			break
 		}
-		appdb.DeleteUser(h.db, uid)
+		if err := appdb.DeleteUser(h.db, uid); err != nil {
+			h.flash(w, r, "err", "Ошибка удаления: "+err.Error())
+			break
+		}
 		h.flash(w, r, "ok", "Пользователь удалён")
 
 	case "change_role":
@@ -66,7 +69,7 @@ func (h *Handler) UsersPost(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 		if role == "viewer" || role == "manager" || role == "admin" {
-			appdb.UpdateUserRole(h.db, uid, role)
+			_ = appdb.UpdateUserRole(h.db, uid, role)
 			h.flash(w, r, "ok", "Роль обновлена")
 		}
 
@@ -79,7 +82,7 @@ func (h *Handler) UsersPost(w http.ResponseWriter, r *http.Request) {
 		u, _ := appdb.GetUserByID(h.db, uid)
 		if u != nil {
 			newState := !u.IsActive
-			appdb.UpdateUserActive(h.db, uid, newState)
+			_ = appdb.UpdateUserActive(h.db, uid, newState)
 			if newState {
 				h.flash(w, r, "ok", "Пользователь разблокирован")
 			} else {
@@ -101,7 +104,7 @@ func (h *Handler) UsersPost(w http.ResponseWriter, r *http.Request) {
 			h.flash(w, r, "err", msg)
 			break
 		}
-		appdb.UpdateUserPassword(h.db, uid, security.HashPassword(newPW))
+		_ = appdb.UpdateUserPassword(h.db, uid, security.HashPassword(newPW))
 		h.flash(w, r, "ok", "Пароль сброшен")
 	}
 	returnTo := r.FormValue("return_to")
@@ -197,7 +200,7 @@ func (h *Handler) ProfilePost(w http.ResponseWriter, r *http.Request) {
 		// Обновляем username в сессии
 		s := h.sess(r)
 		s.Values["username"] = username
-		s.Save(r, w)
+		_ = s.Save(r, w)
 		h.flash(w, r, "ok", "Профиль обновлён")
 		http.Redirect(w, r, "/profile", http.StatusFound)
 		return
@@ -223,7 +226,7 @@ func (h *Handler) ProfilePost(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "/profile", http.StatusFound)
 			return
 		}
-		appdb.UpdateUserPassword(h.db, si.UserID, security.HashPassword(newPW))
+		_ = appdb.UpdateUserPassword(h.db, si.UserID, security.HashPassword(newPW))
 		h.flash(w, r, "ok", "Пароль успешно изменён")
 		http.Redirect(w, r, "/profile", http.StatusFound)
 		return
