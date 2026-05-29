@@ -22,6 +22,10 @@ input:focus{outline:none;border-color:#4493f8}
 .btn{width:100%;padding:11px;background:#4493f8;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;margin-top:6px}
 .btn:hover{background:#3a85e8}
 .btn:disabled{opacity:.5;cursor:not-allowed}
+.btn-oidc{display:block;width:100%;padding:11px;background:#1a1a2e;color:#e8e8e8;border:1px solid #4493f8;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;margin-top:10px;text-align:center;text-decoration:none}
+.btn-oidc:hover{background:#0f3460;color:#fff}
+.divider{display:flex;align-items:center;gap:10px;margin:16px 0;color:#444;font-size:11px}
+.divider::before,.divider::after{content:'';flex:1;height:1px;background:#222}
 </style>
 </head>
 <body>
@@ -38,6 +42,11 @@ input:focus{outline:none;border-color:#4493f8}
     {{range .Msgs}}
     <div class="error">{{.Text}}</div>
     {{end}}
+    {{if .OIDCEnabled}}
+    <a class="btn-oidc" href="/auth/oidc/login">Sign in with JumpCloud</a>
+    {{end}}
+    {{if .LocalLoginEnabled}}
+    {{if .OIDCEnabled}}<div class="divider">or</div>{{end}}
     <form method="POST" action="/login">
       <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
       {{if .NeedTOTP}}
@@ -62,6 +71,7 @@ input:focus{outline:none;border-color:#4493f8}
       <button class="btn" type="submit" {{if .Blocked}}disabled{{end}}>Войти &rarr;</button>
       {{end}}
     </form>
+    {{end}}
   </div>
 </div>
 </body>
