@@ -168,6 +168,10 @@ func main() {
 	r.Get("/login", h.LoginGet)
 	r.Post("/login", h.LoginPost)
 	r.Get("/logout", h.Logout)
+	if cfg.OIDCEnabled {
+		r.Get("/auth/oidc/login", h.OIDCLogin)
+		r.Get("/auth/oidc/callback", h.OIDCCallback)
+	}
 
 	// Авторизованные маршруты
 	r.Group(func(r chi.Router) {

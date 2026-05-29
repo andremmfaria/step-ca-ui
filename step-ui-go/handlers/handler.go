@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"html/template"
@@ -8,7 +9,9 @@ import (
 	"net/http"
 	"time"
 
+	gooidc "github.com/coreos/go-oidc/v3/oidc"
 	"github.com/gorilla/sessions"
+	"golang.org/x/oauth2"
 	"step-ui/config"
 	appdb "step-ui/db"
 	"step-ui/models"
@@ -29,12 +32,38 @@ type Handler struct {
 	cfg   *config.Config
 	store *sessions.CookieStore
 	tmpls map[string]*template.Template
+
+	// OIDC fields — non-nil only when cfg.OIDCEnabled is true
+	oidcOAuth2Config *oauth2.Config
+	oidcVerifier     *gooidc.IDTokenVerifier
 }
 
 func New(db *sql.DB, cfg *config.Config, store *sessions.CookieStore) *Handler {
 	h := &Handler{db: db, cfg: cfg, store: store, tmpls: make(map[string]*template.Template)}
 	h.loadTemplates()
+	if cfg.OIDCEnabled {
+		h.initOIDC()
+	}
 	return h
+}
+
+// initOIDC discovers the provider and wires up the oauth2 config + token verifier.
+// Called only when OIDCEnabled is true.
+func (h *Handler) initOIDC() {
+	ctx := context.Background()
+	provider, err := gooidc.NewProvider(ctx, h.cfg.OIDCIssuerURL)
+	if err != nil {
+		log.Fatalf("OIDC provider discovery failed for %s: %v", h.cfg.OIDCIssuerURL, err)
+	}
+	h.oidcOAuth2Config = &oauth2.Config{
+		ClientID:     h.cfg.OIDCClientID,
+		ClientSecret: h.cfg.OIDCClientSecret,
+		RedirectURL:  h.cfg.OIDCRedirectURL,
+		Endpoint:     provider.Endpoint(),
+		Scopes:       []string{gooidc.ScopeOpenID, "profile", "email", "groups"},
+	}
+	h.oidcVerifier = provider.Verifier(&gooidc.Config{ClientID: h.cfg.OIDCClientID})
+	log.Printf("OIDC enabled: issuer=%s", h.cfg.OIDCIssuerURL)
 }
 
 func (h *Handler) loadTemplates() {

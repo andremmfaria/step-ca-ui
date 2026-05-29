@@ -22,11 +22,26 @@ func (h *Handler) LoginGet(w http.ResponseWriter, r *http.Request) {
 		data["Error"] = "Слишком много попыток. Подождите 15 минут."
 		data["Blocked"] = true
 	}
+	data["OIDCEnabled"] = h.cfg.OIDCEnabled
+	data["LocalLoginEnabled"] = h.cfg.LocalLoginEnabled
 	h.render(w, "login", data)
 }
 
 func (h *Handler) LoginPost(w http.ResponseWriter, r *http.Request) {
 	ip := r.RemoteAddr
+
+	if !h.cfg.LocalLoginEnabled {
+		if h.cfg.OIDCEnabled {
+			http.Redirect(w, r, "/auth/oidc/login", http.StatusFound)
+		} else {
+			data := h.base(w, r, "")
+			data["Error"] = "Local login is disabled."
+			data["OIDCEnabled"] = false
+			data["LocalLoginEnabled"] = false
+			h.render(w, "login", data)
+		}
+		return
+	}
 
 	if security.RL.IsBlocked(ip) {
 		data := h.base(w, r, "")
