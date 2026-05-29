@@ -1,5 +1,5 @@
 # ── Stage 1: Build ───────────────────────────────────────────────────────────
-FROM golang:1.22-alpine AS builder
+FROM golang:1.26.3-alpine3.23 AS builder
 
 WORKDIR /build
 
@@ -12,15 +12,15 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o step-ui .
 
 # ── Stage 2: Runtime ──────────────────────────────────────────────────────────
-FROM alpine:3.19
+FROM alpine:3.23
 
 WORKDIR /opt/step-ui
 
 RUN apk add --no-cache curl openssl ca-certificates netcat-openbsd tzdata postgresql-client && \
-    wget -q "https://github.com/smallstep/cli/releases/download/v0.26.1/step_linux_0.26.1_amd64.tar.gz" \
+    wget -q "https://github.com/smallstep/cli/releases/download/v0.30.2/step_linux_0.30.2_amd64.tar.gz" \
          -O /tmp/step.tar.gz && \
     tar -xzf /tmp/step.tar.gz -C /tmp && \
-    mv /tmp/step_0.26.1/bin/step /usr/local/bin/step && \
+    mv /tmp/step_0.30.2/bin/step /usr/local/bin/step && \
     rm -rf /tmp/step* && \
     chmod +x /usr/local/bin/step
 
