@@ -5,12 +5,12 @@
 **Self-hosted веб-интерфейс для [Smallstep step-ca](https://smallstep.com/docs/step-ca/) — управляйте собственным PKI прямо из браузера.**
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
-[![Made with Go](https://img.shields.io/badge/Made%20with-Go%201.22-00ADD8.svg)](https://go.dev)
+[![Made with Go](https://img.shields.io/badge/Made%20with-Go%201.26-00ADD8.svg)](https://go.dev)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED.svg)](https://docs.docker.com/compose/)
 [![Current version](https://img.shields.io/badge/version-v1.6.0-success.svg)](https://github.com/UncleFi1/step-ca-ui/releases/tag/v1.6.0)
 [![Latest release](https://img.shields.io/badge/release-v1.6.0-success.svg)](https://github.com/UncleFi1/step-ca-ui/releases/latest)
 
-[🇬🇧 English](README.md) · 🇷🇺 **Русский**
+[English](README.md) · **Русский**
 
 </div>
 
@@ -45,6 +45,7 @@
 - 🧩 **Шаблоны сертификатов** — presets для server, internal service, wildcard и client identity *(новинка v1.5.2)*
 - 🔔 **Webhook-уведомления** — тестовая отправка, ошибки выпуска/перевыпуска, серия неудачных входов и контроль истечения *(новинка v1.5.3)*
 - 🔐 **TOTP 2FA** — подключение authenticator app, QR-код, проверка при входе и recovery-коды *(новинка v1.6.0)*
+- **OIDC SSO** — маппинг группа→роль через любой OIDC-провайдер (JumpCloud как референсный); отключён по умолчанию
 
 ## Быстрый старт
 
@@ -99,12 +100,12 @@ sudo ./install.sh --mode update --lang ru
 
 | Слой         | Технология                  |
 |--------------|-----------------------------|
-| Backend      | Go 1.22, [chi](https://github.com/go-chi/chi) router |
+| Backend      | Go 1.26, [chi](https://github.com/go-chi/chi) router |
 | Frontend     | Server-side HTML + чистый JS, без сборки |
 | База данных  | PostgreSQL 16 |
 | CA           | [smallstep/step-ca](https://hub.docker.com/r/smallstep/step-ca) |
 | Деплой       | Docker Compose |
-| OS контейнера| Alpine 3.19 + tzdata        |
+| OS контейнера| Alpine 3.23 + tzdata        |
 
 ## Архитектура
 
@@ -129,27 +130,103 @@ sudo ./install.sh --mode update --lang ru
 
 | Роль    | Просмотр | Выпуск/Импорт | Отзыв | Управление пользователями |
 |---------|----------|---------------|-------|---------------------------|
-| viewer  | ✅       | ❌            | ❌    | ❌                        |
-| manager | ✅       | ✅            | ❌    | ❌                        |
-| admin   | ✅       | ✅            | ✅    | ✅                        |
+| viewer  | да       | нет           | нет   | нет                       |
+| manager | да       | да            | нет   | нет                       |
+| admin   | да       | да            | да    | да                        |
 
 **Временные пользователи** могут иметь любую роль; они автоматически блокируются по истечении `expires_at` (отдельная горутина проверяет раз в минуту).
 
+## Аутентификация / SSO
+
+Step-CA UI поддерживает локальный вход по паролю и OIDC SSO. Оба метода могут работать одновременно; установщик оставляет OIDC выключенным, чтобы существующие развёртывания не пострадали.
+
+### Локальный вход
+
+Вход по логину/паролю включён по умолчанию (`LOCAL_LOGIN_ENABLED=true`). Оставляйте его включённым, пока настраиваете OIDC — отключение до проверки SSO приведёт к потере доступа. Локальный вход служит резервным путём, если IdP недоступен.
+
+TOTP/2FA применяется только к локальным аккаунтам. Пользователи SSO полагаются на MFA своего IdP.
+
+### OIDC SSO
+
+Установите `OIDC_ENABLED=true`, чтобы активировать SSO. Реализация использует authorization code flow с PKCE и проверяет state, nonce и подпись ID token по JWKS эмитента. JumpCloud является референсным IdP, но подойдёт любой стандартный OIDC-провайдер.
+
+**Маршруты, регистрируемые при `OIDC_ENABLED=true`:**
+
+| Маршрут | Назначение |
+|---------|------------|
+| `GET /auth/oidc/login` | Инициирует authorization code + PKCE flow |
+| `GET /auth/oidc/callback` | Принимает редирект от провайдера и завершает вход |
+
+**Маппинг группа→роль**
+
+Claim с именем, заданным в `OIDC_GROUP_CLAIM` (по умолчанию `groups`), содержит группы пользователя. Приложение сопоставляет группы с ролями по принципу наивысшего приоритета:
+
+```
+admin > manager > viewer
+```
+
+Если ни одно из трёх имён групп не совпадает и `OIDC_DEFAULT_ROLE` пуст — доступ запрещён. Устанавливайте `OIDC_DEFAULT_ROLE` в `viewer` только если каждый аутентифицированный пользователь вашего IdP должен иметь доступ на чтение.
+
+При `OIDC_SYNC_ROLE=true` (по умолчанию) роль обновляется при каждом входе, и членство в группах IdP остаётся авторитативным. Установите `OIDC_SYNC_ROLE=false`, чтобы сохранять роли, назначенные вручную внутри приложения.
+
+**Переменные окружения**
+
+| Переменная | По умолчанию | Описание |
+|------------|--------------|----------|
+| `OIDC_ENABLED` | `false` | Установите `true` для включения SSO |
+| `OIDC_ISSUER_URL` | — | Issuer URL провайдера (напр. `https://oauth.id.jumpcloud.com/`) |
+| `OIDC_CLIENT_ID` | — | OAuth2 client ID из IdP |
+| `OIDC_CLIENT_SECRET` | — | OAuth2 client secret из IdP |
+| `OIDC_REDIRECT_URL` | — | Должен быть `https://<your-host>/auth/oidc/callback` |
+| `OIDC_GROUP_CLAIM` | `groups` | Claim в ID token, содержащий группы |
+| `OIDC_GROUP_ADMIN` | — | Имя группы IdP, сопоставляемой с ролью `admin` |
+| `OIDC_GROUP_MANAGER` | — | Имя группы IdP, сопоставляемой с ролью `manager` |
+| `OIDC_GROUP_VIEWER` | — | Имя группы IdP, сопоставляемой с ролью `viewer` |
+| `OIDC_DEFAULT_ROLE` | _(пусто — запрет)_ | Роль при отсутствии совпадений |
+| `OIDC_SYNC_ROLE` | `true` | Синхронизировать роль из групп IdP при каждом входе |
+| `LOCAL_LOGIN_ENABLED` | `true` | Показывать форму логин/пароль (резервный вход) |
+
+**Чек-лист настройки JumpCloud:**
+
+1. SSO > + Add New Application > Custom OIDC App
+2. Задайте Redirect URI: `https://<your-host>/auth/oidc/callback`
+3. Скопируйте Client ID и Client Secret в `.env`
+4. Добавьте атрибут группы с Attribute Name `groups`
+5. Заполните `OIDC_GROUP_ADMIN` / `OIDC_GROUP_MANAGER` / `OIDC_GROUP_VIEWER` именами групп JumpCloud
+
 ## Безопасность
 
-- ✅ **CSRF-защита** — токены на каждой форме и серверная проверка POST-маршрутов
-- ✅ **Rate limiting** — 5 неудачных попыток входа → блокировка IP на 15 минут
-- ✅ **Security headers** — CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, опциональный HSTS
-- ✅ **Таймаут сессии** — 8 часов, скользящий
-- ✅ **Журнал входов** — каждая попытка с IP и User-Agent
-- ✅ **Self-signed TLS** — генерируется при первом запуске, валидность 10 лет
-- ✅ **Хэширование паролей** — bcrypt для новых/изменённых паролей, прозрачная миграция legacy SHA-256 при следующем успешном входе
+- **CSRF-защита** — токены на каждой форме и серверная проверка POST-маршрутов
+- **Rate limiting** — 5 неудачных попыток входа → блокировка IP на 15 минут
+- **Security headers** — CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, опциональный HSTS
+- **Таймаут сессии** — 8 часов, скользящий
+- **Журнал входов** — каждая попытка с IP и User-Agent
+- **Self-signed TLS** — генерируется при первом запуске, валидность 10 лет
+- **Хэширование паролей** — bcrypt для новых/изменённых паролей, прозрачная миграция legacy SHA-256 при следующем успешном входе
 
-> 🔒 **Совет для production:** поставьте step-ui за reverse proxy (Caddy/nginx) с настоящим TLS-сертификатом, ограничьте доступ через VPN/Tailscale, регулярно бэкапьте том `step-ca-data`.
+**`SECRET_KEY` обязателен.** Приложение откажется запускаться, если `SECRET_KEY` содержит значение-заглушку по умолчанию или короче 32 символов. Этот ключ подписывает cookie сессий и CSRF-токены; его утечка позволяет подделать сессию любого пользователя.
+
+```bash
+# Сгенерировать подходящее значение:
+openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | head -c 48
+```
+
+**`SESSION_SECURE`** (по умолчанию `true`) устанавливает флаг `Secure` на cookie сессии. Задайте `false` только для локальной HTTP-разработки; при старте приложение выводит предупреждение, если этот параметр равен false.
+
+**`TRUST_PROXY`** управляет тем, как приложение определяет IP клиента:
+
+| Значение | Поведение |
+|----------|-----------|
+| `false` (по умолчанию) | Использует реальный TCP-сокет. Rate limiter и журнал входов не поддаются подделке через заголовки `X-Forwarded-For`. Используйте, когда приложение выходит напрямую в интернет или стоит за прокси, которому вы не доверяете. |
+| `true` | Перезаписывает `RemoteAddr` из `X-Forwarded-For` / `X-Real-IP` (через middleware `RealIP` от chi). Используйте только когда доверенный reverse proxy (nginx, Traefik, Caddy) очищает или перезаписывает эти заголовки перед проксированием. |
+
+> **Совет для production:** поставьте step-ui за reverse proxy с настоящим TLS-сертификатом, ограничьте доступ через VPN/Tailscale, регулярно бэкапьте том `step-ca-data`.
 
 ## Конфигурация
 
-Все настройки в `.env`. Установщик создаёт его автоматически, но вы можете редактировать вручную:
+Все настройки в `.env`. Установщик создаёт его автоматически, но вы можете редактировать вручную. Полный аннотированный список — в `.env.example`.
+
+**Основные переменные:**
 
 ```env
 HOST_IP=192.168.1.100              # SAN в self-signed серте; DNS-имя для step-ca
@@ -157,13 +234,31 @@ UI_HTTPS_PORT=443                  # внешний HTTPS-порт
 PROVISIONER=admin                  # идентификатор provisioner'а step-ca
 CA_PASSWORD=<сгенерировано>        # пароль provisioner'а step-ca
 STEP_CA_IMAGE=smallstep/step-ca:0.30.2 # закреплённый step-ca image
-SECRET_KEY=<сгенерировано>         # ключ подписи сессий и CSRF
-SESSION_SECURE=true                # secure cookie сессии для HTTPS
+SECRET_KEY=<сгенерировано>         # ключ подписи сессий и CSRF — ОБЯЗАТЕЛЕН, минимум 32 символа
+SESSION_SECURE=true                # secure cookie сессии для HTTPS (предупреждение при false)
 ENABLE_HSTS=false                  # включайте только с доверенным TLS-сертификатом
 POSTGRES_PASSWORD=<сгенерировано>  # пароль базы
 TZ=UTC                             # часовой пояс контейнеров
 STEPCA_DEFAULT_TLS_CERT_DURATION=8760h
 STEPCA_MAX_TLS_CERT_DURATION=87600h
+```
+
+**Переменные для reverse proxy и OIDC** (отключены по умолчанию — задайте только нужное):
+
+```env
+TRUST_PROXY=false                  # true только за доверенным прокси, очищающим XFF
+LOCAL_LOGIN_ENABLED=true           # false чтобы скрыть форму пароля (оставьте true до проверки OIDC)
+OIDC_ENABLED=false
+OIDC_ISSUER_URL=https://oauth.id.jumpcloud.com/
+OIDC_CLIENT_ID=
+OIDC_CLIENT_SECRET=
+OIDC_REDIRECT_URL=https://<your-host>/auth/oidc/callback
+OIDC_GROUP_CLAIM=groups
+OIDC_GROUP_ADMIN=step-ca-admins
+OIDC_GROUP_MANAGER=step-ca-managers
+OIDC_GROUP_VIEWER=step-ca-viewers
+OIDC_DEFAULT_ROLE=                 # пусто = запрет при отсутствии совпадений (рекомендуется)
+OIDC_SYNC_ROLE=true
 ```
 
 После изменения `.env` пересоздайте контейнеры:
@@ -234,6 +329,73 @@ sudo ./install.sh --mode update --lang ru
 ```
 Режим обновления сначала создаёт бэкап, сохраняет текущие Docker volumes, при необходимости переключается на выбранный тег и запускает миграции автоматически при старте. Перед обновлением всегда смотрите [release notes](https://github.com/UncleFi1/step-ca-ui/releases) — мажорные версии могут содержать breaking changes.
 </details>
+
+## Container image
+
+Публикуемый образ: `ghcr.io/andremmfaria/step-ca-ui`.
+
+```bash
+docker pull ghcr.io/andremmfaria/step-ca-ui:main
+```
+
+Образ собран на Alpine 3.23 с bundled smallstep CLI v0.30.2. Открывает порт 8443; маппинг на нужный порт хоста задаётся при запуске.
+
+Запуск без Compose возможен, но требует доступного PostgreSQL и работающего step-ca. Для большинства развёртываний используйте готовый `docker-compose.yml`:
+
+```bash
+git clone https://github.com/andremmfaria/step-ca-ui.git
+cd step-ca-ui
+cp .env.example .env   # заполните значения
+sudo docker compose up -d
+```
+
+Локальная сборка без публикации:
+
+```bash
+docker build -f step-ui-go/Dockerfile step-ui-go
+```
+
+**Когда публикуется образ:**
+
+| Триггер | Образ публикуется? | Теги |
+|---------|--------------------|------|
+| Push в `main` | Да | `main`, short SHA |
+| Тег версии (`v*`) | Да | semver (напр. `1.7.0`, `1.7`) |
+| Pull request | Нет (только сборка) | PR ref |
+
+## CI/CD и безопасность цепочки поставок
+
+На каждый push и pull request запускается пять GitHub Actions workflows.
+
+### CI
+
+Выполняет проверку форматирования `gofmt`, `go vet`, `go build`, `go test -race` и golangci-lint v2. Все проверки должны пройти до слияния.
+
+### Meta Lint
+
+Проверяет Dockerfile через hadolint, workflow-файлы через actionlint и YAML-файлы в `.github/` через yamllint.
+
+### Security Scanning
+
+Запускает четыре сканера и загружает результаты в формате SARIF на вкладку GitHub Security:
+
+| Сканер | Что проверяет |
+|--------|---------------|
+| gosec | Go-код на антипаттерны безопасности |
+| govulncheck | Известные CVE в зависимостях Go-модулей |
+| gitleaks | Секреты, случайно попавшие в репозиторий |
+| trivy (filesystem) | Уязвимости зависимостей и конфигурации в репозитории |
+| trivy (image) | Уязвимости в собранном образе контейнера |
+
+Все сканеры работают в неблокирующем режиме, пока формируется исходный baseline. Коды завершения будут ужесточены после триажа baseline.
+
+### CodeQL
+
+Собственное сканирование Go-кода от GitHub; запускается при push в `main`, на pull request и еженедельно.
+
+### Dependabot
+
+Автоматические PR с обновлением зависимостей формируются и открываются еженедельно (понедельник, 06:00 UTC) для Go-модулей, базовых Docker-образов и GitHub Actions. Все сторонние actions в workflows закреплены по commit SHA.
 
 ## Участие в разработке
 
