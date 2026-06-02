@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	"log"
+	"log/slog"
 	"runtime/debug"
 )
 
@@ -13,8 +13,7 @@ func safeGo(name string, fn func()) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				//nolint:gosec // G706: name is a caller-controlled label, not user input
-				log.Printf("[safeGo] panic in %s: %v\n%s", name, r, debug.Stack())
+				slog.Error("panic in background goroutine", "name", name, "panic", r, "stack", string(debug.Stack()))
 			}
 		}()
 		fn()

@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"math/big"
 	"net/http"
-	appdb "step-ui/db"
-	"step-ui/security"
 	"strconv"
 	"strings"
 	"time"
+
+	appdb "step-ui/db"
+	"step-ui/security"
 )
 
 // AdminUsersTempGet — страница списка временных пользователей.

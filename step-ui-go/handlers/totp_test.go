@@ -1,9 +1,10 @@
 package handlers
 
 import (
-	"step-ui/security"
 	"strings"
 	"testing"
+
+	"step-ui/security"
 )
 
 // ─── generateRecoveryCodes ────────────────────────────────────────────────────

@@ -183,11 +183,11 @@ func IssueCert(cfg LEConfig) (*LEResult, error) {
 func parseCertDates(certPEM []byte) (issued, expires *time.Time) {
 	block, _ := pem.Decode(certPEM)
 	if block == nil {
-		return
+		return issued, expires
 	}
 	cert, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {
-		return
+		return issued, expires
 	}
 	i := cert.NotBefore
 	e := cert.NotAfter

@@ -1,123 +1,150 @@
 {{define "content"}}
 <div class="home-hero">
-  <div class="home-hero-text">
-    <div class="home-greeting">Добро пожаловать, <strong>{{if .Session.Username}}{{.Session.Username}}{{else}}гость{{end}}</strong></div>
-    <h1>Step-CA Manager</h1>
-    <p>Операционная панель для локального CA, публичных сертификатов и контроля состояния PKI.</p>
-    <div class="home-hero-actions">
-      {{if hasRole .Session.Role "manager"}}<a href="/issue" class="btn primary">Выпустить сертификат</a>{{end}}
-      <a href="/certificates" class="btn btn-ghost">Все сертификаты</a>
+    <div class="home-hero-text">
+        <div class="home-greeting">
+            Добро пожаловать, <strong>{{if .Session.Username}}{{.Session.Username}}{{else}}гость{{end}}</strong>
+        </div>
+        <h1>Step-CA Manager</h1>
+        <p>Операционная панель для локального CA, публичных сертификатов и контроля состояния PKI.</p>
+        <div class="home-hero-actions">
+            {{if hasRole .Session.Role "manager"}}<a href="/issue" class="btn primary">Выпустить сертификат</a>{{end}}
+            <a href="/certificates" class="btn btn-ghost">Все сертификаты</a>
+        </div>
     </div>
-  </div>
-  <div class="home-status {{if .CAOnline}}ok{{else}}danger{{end}}">
+<div class="home-status {{if .CAOnline}}ok{{else}}danger{{end}}">
     <div class="status-dot"></div>
     <div>
-      <div class="status-label">Центр сертификации</div>
-      <div class="status-value">{{if .CAOnline}}Онлайн{{else}}Недоступен{{end}}</div>
-      <div class="status-sub">Аптайм: {{.Uptime}}</div>
+        <div class="status-label">Центр сертификации</div>
+        <div class="status-value">{{if .CAOnline}}Онлайн{{else}}Недоступен{{end}}</div>
+        <div class="status-sub">Аптайм: {{.Uptime}}</div>
     </div>
-  </div>
 </div>
-
+</div>
 <div class="home-summary">
-  <div class="home-stat">
-    <div class="stat-num">{{.ActiveCerts}}</div>
-    <div class="stat-cap">Активных сертификатов</div>
-  </div>
-  <div class="home-stat">
-    <div class="stat-num {{if gt .ExpiringCerts 0}}warn{{end}}">{{.ExpiringCerts}}</div>
-    <div class="stat-cap">Истекают в 30 дней</div>
-  </div>
-  <div class="home-stat">
-    <div class="stat-num">{{.LECerts}}</div>
-    <div class="stat-cap">Let's Encrypt</div>
-  </div>
+    <div class="home-stat">
+        <div class="stat-num">{{.ActiveCerts}}</div>
+        <div class="stat-cap">Активных сертификатов</div>
+    </div>
+    <div class="home-stat">
+        <div class="stat-num {{if gt .ExpiringCerts 0}}warn{{end}}">{{.ExpiringCerts}}</div>
+        <div class="stat-cap">Истекают в 30 дней</div>
+    </div>
+    <div class="home-stat">
+        <div class="stat-num">{{.LECerts}}</div>
+        <div class="stat-cap">Let's Encrypt</div>
+    </div>
 </div>
-
 <div class="home-section-title">Быстрые действия</div>
 <div class="home-actions">
-  {{if hasRole .Session.Role "manager"}}
-  <a href="/issue" class="action-card c-blue">
-    <div class="action-icon">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="4" y="4" width="16" height="16" rx="2"/>
-        <line x1="12" y1="9" x2="12" y2="15"/>
-        <line x1="9" y1="12" x2="15" y2="12"/>
-      </svg>
-    </div>
-    <div class="action-title">Выпустить сертификат</div>
-    <div class="action-sub">Локальный CA, EC или RSA</div>
-  </a>
-  {{end}}
-
-  <a href="/le" class="action-card c-green">
-    <div class="action-icon">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M12 2l2.5 6.5H21l-5.5 4 2 7-7-4.5-7 4.5 2-7L0 8.5h6.5z" transform="translate(1.5 1)"/>
-      </svg>
-    </div>
-    <div class="action-title">Let's Encrypt</div>
-    <div class="action-sub">Публичные сертификаты на 90 дней</div>
-  </a>
-
-  {{if eq .Session.Role "admin"}}
-  <a href="/provisioners" class="action-card c-purple">
-    <div class="action-icon">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M12 3v12M7 10l5 5 5-5"/>
-        <line x1="5" y1="21" x2="19" y2="21"/>
-      </svg>
-    </div>
-    <div class="action-title">Скачать CA certs</div>
-    <div class="action-sub">Root, Intermediate и Full Chain</div>
-  </a>
-  {{end}}
-
-  <a href="/dashboard" class="action-card c-orange">
-    <div class="action-icon">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="3" y="3" width="7" height="9" rx="1"/>
-        <rect x="14" y="3" width="7" height="5" rx="1"/>
-        <rect x="14" y="12" width="7" height="9" rx="1"/>
-        <rect x="3" y="16" width="7" height="5" rx="1"/>
-      </svg>
-    </div>
-    <div class="action-title">Открыть дашборд</div>
-    <div class="action-sub">Полная статистика и активность</div>
-  </a>
+    {{if hasRole .Session.Role "manager"}}
+    <a href="/issue" class="action-card c-blue">
+        <div class="action-icon">
+            <svg width="22"
+                 height="22"
+                 viewBox="0 0 24 24"
+                 fill="none"
+                 stroke="currentColor"
+                 stroke-width="1.5"
+                 stroke-linecap="round"
+                 stroke-linejoin="round">
+                <rect x="4" y="4" width="16" height="16" rx="2" />
+                <line x1="12" y1="9" x2="12" y2="15" />
+                <line x1="9" y1="12" x2="15" y2="12" />
+            </svg>
+        </div>
+        <div class="action-title">Выпустить сертификат</div>
+        <div class="action-sub">Локальный CA, EC или RSA</div>
+    </a>
+    {{end}}
+    <a href="/le" class="action-card c-green">
+        <div class="action-icon">
+            <svg width="22"
+                 height="22"
+                 viewBox="0 0 24 24"
+                 fill="none"
+                 stroke="currentColor"
+                 stroke-width="1.5"
+                 stroke-linecap="round"
+                 stroke-linejoin="round">
+                <path d="M12 2l2.5 6.5H21l-5.5 4 2 7-7-4.5-7 4.5 2-7L0 8.5h6.5z" transform="translate(1.5 1)" />
+            </svg>
+        </div>
+        <div class="action-title">Let's Encrypt</div>
+        <div class="action-sub">Публичные сертификаты на 90 дней</div>
+    </a>
+    {{if eq .Session.Role "admin"}}
+    <a href="/provisioners" class="action-card c-purple">
+        <div class="action-icon">
+            <svg width="22"
+                 height="22"
+                 viewBox="0 0 24 24"
+                 fill="none"
+                 stroke="currentColor"
+                 stroke-width="1.5"
+                 stroke-linecap="round"
+                 stroke-linejoin="round">
+                <path d="M12 3v12M7 10l5 5 5-5" />
+                <line x1="5" y1="21" x2="19" y2="21" />
+            </svg>
+        </div>
+        <div class="action-title">Скачать CA certs</div>
+        <div class="action-sub">Root, Intermediate и Full Chain</div>
+    </a>
+    {{end}}
+    <a href="/dashboard" class="action-card c-orange">
+        <div class="action-icon">
+            <svg width="22"
+                 height="22"
+                 viewBox="0 0 24 24"
+                 fill="none"
+                 stroke="currentColor"
+                 stroke-width="1.5"
+                 stroke-linecap="round"
+                 stroke-linejoin="round">
+                <rect x="3" y="3" width="7" height="9" rx="1" />
+                <rect x="14" y="3" width="7" height="5" rx="1" />
+                <rect x="14" y="12" width="7" height="9" rx="1" />
+                <rect x="3" y="16" width="7" height="5" rx="1" />
+            </svg>
+        </div>
+        <div class="action-title">Открыть дашборд</div>
+        <div class="action-sub">Полная статистика и активность</div>
+    </a>
 </div>
-
 <div class="home-section-title">О проекте</div>
 <div class="card home-about-card">
-  <div class="home-about-grid">
-    <div>
-      <div class="home-about-title">Step-CA Manager</div>
-      <p>
-        Веб-интерфейс для удобного управления центром сертификации на базе <strong style="color:var(--text)">Smallstep CA</strong>.
-        Выпуск, отзыв, ротация и хранение SSL/TLS сертификатов в едином окне.
-      </p>
-      <p>
-        Поддержка <strong style="color:var(--text)">Let's Encrypt</strong> с автоматическим обновлением.
-        Встроенный аудит безопасности и ролевая модель доступа.
-      </p>
+    <div class="home-about-grid">
+        <div>
+            <div class="home-about-title">Step-CA Manager</div>
+            <p>
+                Веб-интерфейс для удобного управления центром сертификации на базе <strong style="color:var(--text)">Smallstep CA</strong>.
+                Выпуск, отзыв, ротация и хранение SSL/TLS сертификатов в едином окне.
+            </p>
+            <p>
+                Поддержка <strong style="color:var(--text)">Let's Encrypt</strong> с автоматическим обновлением.
+                Встроенный аудит безопасности и ролевая модель доступа.
+            </p>
+        </div>
+        <div>
+            <div class="home-about-title">Стек технологий</div>
+            <div class="tech-chips">
+                <span class="tech-chip">Go</span>
+                <span class="tech-chip">PostgreSQL</span>
+                <span class="tech-chip">Docker</span>
+                <span class="tech-chip">Smallstep</span>
+                <span class="tech-chip">lego (LE)</span>
+            </div>
+            <div class="home-version">
+                Версия <code>v{{.Version}}</code> &middot;
+                <a href="https://github.com/UncleFi1/step-ca-ui"
+                   target="_blank"
+                   rel="noopener"
+                   style="color:var(--accent);
+                          text-decoration:none">GitHub &rarr;</a>
+            </div>
+        </div>
     </div>
-    <div>
-      <div class="home-about-title">Стек технологий</div>
-      <div class="tech-chips">
-        <span class="tech-chip">Go</span>
-        <span class="tech-chip">PostgreSQL</span>
-        <span class="tech-chip">Docker</span>
-        <span class="tech-chip">Smallstep</span>
-        <span class="tech-chip">lego (LE)</span>
-      </div>
-      <div class="home-version">
-        Версия <code>v{{.Version}}</code> &middot;
-        <a href="https://github.com/UncleFi1/step-ca-ui" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none">GitHub &rarr;</a>
-      </div>
-    </div>
-  </div>
 </div>
-
 <style>
 .home-hero{
   display:grid;grid-template-columns:1fr auto;gap:20px;align-items:center;

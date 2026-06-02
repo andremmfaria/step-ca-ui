@@ -7,10 +7,11 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
-	"step-ui/models"
-	"step-ui/security"
 	"testing"
 	"time"
+
+	"step-ui/models"
+	"step-ui/security"
 )
 
 // testDSN returns the DSN for the integration Postgres.  In CI the

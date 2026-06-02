@@ -1,93 +1,127 @@
 {{define "content"}}
 <div class="admin-page-header">
-  <h1 class="admin-page-title">Уведомления</h1>
-  <p class="admin-page-subtitle">Webhook для критичных событий CA, ошибок выпуска и истекающих сертификатов</p>
+    <h1 class="admin-page-title">Уведомления</h1>
+    <p class="admin-page-subtitle">Webhook для критичных событий CA, ошибок выпуска и истекающих сертификатов</p>
 </div>
-
 {{range .Msgs}}
-  <div class="alert {{if eq .Type "ok"}}alert-ok{{else}}alert-err{{end}}">{{.Text}}</div>
+<div class="alert {{if eq .Type "ok"}}alert-ok{{else}}alert-err{{end}}">{{.Text}}</div>
 {{end}}
-
 <div class="card">
-  <div class="card-header"><strong>Webhook</strong></div>
-  <div class="card-body">
-    <form method="POST" action="/admin/notifications" class="form-grid">
-      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-
-      <label class="check-row">
-        <input type="checkbox" name="webhook_enabled" {{if .Settings.WebhookEnabled}}checked{{end}}>
-        <span>Включить webhook отправку</span>
-      </label>
-
-      <label>
-        <span>Webhook URL</span>
-        <input type="password" name="webhook_url" value="{{.Settings.WebhookURL}}" placeholder="https://example.local/step-ca-events" autocomplete="off">
-      </label>
-
-      <div class="form-row">
-        <label class="check-row">
-          <input type="checkbox" name="notify_expiry" {{if .Settings.NotifyExpiry}}checked{{end}}>
-          <span>Сертификаты скоро истекают</span>
-        </label>
-        <label>
-          <span>Порог, дней</span>
-          <input type="number" name="expiry_days" min="1" max="365" value="{{.Settings.ExpiryDays}}">
-        </label>
-      </div>
-
-      <label class="check-row">
-        <input type="checkbox" name="notify_failures" {{if .Settings.NotifyFailures}}checked{{end}}>
-        <span>Ошибки выпуска и перевыпуска сертификатов</span>
-      </label>
-
-      <label class="check-row">
-        <input type="checkbox" name="notify_auth_burst" {{if .Settings.NotifyAuthBurst}}checked{{end}}>
-        <span>Серия неудачных входов до блокировки IP</span>
-      </label>
-
-      <div class="form-actions">
-        <button class="btn primary" type="submit">Сохранить</button>
-      </div>
-    </form>
-  </div>
-</div>
-
-<div class="card">
-  <div class="card-header"><strong>Проверка</strong></div>
-  <div class="card-body">
-    <form method="POST" action="/admin/notifications/test">
-      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-      <button class="btn" type="submit">Отправить test webhook</button>
-    </form>
-  </div>
-</div>
-
-<div class="card">
-  <div class="card-header"><strong>Журнал отправок</strong></div>
-  <div class="card-body" style="padding:0">
-    <div class="tbl-wrap">
-      <table class="tbl">
-        <thead>
-          <tr><th>Время</th><th>Событие</th><th>Статус</th><th>Сообщение</th></tr>
-        </thead>
-        <tbody>
-          {{range .Logs}}
-          <tr>
-            <td>{{fmtLog .CreatedAt}}</td>
-            <td><code>{{.EventType}}</code></td>
-            <td>{{if .Success}}<span class="badge ok">OK</span>{{else}}<span class="badge danger">FAIL</span>{{end}}</td>
-            <td>
-              <strong>{{.Title}}</strong><br>
-              <span class="muted">{{.Message}}</span>
-              {{if .Error}}<br><code>{{.Error}}</code>{{end}}
-            </td>
-          </tr>
-          {{else}}
-          <tr><td colspan="4" class="muted">Событий пока нет</td></tr>
-          {{end}}
-        </tbody>
-      </table>
+    <div class="card-header">
+        <strong>Webhook</strong>
     </div>
-  </div>
+    <div class="card-body">
+        <form method="POST" action="/admin/notifications" class="form-grid">
+            <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+            <label class="check-row">
+                <input type="checkbox"
+                       name="webhook_enabled"
+                       {{if .Settings.WebhookEnabled}}
+                       checked
+                       {{end}}>
+                <span>Включить webhook отправку</span>
+            </label>
+            <label>
+                <span>Webhook URL</span>
+                <input type="password"
+                       name="webhook_url"
+                       value="{{.Settings.WebhookURL}}"
+                       placeholder="https://example.local/step-ca-events"
+                       autocomplete="off">
+            </label>
+            <div class="form-row">
+                <label class="check-row">
+                    <input type="checkbox"
+                           name="notify_expiry"
+                           {{if .Settings.NotifyExpiry}}
+                           checked
+                           {{end}}>
+                    <span>Сертификаты скоро истекают</span>
+                </label>
+                <label>
+                    <span>Порог, дней</span>
+                    <input type="number"
+                           name="expiry_days"
+                           min="1"
+                           max="365"
+                           value="{{.Settings.ExpiryDays}}">
+                </label>
+            </div>
+            <label class="check-row">
+                <input type="checkbox"
+                       name="notify_failures"
+                       {{if .Settings.NotifyFailures}}
+                       checked
+                       {{end}}>
+                <span>Ошибки выпуска и перевыпуска сертификатов</span>
+            </label>
+            <label class="check-row">
+                <input type="checkbox"
+                       name="notify_auth_burst"
+                       {{if .Settings.NotifyAuthBurst}}
+                       checked
+                       {{end}}>
+                <span>Серия неудачных входов до блокировки IP</span>
+            </label>
+            <div class="form-actions">
+                <button class="btn primary" type="submit">Сохранить</button>
+            </div>
+        </form>
+    </div>
+</div>
+<div class="card">
+    <div class="card-header">
+        <strong>Проверка</strong>
+    </div>
+    <div class="card-body">
+        <form method="POST" action="/admin/notifications/test">
+            <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+            <button class="btn" type="submit">Отправить test webhook</button>
+        </form>
+    </div>
+</div>
+<div class="card">
+    <div class="card-header">
+        <strong>Журнал отправок</strong>
+    </div>
+    <div class="card-body" style="padding:0">
+        <div class="tbl-wrap">
+            <table class="tbl">
+                <thead>
+                    <tr>
+                        <th>Время</th>
+                        <th>Событие</th>
+                        <th>Статус</th>
+                        <th>Сообщение</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{range .Logs}}
+                    <tr>
+                        <td>{{fmtLog .CreatedAt}}</td>
+                        <td>
+                            <code>{{.EventType}}</code>
+                        </td>
+                        <td>
+                            {{if .Success}}<span class="badge ok">OK</span>{{else}}<span class="badge danger">FAIL</span>{{end}}
+                        </td>
+                        <td>
+                            <strong>{{.Title}}</strong>
+                            <br>
+                            <span class="muted">{{.Message}}</span>
+                            {{if .Error}}
+                            <br>
+                            <code>{{.Error}}</code>{{end}}
+                        </td>
+                    </tr>
+                {{else}}
+                    <tr>
+                        <td colspan="4" class="muted">Событий пока нет</td>
+                    </tr>
+                    {{end}}
+                </tbody>
+            </table>
+        </div>
+    </div>
 </div>
 {{end}}

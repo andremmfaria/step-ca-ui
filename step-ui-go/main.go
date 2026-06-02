@@ -4,21 +4,25 @@ import (
 	"context"
 	"crypto/sha256"
 	"crypto/tls"
+	"embed"
 	"encoding/gob"
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log"
+	"log/slog"
 	"mime"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
-	"step-ui/config"
-	"step-ui/handlers"
 	"strings"
 	"syscall"
 	"time"
+
+	"step-ui/config"
+	"step-ui/handlers"
 
 	"github.com/go-chi/chi/v5"
 	chiMiddleware "github.com/go-chi/chi/v5/middleware"
@@ -29,55 +33,58 @@ import (
 	mw "step-ui/middleware"
 )
 
-// staticHandlerWithMIME раздаёт статические файлы с ПРАВИЛЬНЫМ Content-Type.
-// Не использует http.FileServer/ServeContent, чтобы те не перезаписали MIME
-// значениями из системного /etc/mime.types (где .css может быть text/plain).
-func staticHandlerWithMIME(rootDir string) http.Handler {
-	mimeByExt := map[string]string{
-		".css":   "text/css; charset=utf-8",
-		".js":    "application/javascript; charset=utf-8",
-		".mjs":   "application/javascript; charset=utf-8",
-		".json":  "application/json; charset=utf-8",
-		".svg":   "image/svg+xml",
-		".png":   "image/png",
-		".jpg":   "image/jpeg",
-		".jpeg":  "image/jpeg",
-		".gif":   "image/gif",
-		".webp":  "image/webp",
-		".ico":   "image/x-icon",
-		".woff":  "font/woff",
-		".woff2": "font/woff2",
-		".ttf":   "font/ttf",
-		".otf":   "font/otf",
-		".map":   "application/json; charset=utf-8",
-		".html":  "text/html; charset=utf-8",
-		".txt":   "text/plain; charset=utf-8",
-	}
+//go:embed templates static
+var embeddedAssets embed.FS
+
+// mimeByExt maps file extensions to correct Content-Type values.
+// http.FileServer/ServeContent may use system /etc/mime.types which maps .css
+// to text/plain on some distros — this table overrides that.
+var mimeByExt = map[string]string{
+	".css":   "text/css; charset=utf-8",
+	".js":    "application/javascript; charset=utf-8",
+	".mjs":   "application/javascript; charset=utf-8",
+	".json":  "application/json; charset=utf-8",
+	".svg":   "image/svg+xml",
+	".png":   "image/png",
+	".jpg":   "image/jpeg",
+	".jpeg":  "image/jpeg",
+	".gif":   "image/gif",
+	".webp":  "image/webp",
+	".ico":   "image/x-icon",
+	".woff":  "font/woff",
+	".woff2": "font/woff2",
+	".ttf":   "font/ttf",
+	".otf":   "font/otf",
+	".map":   "application/json; charset=utf-8",
+	".html":  "text/html; charset=utf-8",
+	".txt":   "text/plain; charset=utf-8",
+}
+
+// staticHandlerFromFS serves static files from an fs.FS with enforced MIME types
+// and path-traversal protection.  The FS should be rooted at the "static/"
+// sub-tree (use fs.Sub to strip the prefix before passing here).
+func staticHandlerFromFS(fsys fs.FS) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// безопасная склейка пути
+		// Clean the path and reject traversal attempts.
 		clean := filepath.Clean("/" + r.URL.Path)
-		full := filepath.Join(rootDir, clean)
-		// Path-traversal guard: require absFile to be strictly inside absRoot.
-		// The separator suffix prevents the sibling-directory attack where
-		// "/app/static-x/..." would match a naive prefix of "/app/static".
-		absRoot, _ := filepath.Abs(rootDir)
-		absFile, _ := filepath.Abs(full)
-		if !strings.HasPrefix(absFile, absRoot+string(filepath.Separator)) {
+		// Strip leading slash — fs.FS paths are relative.
+		relPath := strings.TrimPrefix(clean, "/")
+		if relPath == "" || strings.HasPrefix(relPath, "..") {
 			http.NotFound(w, r)
 			return
 		}
-		f, err := os.Open(full)
+		f, err := fsys.Open(relPath)
 		if err != nil {
 			http.NotFound(w, r)
 			return
 		}
 		defer func() { _ = f.Close() }()
-		st, err := f.Stat()
+		st, err := fs.Stat(fsys, relPath)
 		if err != nil || st.IsDir() {
 			http.NotFound(w, r)
 			return
 		}
-		ext := strings.ToLower(filepath.Ext(full))
+		ext := strings.ToLower(filepath.Ext(relPath))
 		if mt, ok := mimeByExt[ext]; ok {
 			w.Header().Set("Content-Type", mt)
 		} else {
@@ -119,7 +126,7 @@ func main() {
 		log.Fatal("FATAL: SECRET_KEY is the default or shorter than 32 chars — set a strong SECRET_KEY before starting")
 	}
 	if !cfg.SessionSecure {
-		log.Println("WARN: SESSION_SECURE=false — session cookies will not carry the Secure flag; do not use this in production")
+		slog.Warn("SESSION_SECURE=false: session cookies will not carry the Secure flag; do not use this in production")
 	}
 
 	// ─── Database ────────────────────────────────────────────────────────────
@@ -152,7 +159,9 @@ func main() {
 	}
 
 	// ─── Handlers ────────────────────────────────────────────────────────────
-	h := handlers.New(conn, cfg, store)
+	// Pass the embedded FS so templates and static files are read from the
+	// binary rather than from the working directory at runtime.
+	h := handlers.NewWithFS(conn, cfg, store, embeddedAssets)
 
 	// ─── Let's Encrypt auto-renewer ──────────────────────────────────────────
 	h.StartRenewer()
@@ -270,7 +279,14 @@ func main() {
 	})
 
 	// ─── Static files ─────────────────────────────────────────────────────────
-	r.Handle("/static/*", http.StripPrefix("/static/", staticHandlerWithMIME("static")))
+	// Use the embedded FS sub-tree for static files so the binary is self-contained
+	// and does not depend on the working directory.  staticHandlerFromFS enforces
+	// MIME types and path-traversal protection on top of the embed.FS boundary.
+	staticFS, err := fs.Sub(embeddedAssets, "static")
+	if err != nil {
+		log.Fatalf("cannot create static sub-FS: %v", err)
+	}
+	r.Handle("/static/*", http.StripPrefix("/static/", staticHandlerFromFS(staticFS)))
 	// ─── Start server ─────────────────────────────────────────────────────────
 	for _, dir := range []string{cfg.CertsDir, cfg.UploadDir, "/opt/step-ui/ssl", "/opt/step-ui/data"} {
 		_ = os.MkdirAll(dir, 0o750) //nolint:gosec // G301: app data dirs; restrictive perms appropriate for non-root service user
@@ -282,7 +298,7 @@ func main() {
 		defer t.Stop()
 		for range t.C {
 			if n, err := appdb.ExpireOverdueTempUsers(conn); err == nil && n > 0 {
-				log.Printf("temp-users: expired %d account(s)", n)
+				slog.Info("temp users expired", "count", n)
 			}
 		}
 	})
@@ -312,10 +328,10 @@ func main() {
 	srvErr := make(chan error, 1)
 	if useHTTPS {
 		srv.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12}
-		log.Printf("[*] Starting Step-CA UI (HTTPS) on port %d", cfg.Port)
+		slog.Info("starting Step-CA UI (HTTPS)", "port", cfg.Port)
 		go func() { srvErr <- srv.ListenAndServeTLS(cfg.SSLCert, cfg.SSLKey) }()
 	} else {
-		log.Printf("[!] Starting Step-CA UI (HTTP) on port %d — not suitable for production", cfg.Port)
+		slog.Warn("starting Step-CA UI (HTTP) — not suitable for production", "port", cfg.Port)
 		go func() { srvErr <- srv.ListenAndServe() }()
 	}
 
@@ -326,13 +342,13 @@ func main() {
 		}
 	case <-ctx.Done():
 		stop()
-		log.Println("[*] Shutdown signal received; draining in-flight requests…")
+		slog.Info("shutdown signal received; draining in-flight requests")
 		shutCtx, shutCancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer shutCancel()
 		if err := srv.Shutdown(shutCtx); err != nil {
-			log.Printf("graceful shutdown error: %v", err)
+			slog.Error("graceful shutdown error", "err", err)
 		}
 		_ = conn.Close()
-		log.Println("[*] Server stopped cleanly")
+		slog.Info("server stopped cleanly")
 	}
 }

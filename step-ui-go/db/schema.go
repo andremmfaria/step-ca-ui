@@ -5,9 +5,11 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"log/slog"
 	"os"
-	"step-ui/security"
 	"time"
+
+	"step-ui/security"
 
 	_ "github.com/lib/pq" // Postgres driver registration
 )
@@ -113,7 +115,8 @@ func InitSchema(d *sql.DB) error {
 			created_at TIMESTAMPTZ DEFAULT NOW()
 		);
 		CREATE INDEX IF NOT EXISTS idx_recovery_codes_user ON user_recovery_codes(user_id);
-	`); err != nil {
+	`,
+	); err != nil {
 		return err
 	}
 
@@ -132,12 +135,18 @@ func InitSchema(d *sql.DB) error {
 		if err != nil {
 			log.Fatal(err.Error())
 		}
-		fmt.Println("[*] Seeding admin user with password from STEPUI_ADMIN_PASSWORD")
+		slog.Info("seeding admin user from STEPUI_ADMIN_PASSWORD")
 		if _, err := d.Exec(`INSERT INTO users (username,password_hash,role,is_active) VALUES ($1,$2,'admin',true)`, //nolint:noctx // pre-existing signature
 			"admin", security.HashPassword(adminPwd)); err != nil {
 			return fmt.Errorf("seeding admin user: %w", err)
 		}
-		fmt.Println("[*] Admin user seeded. Remove STEPUI_ADMIN_PASSWORD from the environment after first login.")
+		slog.Info("admin user seeded; remove STEPUI_ADMIN_PASSWORD from the environment after first login")
+	}
+
+	// -- migration: certificates.issue_duration (P3-8) stores the issuance
+	// duration so Renew can replay it instead of using a hardcoded default.
+	if _, err := d.Exec(`ALTER TABLE certificates ADD COLUMN IF NOT EXISTS issue_duration VARCHAR(20) DEFAULT ''`); err != nil { //nolint:noctx // pre-existing signature
+		return fmt.Errorf("migration certificates.issue_duration: %w", err)
 	}
 
 	// -- temp_users_migration_v1: errors are checked so a failing migration is

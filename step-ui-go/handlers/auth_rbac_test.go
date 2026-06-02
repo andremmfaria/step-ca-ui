@@ -5,12 +5,13 @@ import (
 	"html/template"
 	"net/http"
 	"net/http/httptest"
-	"step-ui/config"
-	"step-ui/middleware"
-	"step-ui/security"
 	"strings"
 	"testing"
 	"time"
+
+	"step-ui/config"
+	"step-ui/middleware"
+	"step-ui/security"
 
 	"github.com/gorilla/sessions"
 )

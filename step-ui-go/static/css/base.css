@@ -173,13 +173,13 @@ code{font-family:var(--mono);font-size:11px;background:var(--border);padding:2px
 
 .theme-item.active{color:var(--accent);background:var(--active-nav)}
 
-.theme-dot{width:14px;height:14px;border-radius:50%;flex-shrink:0;border:1px solid rgba(255,255,255,.1)}
+.theme-dot{width:14px;height:14px;border-radius:50%;flex-shrink:0;border:1px solid rgb(255,255,255,.1)}
 
 .theme-dot.dark{background:#1a1a1a}
 
-.theme-dot.light{background:#f0f0f0;border-color:rgba(0,0,0,.15)}
+.theme-dot.light{background:#f0f0f0;border-color:rgb(0,0,0,.15)}
 
 .theme-dot.blue{background:#0f1f3d}
 
-.theme-dot.auto{background:linear-gradient(135deg,#1a1a1a 50%,#f0f0f0 50%);border-color:rgba(128,128,128,.3)}
+.theme-dot.auto{background:linear-gradient(135deg,#1a1a1a 50%,#f0f0f0 50%);border-color:rgb(128,128,128,.3)}
 

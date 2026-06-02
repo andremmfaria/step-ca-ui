@@ -2,14 +2,12 @@ package handlers
 
 import (
 	"fmt"
-	"log"
 	"net/http"
-	"strconv"
 
-	"github.com/go-chi/chi/v5"
-	appdb "step-ui/db"
 	"step-ui/le"
 	"step-ui/models"
+
+	appdb "step-ui/db"
 )
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
@@ -103,17 +101,15 @@ func (h *Handler) LERenew(w http.ResponseWriter, r *http.Request) {
 	if !h.requireCSRF(w, r, "/le") {
 		return
 	}
-	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
-	cert, err := appdb.GetLECert(h.db, id)
-	if err != nil {
-		log.Printf("[error] LERenew: GetLECert id=%d: %v", id, err)
-		http.Error(w, "Database error", http.StatusInternalServerError)
+	cert, ok := h.leCertFromURL(w, r)
+	if !ok {
 		return
 	}
 	if cert == nil {
 		http.Redirect(w, r, "/le", http.StatusFound)
 		return
 	}
+	id := cert.ID
 
 	settings, _ := appdb.GetLESettings(h.db)
 	_ = appdb.UpdateLECertStatus(h.db, id, "pending", "")
@@ -146,16 +142,13 @@ func (h *Handler) LEDelete(w http.ResponseWriter, r *http.Request) {
 	if !h.requireCSRF(w, r, "/le") {
 		return
 	}
-	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
-	cert, err := appdb.GetLECert(h.db, id)
-	if err != nil {
-		log.Printf("[error] LEDelete: GetLECert id=%d: %v", id, err)
-		http.Error(w, "Database error", http.StatusInternalServerError)
+	cert, ok := h.leCertFromURL(w, r)
+	if !ok {
 		return
 	}
 	if cert != nil {
 		appdb.AddLELog(h.db, cert.Domain, "delete", "Сертификат удалён из системы")
-		_ = appdb.DeleteLECert(h.db, id)
+		_ = appdb.DeleteLECert(h.db, cert.ID)
 	}
 	h.flash(w, r, "ok", "Сертификат удалён")
 	http.Redirect(w, r, "/le", http.StatusFound)
@@ -167,15 +160,12 @@ func (h *Handler) LEToggleAutoRenew(w http.ResponseWriter, r *http.Request) {
 	if !h.requireCSRF(w, r, "/le") {
 		return
 	}
-	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
-	cert, err := appdb.GetLECert(h.db, id)
-	if err != nil {
-		log.Printf("[error] LEToggleAutoRenew: GetLECert id=%d: %v", id, err)
-		http.Error(w, "Database error", http.StatusInternalServerError)
+	cert, ok := h.leCertFromURL(w, r)
+	if !ok {
 		return
 	}
 	if cert != nil {
-		_ = appdb.UpdateLECertAutoRenew(h.db, id, !cert.AutoRenew)
+		_ = appdb.UpdateLECertAutoRenew(h.db, cert.ID, !cert.AutoRenew)
 		if !cert.AutoRenew {
 			h.flash(w, r, "ok", "Авто-обновление включено")
 		} else {
@@ -188,11 +178,8 @@ func (h *Handler) LEToggleAutoRenew(w http.ResponseWriter, r *http.Request) {
 // ─── Download ─────────────────────────────────────────────────────────────────
 
 func (h *Handler) LEDownloadCert(w http.ResponseWriter, r *http.Request) {
-	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
-	cert, err := appdb.GetLECert(h.db, id)
-	if err != nil {
-		log.Printf("[error] LEDownloadCert: GetLECert id=%d: %v", id, err)
-		http.Error(w, "Database error", http.StatusInternalServerError)
+	cert, ok := h.leCertFromURL(w, r)
+	if !ok {
 		return
 	}
 	if cert == nil || cert.CertPath == "" {
@@ -204,11 +191,8 @@ func (h *Handler) LEDownloadCert(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) LEDownloadKey(w http.ResponseWriter, r *http.Request) {
-	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
-	cert, err := appdb.GetLECert(h.db, id)
-	if err != nil {
-		log.Printf("[error] LEDownloadKey: GetLECert id=%d: %v", id, err)
-		http.Error(w, "Database error", http.StatusInternalServerError)
+	cert, ok := h.leCertFromURL(w, r)
+	if !ok {
 		return
 	}
 	if cert == nil || cert.KeyPath == "" {

@@ -5,16 +5,15 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
 	"time"
 
-	"github.com/go-chi/chi/v5"
-	appdb "step-ui/db"
 	"step-ui/models"
+
+	appdb "step-ui/db"
 )
 
 func (h *Handler) Home(w http.ResponseWriter, r *http.Request) {
@@ -194,6 +193,7 @@ func (h *Handler) IssuePost(w http.ResponseWriter, r *http.Request) {
 	if err := appdb.InsertCert(h.db, &models.Certificate{
 		Name: name, Domain: domain, CertPath: certPath, KeyPath: keyPath,
 		IssuedAt: issued, ExpiresAt: expires, Serial: serial, KeyType: policy.KeyType,
+		IssueDuration: policy.Duration, // stored so Renew can reuse it
 	}); err != nil {
 		data["Msgs"] = []models.FlashMsg{{Type: "err", Text: "Ошибка записи в базу: " + err.Error()}}
 		h.render(w, "issue", data)
@@ -209,11 +209,8 @@ func (h *Handler) Renew(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	si := h.sessionInfo(r)
-	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
-	c, err := appdb.GetCert(h.db, id)
-	if err != nil {
-		log.Printf("[error] Renew: GetCert id=%d: %v", id, err)
-		http.Error(w, "Database error", http.StatusInternalServerError)
+	c, ok := h.certFromURL(w, r)
+	if !ok {
 		return
 	}
 	if c != nil {
@@ -221,11 +218,18 @@ func (h *Handler) Renew(w http.ResponseWriter, r *http.Request) {
 		if keyType == "" {
 			keyType = "EC:P-256"
 		}
-		if issueErr := issueCert(r.Context(), c.Domain, c.CertPath, c.KeyPath, "8760h", keyType, h.cfg); issueErr == nil {
+		// Reuse the stored issuance duration; fall back to 8760h only when the
+		// certificate predates the issue_duration column (P3-8).
+		duration := c.IssueDuration
+		if duration == "" {
+			duration = "8760h"
+		}
+		if issueErr := issueCert(r.Context(), c.Domain, c.CertPath, c.KeyPath, duration, keyType, h.cfg); issueErr == nil {
 			issued, expires, serial, _ := parseCertDates(c.CertPath)
 			_ = appdb.InsertCert(h.db, &models.Certificate{
 				Name: c.Name, Domain: c.Domain, CertPath: c.CertPath, KeyPath: c.KeyPath,
 				IssuedAt: issued, ExpiresAt: expires, Serial: serial, KeyType: keyType,
+				IssueDuration: duration,
 			})
 			_ = appdb.InsertHistory(h.db, "renew", c.Name, c.Domain, "Перевыпуск, тип: "+keyType, si.Username, si.Role)
 			h.flash(w, r, "ok", "Сертификат перевыпущен")
@@ -245,11 +249,8 @@ func (h *Handler) Revoke(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	si := h.sessionInfo(r)
-	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
-	c, err := appdb.GetCert(h.db, id)
-	if err != nil {
-		log.Printf("[error] Revoke: GetCert id=%d: %v", id, err)
-		http.Error(w, "Database error", http.StatusInternalServerError)
+	c, ok := h.certFromURL(w, r)
+	if !ok {
 		return
 	}
 	if c != nil {
@@ -258,7 +259,7 @@ func (h *Handler) Revoke(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "/certificates", http.StatusFound)
 			return
 		}
-		_ = appdb.UpdateCertStatus(h.db, id, "revoked")
+		_ = appdb.UpdateCertStatus(h.db, c.ID, "revoked")
 		_ = appdb.InsertHistory(h.db, "revoke", c.Name, c.Domain, "Отозван (CRL)", si.Username, si.Role)
 		h.flash(w, r, "ok", "Сертификат отозван")
 	}
@@ -313,11 +314,8 @@ func (h *Handler) serveCAFile(w http.ResponseWriter, r *http.Request, path, file
 }
 
 func (h *Handler) DownloadCert(w http.ResponseWriter, r *http.Request) {
-	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
-	c, err := appdb.GetCert(h.db, id)
-	if err != nil {
-		log.Printf("[error] DownloadCert: GetCert id=%d: %v", id, err)
-		http.Error(w, "Database error", http.StatusInternalServerError)
+	c, ok := h.certFromURL(w, r)
+	if !ok {
 		return
 	}
 	if c == nil || c.CertPath == "" {
@@ -333,11 +331,8 @@ func (h *Handler) DownloadCert(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) DownloadKey(w http.ResponseWriter, r *http.Request) {
-	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
-	c, err := appdb.GetCert(h.db, id)
-	if err != nil {
-		log.Printf("[error] DownloadKey: GetCert id=%d: %v", id, err)
-		http.Error(w, "Database error", http.StatusInternalServerError)
+	c, ok := h.certFromURL(w, r)
+	if !ok {
 		return
 	}
 	if c == nil || c.KeyPath == "" {

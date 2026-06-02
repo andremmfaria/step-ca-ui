@@ -13,14 +13,14 @@ import (
 	"testing"
 	"time"
 
+	"step-ui/config"
+
 	gojose "github.com/go-jose/go-jose/v4"
 	josejwt "github.com/go-jose/go-jose/v4/jwt"
 
 	gooidc "github.com/coreos/go-oidc/v3/oidc"
 	"github.com/gorilla/sessions"
 	"golang.org/x/oauth2"
-
-	"step-ui/config"
 )
 
 // fakeProvider acts as a minimal OIDC provider over httptest.

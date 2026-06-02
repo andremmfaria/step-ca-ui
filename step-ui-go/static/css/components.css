@@ -33,17 +33,17 @@
 
 .badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px}
 
-.badge.ok,.badge.green{background:rgba(39,174,96,.15);color:var(--green)}
+.badge.ok,.badge.green{background:rgb(39,174,96,.15);color:var(--green)}
 
-.badge.warn{background:rgba(230,126,34,.15);color:var(--warn)}
+.badge.warn{background:rgb(230,126,34,.15);color:var(--warn)}
 
-.badge.danger,.badge.red{background:rgba(231,76,60,.15);color:var(--danger)}
+.badge.danger,.badge.red{background:rgb(231,76,60,.15);color:var(--danger)}
 
-.badge.blue{background:rgba(41,128,185,.15);color:var(--blue)}
+.badge.blue{background:rgb(41,128,185,.15);color:var(--blue)}
 
-.badge.purple{background:rgba(142,68,173,.15);color:var(--purple)}
+.badge.purple{background:rgb(142,68,173,.15);color:var(--purple)}
 
-.badge.gray{background:rgba(102,102,102,.15);color:var(--muted)}
+.badge.gray{background:rgb(102,102,102,.15);color:var(--muted)}
 
 .btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border-radius:6px;font-size:12px;font-weight:500;cursor:pointer;text-decoration:none;border:none;transition:.15s;background:var(--accent);color:#fff}
 
@@ -89,9 +89,9 @@ select option{background:var(--card)}
 
 .alert{padding:10px 14px;border-radius:6px;margin-bottom:12px;font-size:12px}
 
-.alert-ok{background:rgba(39,174,96,.12);border:1px solid rgba(39,174,96,.25);color:var(--green)}
+.alert-ok{background:rgb(39,174,96,.12);border:1px solid rgb(39,174,96,.25);color:var(--green)}
 
-.alert-err{background:rgba(231,76,60,.12);border:1px solid rgba(231,76,60,.25);color:var(--danger)}
+.alert-err{background:rgb(231,76,60,.12);border:1px solid rgb(231,76,60,.25);color:var(--danger)}
 
 .info-row{display:flex;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px}
 
@@ -113,13 +113,13 @@ select option{background:var(--card)}
 
 .security-state-dot{width:10px;height:10px;border-radius:50%;flex:0 0 auto}
 
-.security-state.enabled{border-color:rgba(39,174,96,.35)}
+.security-state.enabled{border-color:rgb(39,174,96,.35)}
 
-.security-state.enabled .security-state-dot{background:var(--green);box-shadow:0 0 0 4px rgba(39,174,96,.12)}
+.security-state.enabled .security-state-dot{background:var(--green);box-shadow:0 0 0 4px rgb(39,174,96,.12)}
 
-.security-state.disabled{border-color:rgba(230,126,34,.35)}
+.security-state.disabled{border-color:rgb(230,126,34,.35)}
 
-.security-state.disabled .security-state-dot{background:var(--warn);box-shadow:0 0 0 4px rgba(230,126,34,.12)}
+.security-state.disabled .security-state-dot{background:var(--warn);box-shadow:0 0 0 4px rgb(230,126,34,.12)}
 
 .security-state strong{display:block;font-size:13px}
 
@@ -129,7 +129,7 @@ select option{background:var(--card)}
 
 .security-card{overflow:hidden}
 
-.security-card.highlight{border-color:rgba(39,174,96,.35)}
+.security-card.highlight{border-color:rgb(39,174,96,.35)}
 
 .security-copy{font-size:12px;color:var(--muted);line-height:1.7;margin:0 0 14px}
 
@@ -143,11 +143,11 @@ select option{background:var(--card)}
 
 .security-check{display:flex;gap:14px;align-items:center}
 
-.security-check-icon{background:rgba(39,174,96,.12);color:var(--green)}
+.security-check-icon{background:rgb(39,174,96,.12);color:var(--green)}
 
 .totp-setup-grid{display:grid;grid-template-columns:244px minmax(260px,1fr);gap:20px;align-items:start}
 
-.totp-qr{background:#fff;border-radius:8px;padding:12px;width:max-content;border:1px solid rgba(0,0,0,.08)}
+.totp-qr{background:#fff;border-radius:8px;padding:12px;width:max-content;border:1px solid rgb(0,0,0,.08)}
 
 .totp-confirm{min-width:0}
 
@@ -161,7 +161,7 @@ select option{background:var(--card)}
   .form-row{grid-template-columns:1fr}
 }
 
-.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;align-items:center;justify-content:center}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgb(0,0,0,.6);z-index:1000;align-items:center;justify-content:center}
 
 .modal-overlay.active{display:flex}
 
@@ -271,8 +271,8 @@ select option{background:var(--card)}
 
 @media (max-width: 1480px){
   .cert-table{min-width:1040px}
-  .cert-actions-cell{position:sticky;right:0;box-shadow:-12px 0 18px rgba(0,0,0,.18);z-index:2}
-  .cert-table th:last-child{position:sticky;right:0;box-shadow:-12px 0 18px rgba(0,0,0,.18);z-index:3}
+  .cert-actions-cell{position:sticky;right:0;box-shadow:-12px 0 18px rgb(0,0,0,.18);z-index:2}
+  .cert-table th:last-child{position:sticky;right:0;box-shadow:-12px 0 18px rgb(0,0,0,.18);z-index:3}
   .cert-col-name{width:180px}
   .cert-col-domain{width:180px}
   .cert-col-date{width:124px}

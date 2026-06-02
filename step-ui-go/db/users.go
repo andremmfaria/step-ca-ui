@@ -4,8 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"step-ui/models"
 	"time"
+
+	"step-ui/models"
 )
 
 // ─── Users ────────────────────────────────────────────────────────────────────
@@ -16,7 +17,8 @@ func GetUserByUsername(d *sql.DB, username string) (*models.User, error) {
 	err := d.QueryRow( //nolint:noctx // pre-existing signature
 		`SELECT id,username,password_hash,role,is_active,created_at,last_login,last_ip, 
 		COALESCE(totp_enabled,false),COALESCE(totp_secret,''),COALESCE(totp_pending_secret,'')
-		FROM users WHERE username=$1`, username).
+		FROM users WHERE username=$1`, username,
+	).
 		Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.IsActive, &u.CreatedAt, &u.LastLogin, &u.LastIP,
 			&u.TOTPEnabled, &u.TOTPSecret, &u.TOTPPendingSecret)
 	if err == sql.ErrNoRows {
@@ -33,7 +35,8 @@ func GetUserByID(d *sql.DB, id int) (*models.User, error) {
 		`SELECT id, username, password_hash, role, is_active, created_at, last_login, last_ip, 
 		COALESCE(display_name,''), COALESCE(email,''), COALESCE(theme,'dark'),
 		COALESCE(totp_enabled,false), COALESCE(totp_secret,''), COALESCE(totp_pending_secret,'')
-		FROM users WHERE id=$1`, id).Scan(
+		FROM users WHERE id=$1`, id,
+	).Scan(
 		&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.IsActive,
 		&u.CreatedAt, &u.LastLogin, &u.LastIP, &displayName, &email, &theme,
 		&u.TOTPEnabled, &u.TOTPSecret, &u.TOTPPendingSecret,
@@ -235,7 +238,8 @@ func UpsertOIDCUser(d *sql.DB, username, displayName, role string, syncRole bool
 				SET display_name = EXCLUDED.display_name,
 				    role         = EXCLUDED.role,
 				    last_login   = NOW()`,
-			username, displayName, role)
+			username, displayName, role,
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -247,7 +251,8 @@ func UpsertOIDCUser(d *sql.DB, username, displayName, role string, syncRole bool
 			ON CONFLICT (username) DO UPDATE
 				SET display_name = EXCLUDED.display_name,
 				    last_login   = NOW()`,
-			username, displayName, role)
+			username, displayName, role,
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -276,7 +281,8 @@ func CreateTempUser(db *sql.DB, username, passwordHash, role string, expiresAt t
 		INSERT INTO users (username, password_hash, role, is_active, is_temporary, expires_at, temp_note, created_at)
 		VALUES ($1, $2, $3, true, true, $4, $5, NOW())
 		RETURNING id
-	`, username, passwordHash, role, expiresAt, note).Scan(&id)
+	`, username, passwordHash, role, expiresAt, note,
+	).Scan(&id)
 	return id, err
 }
 
@@ -288,7 +294,8 @@ func ListTempUsers(db *sql.DB) ([]TempUserRow, error) {
 		FROM users
 		WHERE is_temporary = true
 		ORDER BY created_at DESC
-	`)
+	`,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -314,7 +321,8 @@ func ExpireOverdueTempUsers(db *sql.DB) (int, error) {
 		  AND is_active = true
 		  AND expires_at IS NOT NULL
 		  AND expires_at < NOW()
-	`)
+	`,
+	)
 	if err != nil {
 		return 0, err
 	}

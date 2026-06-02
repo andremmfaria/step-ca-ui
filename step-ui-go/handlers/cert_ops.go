@@ -7,16 +7,49 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
+	"log/slog"
 	"mime/multipart"
+	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"step-ui/config"
-	appdb "step-ui/db"
 	"step-ui/models"
+
+	appdb "step-ui/db"
 )
+
+// certFromURL parses the chi "id" URL param, fetches the certificate from the
+// DB, and writes an appropriate HTTP error if something goes wrong.  It returns
+// (cert, true) on success or (nil, false) when the handler should return early.
+func (h *Handler) certFromURL(w http.ResponseWriter, r *http.Request) (*models.Certificate, bool) {
+	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
+	c, err := appdb.GetCert(h.db, id)
+	if err != nil {
+		slog.Error("certFromURL: DB error", "id", id, "err", err)
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return nil, false
+	}
+	return c, true
+}
+
+// leCertFromURL is the LE-certificate equivalent of certFromURL.
+// Returns (cert, true) on success; on DB error it writes 500 and returns (nil, false).
+// A missing cert returns (nil, true) — callers redirect to /le.
+func (h *Handler) leCertFromURL(w http.ResponseWriter, r *http.Request) (*models.LECertificate, bool) {
+	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
+	c, err := appdb.GetLECert(h.db, id)
+	if err != nil {
+		slog.Error("leCertFromURL: DB error", "id", id, "err", err)
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return nil, false
+	}
+	return c, true
+}
 
 type IssuePolicy struct {
 	Template string
@@ -81,7 +114,7 @@ func issueCert(ctx context.Context, domain, certPath, keyPath, duration, keyType
 	extraFlags = append(extraFlags, "--", domain, certPath, keyPath)
 	out, err := runStep(ctx, cfg, execRunner, []string{"ca", "certificate"}, extraFlags, nil)
 	if err != nil {
-		return fmt.Errorf("%s: %s", err, string(out))
+		return fmt.Errorf("%w: %s", err, string(out))
 	}
 	return nil
 }
@@ -104,23 +137,23 @@ func revokeStep(ctx context.Context, certPath, keyPath string, cfg *config.Confi
 func parseCertDates(certPath string) (issued, expires *time.Time, serial string, err error) {
 	data, err := os.ReadFile(certPath)
 	if err != nil {
-		return
+		return issued, expires, serial, err
 	}
 	block, _ := pem.Decode(data)
 	if block == nil {
 		err = fmt.Errorf("no PEM block found")
-		return
+		return issued, expires, serial, err
 	}
 	cert, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {
-		return
+		return issued, expires, serial, err
 	}
 	i := cert.NotBefore
 	e := cert.NotAfter
 	issued = &i
 	expires = &e
 	serial = cert.SerialNumber.String()
-	return
+	return issued, expires, serial, err
 }
 
 func getCertKeyType(certPath string) string {

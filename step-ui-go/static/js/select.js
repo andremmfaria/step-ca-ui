@@ -41,10 +41,22 @@ function initCustomSelect(wrap){
   var box   = wrap.querySelector('.sel-box');
   var drop  = wrap.querySelector('.sel-dropdown');
   if(!box || !drop) return;
+
+  /* ── ARIA wiring ── */
+  var labelledBy = sel.id ? document.querySelector('label[for="'+sel.id+'"]') : null;
+  box.setAttribute('role', 'combobox');
+  box.setAttribute('aria-haspopup', 'listbox');
+  box.setAttribute('aria-expanded', 'false');
+  if(!box.hasAttribute('tabindex')) box.setAttribute('tabindex', '0');
+  if(labelledBy) box.setAttribute('aria-labelledby', labelledBy.id || (labelledBy.id = 'lbl-'+sel.id));
+  drop.setAttribute('role', 'listbox');
+  if(multi) drop.setAttribute('aria-multiselectable', 'true');
+
   function renderLabel(){
     var chosen = Array.from(sel.selectedOptions).map(function(o){return o.text;});
     var lbl = box.querySelector('.sel-label');
     if(lbl) lbl.textContent = chosen.length ? chosen.join(', ') : (sel.options[0]||{text:''}).text;
+    box.setAttribute('aria-label', lbl ? lbl.textContent : '');
   }
   function buildOpts(){
     drop.innerHTML = '';
@@ -52,24 +64,30 @@ function initCustomSelect(wrap){
       var div = document.createElement('div');
       div.className = 'sel-opt' + (o.selected ? ' selected' : '');
       div.dataset.val = o.value;
+      div.setAttribute('role', 'option');
+      div.setAttribute('aria-selected', o.selected ? 'true' : 'false');
+      div.setAttribute('tabindex', '-1');
       if(multi){
-        div.innerHTML = '<span class="chk">'+(o.selected?'&#10003;':'')+'</span>'+o.text;
+        div.innerHTML = '<span class="chk" aria-hidden="true">'+(o.selected?'&#10003;':'')+'</span>'+o.text;
       } else {
-        div.innerHTML = '<span class="sel-check">'+(o.selected?'&#10003;':'')+'</span>'+o.text;
+        div.innerHTML = '<span class="sel-check" aria-hidden="true">'+(o.selected?'&#10003;':'')+'</span>'+o.text;
       }
       div.addEventListener('mousedown', function(e){
         e.preventDefault();
         if(multi){
           o.selected = !o.selected;
           div.classList.toggle('selected', o.selected);
+          div.setAttribute('aria-selected', o.selected ? 'true' : 'false');
           var chk = div.querySelector('.chk');
           if(chk) chk.innerHTML = o.selected ? '&#10003;' : '';
         } else {
           Array.from(drop.querySelectorAll('.sel-opt')).forEach(function(d){
             d.classList.remove('selected');
+            d.setAttribute('aria-selected', 'false');
             var sc = d.querySelector('.sel-check'); if(sc) sc.innerHTML='';
           });
           div.classList.add('selected');
+          div.setAttribute('aria-selected', 'true');
           var sc = div.querySelector('.sel-check'); if(sc) sc.innerHTML='&#10003;';
           sel.value = o.value;
           closeDropdown();
@@ -80,8 +98,36 @@ function initCustomSelect(wrap){
       drop.appendChild(div);
     });
   }
-  function openDropdown(){ buildOpts(); box.classList.add('open'); drop.classList.add('open'); }
-  function closeDropdown(){ box.classList.remove('open'); drop.classList.remove('open'); }
+  function openDropdown(){
+    buildOpts();
+    box.classList.add('open');
+    drop.classList.add('open');
+    box.setAttribute('aria-expanded', 'true');
+  }
+  function closeDropdown(){
+    box.classList.remove('open');
+    drop.classList.remove('open');
+    box.setAttribute('aria-expanded', 'false');
+  }
+  /* keyboard navigation for accessibility */
+  box.addEventListener('keydown', function(e){
+    var isOpen = drop.classList.contains('open');
+    if(e.key === 'Enter' || e.key === ' '){
+      e.preventDefault();
+      isOpen ? closeDropdown() : openDropdown();
+    } else if(e.key === 'Escape' && isOpen){
+      e.preventDefault();
+      closeDropdown();
+      box.focus();
+    } else if((e.key === 'ArrowDown' || e.key === 'ArrowUp') && isOpen){
+      e.preventDefault();
+      var opts = Array.from(drop.querySelectorAll('.sel-opt'));
+      var focused = drop.querySelector('.sel-opt:focus');
+      var idx = opts.indexOf(focused);
+      var next = e.key === 'ArrowDown' ? Math.min(idx+1, opts.length-1) : Math.max(idx-1, 0);
+      if(opts[next]) opts[next].focus();
+    }
+  });
   box.addEventListener('click', function(){ drop.classList.contains('open') ? closeDropdown() : openDropdown(); });
   document.addEventListener('click', function(e){ if(!wrap.contains(e.target)) closeDropdown(); });
   renderLabel();

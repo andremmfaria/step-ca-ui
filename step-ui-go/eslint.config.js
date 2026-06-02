@@ -34,6 +34,10 @@ module.exports = [
         HTMLElement: "readonly",
         Element: "readonly",
         NodeList: "readonly",
+        DataTransfer: "readonly",
+        File: "readonly",
+        FileReader: "readonly",
+        Blob: "readonly",
       },
     },
     rules: {

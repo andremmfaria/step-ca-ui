@@ -3,12 +3,13 @@ package handlers
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"os/exec"
 	"regexp"
-	"step-ui/config"
 	"strings"
 	"time"
+
+	"step-ui/config"
 )
 
 // defaultStepTimeout is the bounded execution budget for step CLI calls.
@@ -107,7 +108,7 @@ func runStep(
 		args = append(args, positionalArgs...)
 	}
 
-	log.Printf("[step-cli DEBUG] step %s", strings.Join(redactArgs(args), " "))
+	slog.Debug("step-cli invocation", "args", strings.Join(redactArgs(args), " "))
 
 	cctx, cancel := context.WithTimeout(ctx, defaultStepTimeout)
 	defer cancel()

@@ -3,9 +3,10 @@ package db
 import (
 	"database/sql"
 	"fmt"
-	"log"
-	"step-ui/models"
+	"log/slog"
 	"time"
+
+	"step-ui/models"
 )
 
 // ─── Auth Log ─────────────────────────────────────────────────────────────────
@@ -19,7 +20,7 @@ func LogAuth(d *sql.DB, username, ip string, success bool, reason string) error 
 		username, ip, success, reason)
 	if success {
 		if loginErr := UpdateUserLogin(d, username, ip); loginErr != nil {
-			log.Printf("[warn] UpdateUserLogin: %v", loginErr)
+			slog.Warn("UpdateUserLogin failed", "err", loginErr)
 		}
 	}
 	return err
@@ -97,5 +98,5 @@ func GetFailCount(d *sql.DB, username string, since time.Time) int {
 func GetAuthStats(d *sql.DB) (ok, fail int) {
 	_ = d.QueryRow(`SELECT COUNT(*) FROM auth_log WHERE success=true`).Scan(&ok)    //nolint:noctx // pre-existing signature
 	_ = d.QueryRow(`SELECT COUNT(*) FROM auth_log WHERE success=false`).Scan(&fail) //nolint:noctx // pre-existing signature
-	return
+	return ok, fail
 }

@@ -1,11 +1,11 @@
 {{define "login.html"}}
 <!DOCTYPE html>
 <html lang="ru">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Step-CA &middot; Вход</title>
-<style>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width,initial-scale=1">
+        <title>Step-CA &middot; Вход</title>
+        <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:#0d0d0d;color:#e8e8e8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh}
 .login-wrap{width:100%;max-width:400px;padding:20px}
@@ -26,54 +26,83 @@ input:focus{outline:none;border-color:#4493f8}
 .btn-oidc:hover{background:#0f3460;color:#fff}
 .divider{display:flex;align-items:center;gap:10px;margin:16px 0;color:#444;font-size:11px}
 .divider::before,.divider::after{content:'';flex:1;height:1px;background:#222}
-</style>
-</head>
-<body>
-<div class="login-wrap">
-  <div class="logo">
-    <h1>&#x1F510; Step-CA</h1>
-    <span>Certificate Manager</span>
-  </div>
-  <div class="card">
-    <h2>Вход в систему</h2>
-    {{if .Error}}
-    <div class="error">{{.Error}}</div>
-    {{end}}
-    {{range .Msgs}}
-    <div class="error">{{.Text}}</div>
-    {{end}}
-    {{if .OIDCEnabled}}
-    <a class="btn-oidc" href="/auth/oidc/login">Sign in with JumpCloud</a>
-    {{end}}
-    {{if .LocalLoginEnabled}}
-    {{if .OIDCEnabled}}<div class="divider">or</div>{{end}}
-    <form method="POST" action="/login">
-      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-      {{if .NeedTOTP}}
-      <div class="form-group">
-        <label>Код 2FA</label>
-        <input type="text" name="totp_code" inputmode="numeric" autocomplete="one-time-code" placeholder="123456" autofocus {{if .Blocked}}disabled{{end}}>
-      </div>
-      <div class="form-group">
-        <label>Recovery code</label>
-        <input type="text" name="recovery_code" autocomplete="off" placeholder="если нет доступа к authenticator" {{if .Blocked}}disabled{{end}}>
-      </div>
-      <button class="btn" type="submit" {{if .Blocked}}disabled{{end}}>Подтвердить &rarr;</button>
-      {{else}}
-      <div class="form-group">
-        <label>Логин</label>
-        <input type="text" name="username" required autofocus {{if .Blocked}}disabled{{end}}>
-      </div>
-      <div class="form-group">
-        <label>Пароль</label>
-        <input type="password" name="password" required {{if .Blocked}}disabled{{end}}>
-      </div>
-      <button class="btn" type="submit" {{if .Blocked}}disabled{{end}}>Войти &rarr;</button>
-      {{end}}
-    </form>
-    {{end}}
-  </div>
-</div>
-</body>
+        </style>
+    </head>
+    <body>
+        <div class="login-wrap">
+            <div class="logo">
+                <h1>&#x1F510; Step-CA</h1>
+                <span>Certificate Manager</span>
+            </div>
+            <div class="card">
+                <h2>Вход в систему</h2>
+                {{if .Error}}
+                <div class="error">{{.Error}}</div>
+                {{end}}
+                {{range .Msgs}}
+                <div class="error">{{.Text}}</div>
+                {{end}}
+                {{if .OIDCEnabled}}
+                <a class="btn-oidc" href="/auth/oidc/login">Sign in with JumpCloud</a>
+                {{end}}
+                {{if .LocalLoginEnabled}}
+                {{if .OIDCEnabled}}
+                <div class="divider">or</div>
+                {{end}}
+                <form method="POST" action="/login">
+                    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+                    {{if .NeedTOTP}}
+                    <div class="form-group">
+                        <label>Код 2FA</label>
+                        <input type="text"
+                               name="totp_code"
+                               inputmode="numeric"
+                               autocomplete="one-time-code"
+                               placeholder="123456"
+                               autofocus
+                               {{if .Blocked}}
+                               disabled
+                               {{end}}>
+                    </div>
+                    <div class="form-group">
+                        <label>Recovery code</label>
+                        <input type="text"
+                               name="recovery_code"
+                               autocomplete="off"
+                               placeholder="если нет доступа к authenticator"
+                               {{if .Blocked}}
+                               disabled
+                               {{end}}>
+                    </div>
+                    <button class="btn" type="submit" {{if .Blocked}}disabled{{end}}>Подтвердить &rarr;
+                    </button>
+                {{else}}
+                    <div class="form-group">
+                        <label>Логин</label>
+                        <input type="text"
+                               name="username"
+                               required
+                               autofocus
+                               {{if .Blocked}}
+                               disabled
+                               {{end}}>
+                    </div>
+                    <div class="form-group">
+                        <label>Пароль</label>
+                        <input type="password"
+                               name="password"
+                               required
+                               {{if .Blocked}}
+                               disabled
+                               {{end}}>
+                    </div>
+                    <button class="btn" type="submit" {{if .Blocked}}disabled{{end}}>Войти &rarr;
+                    </button>
+                    {{end}}
+                </form>
+                {{end}}
+            </div>
+        </div>
+    </body>
 </html>
 {{end}}

@@ -3,8 +3,9 @@ package handlers
 import (
 	"fmt"
 	"net/http"
-	"step-ui/security"
 	"testing"
+
+	"step-ui/security"
 )
 
 func TestClientIPStripsPort(t *testing.T) {

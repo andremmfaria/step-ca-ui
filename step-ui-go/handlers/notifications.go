@@ -12,8 +12,9 @@ import (
 	"strings"
 	"time"
 
-	appdb "step-ui/db"
 	"step-ui/models"
+
+	appdb "step-ui/db"
 )
 
 type notificationPayload struct {

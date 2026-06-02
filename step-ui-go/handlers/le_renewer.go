@@ -2,9 +2,10 @@ package handlers
 
 import (
 	"fmt"
-	"log"
-	"step-ui/le"
+	"log/slog"
 	"time"
+
+	"step-ui/le"
 
 	appdb "step-ui/db"
 )
@@ -15,7 +16,7 @@ import (
 // manual-renew path.
 func (h *Handler) StartRenewer() {
 	safeGo("le-renewer", func() {
-		log.Println("[LE] Auto-renewer started (checks every 24h)")
+		slog.Info("LE auto-renewer started", "interval", "24h")
 		// First check after 5 min to avoid hammering ACME on startup.
 		time.Sleep(5 * time.Minute)
 		for {
@@ -28,23 +29,23 @@ func (h *Handler) StartRenewer() {
 func (h *Handler) runRenewal() {
 	certs, err := appdb.GetLECertsForRenewal(h.db)
 	if err != nil {
-		log.Printf("[LE] Renewal check error: %v", err)
+		slog.Error("LE renewal check failed", "err", err)
 		return
 	}
 	if len(certs) == 0 {
-		log.Println("[LE] No certificates need renewal")
+		slog.Debug("LE renewal: no certificates need renewal")
 		return
 	}
-	log.Printf("[LE] Found %d certificate(s) to renew", len(certs))
+	slog.Info("LE renewal: certificates to renew", "count", len(certs))
 
 	settings, err := appdb.GetLESettings(h.db)
 	if err != nil {
-		log.Printf("[LE] Cannot load settings: %v", err)
+		slog.Error("LE renewal: cannot load settings", "err", err)
 		return
 	}
 
 	for _, cert := range certs {
-		log.Printf("[LE] Renewing %s...", cert.Domain)
+		slog.Info("LE renewing certificate", "domain", cert.Domain)
 		appdb.AddLELog(h.db, cert.Domain, "renew", "Начало автоматического обновления")
 
 		email := cert.Email
@@ -68,12 +69,13 @@ func (h *Handler) runRenewal() {
 		})
 		if err != nil {
 			if dbErr := appdb.UpdateLECertStatus(h.db, cert.ID, "error", err.Error()); dbErr != nil {
-				log.Printf("[LE] Failed to update cert status for %s: %v", cert.Domain, dbErr)
+				slog.Error("LE renewal: failed to update cert status", "domain", cert.Domain, "err", dbErr)
 			}
 			appdb.AddLELog(h.db, cert.Domain, "error", fmt.Sprintf("Ошибка обновления: %v", err))
-			log.Printf("[LE] Renewal failed for %s: %v", cert.Domain, err)
+			slog.Error("LE renewal failed", "domain", cert.Domain, "err", err)
 			// Emit a notification so the failure appears in history like the manual path.
-			h.notifyAsync("", "certificate.renew_failed", "error",
+			h.notifyAsync(
+				"", "certificate.renew_failed", "error",
 				"LE certificate auto-renewal failed",
 				fmt.Sprintf("Auto-renewal failed for %s: %v", cert.Domain, err),
 				map[string]string{"domain": cert.Domain},
@@ -81,9 +83,9 @@ func (h *Handler) runRenewal() {
 			continue
 		}
 		if dbErr := appdb.UpdateLECertPaths(h.db, cert.ID, result.CertPath, result.KeyPath, result.IssuedAt, result.ExpiresAt); dbErr != nil {
-			log.Printf("[LE] Failed to update cert paths for %s: %v", cert.Domain, dbErr)
+			slog.Error("LE renewal: failed to update cert paths", "domain", cert.Domain, "err", dbErr)
 		}
 		appdb.AddLELog(h.db, cert.Domain, "renew", "Сертификат успешно обновлён")
-		log.Printf("[LE] Successfully renewed %s", cert.Domain)
+		slog.Info("LE certificate renewed successfully", "domain", cert.Domain)
 	}
 }

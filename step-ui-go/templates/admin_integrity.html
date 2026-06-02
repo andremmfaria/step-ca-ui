@@ -1,59 +1,117 @@
 {{define "content"}}
 <div class="admin-page-header">
-  <h1 class="admin-page-title">CA integrity</h1>
-  <p class="admin-page-subtitle">Проверка цепочки CA, provisioner claims, password sync и безопасного обновления step-ca</p>
+    <h1 class="admin-page-title">CA integrity</h1>
+    <p class="admin-page-subtitle">
+        Проверка цепочки CA, provisioner claims, password sync и безопасного обновления step-ca
+    </p>
 </div>
-
 <div class="admin-stats" style="margin-bottom:14px">
-  <div class="admin-stat ok"><div class="admin-stat-value">{{.Summary.OK}}</div><div class="admin-stat-label">OK</div></div>
-  <div class="admin-stat {{if gt .Summary.Warnings 0}}warn{{end}}"><div class="admin-stat-value">{{.Summary.Warnings}}</div><div class="admin-stat-label">Warnings</div></div>
-  <div class="admin-stat {{if gt .Summary.Errors 0}}warn{{end}}"><div class="admin-stat-value">{{.Summary.Errors}}</div><div class="admin-stat-label">Errors</div></div>
-  <div class="admin-stat"><div class="admin-stat-value">{{.System.StepCAImage}}</div><div class="admin-stat-label">step-ca image</div></div>
-</div>
-
-<div class="card">
-  <div class="card-header"><strong>CA configuration</strong></div>
-  <div class="card-body">
-    <table class="tbl admin-kv-table">
-      <tbody>
-        <tr><td><strong>CA URL</strong></td><td><code>{{.System.CAURL}}</code></td></tr>
-        <tr><td><strong>Root CA</strong></td><td><code>{{.System.RootCert}}</code></td></tr>
-        <tr><td><strong>Intermediate CA</strong></td><td><code>/home/step/certs/intermediate_ca.crt</code></td></tr>
-        <tr><td><strong>Provisioner</strong></td><td><code>{{.System.Provisioner}}</code></td></tr>
-        <tr><td><strong>Password file</strong></td><td><code>{{.System.PasswordFile}}</code></td></tr>
-      </tbody>
-    </table>
-  </div>
-</div>
-
-<div class="card">
-  <div class="card-header"><strong>Integrity checks</strong></div>
-  <div class="card-body" style="padding:0">
-    <div class="tbl-wrap">
-      <table class="tbl admin-preflight-table">
-        <colgroup>
-          <col style="width:230px">
-          <col style="width:110px">
-          <col>
-        </colgroup>
-        <thead>
-          <tr><th>Проверка</th><th>Статус</th><th>Детали</th></tr>
-        </thead>
-        <tbody>
-          {{range .Checks}}
-          <tr>
-            <td><strong>{{.Name}}</strong>{{if .Critical}} <span class="badge danger">critical</span>{{end}}</td>
-            <td>
-              {{if eq .Status "ok"}}<span class="badge ok">OK</span>{{end}}
-              {{if eq .Status "warn"}}<span class="badge warn">WARN</span>{{end}}
-              {{if eq .Status "err"}}<span class="badge danger">ERROR</span>{{end}}
-            </td>
-            <td style="word-break:break-word"><code>{{.Detail}}</code></td>
-          </tr>
-          {{end}}
-        </tbody>
-      </table>
+    <div class="admin-stat ok">
+        <div class="admin-stat-value">{{.Summary.OK}}</div>
+        <div class="admin-stat-label">OK</div>
     </div>
-  </div>
+    <div class="admin-stat {{if gt .Summary.Warnings 0}}warn{{end}}">
+        <div class="admin-stat-value">{{.Summary.Warnings}}</div>
+        <div class="admin-stat-label">Warnings</div>
+    </div>
+    <div class="admin-stat {{if gt .Summary.Errors 0}}warn{{end}}">
+        <div class="admin-stat-value">{{.Summary.Errors}}</div>
+        <div class="admin-stat-label">Errors</div>
+    </div>
+    <div class="admin-stat">
+        <div class="admin-stat-value">{{.System.StepCAImage}}</div>
+        <div class="admin-stat-label">step-ca image</div>
+    </div>
+</div>
+<div class="card">
+    <div class="card-header">
+        <strong>CA configuration</strong>
+    </div>
+    <div class="card-body">
+        <table class="tbl admin-kv-table">
+            <tbody>
+                <tr>
+                    <td>
+                        <strong>CA URL</strong>
+                    </td>
+                    <td>
+                        <code>{{.System.CAURL}}</code>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <strong>Root CA</strong>
+                    </td>
+                    <td>
+                        <code>{{.System.RootCert}}</code>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <strong>Intermediate CA</strong>
+                    </td>
+                    <td>
+                        <code>/home/step/certs/intermediate_ca.crt</code>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <strong>Provisioner</strong>
+                    </td>
+                    <td>
+                        <code>{{.System.Provisioner}}</code>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <strong>Password file</strong>
+                    </td>
+                    <td>
+                        <code>{{.System.PasswordFile}}</code>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+<div class="card">
+    <div class="card-header">
+        <strong>Integrity checks</strong>
+    </div>
+    <div class="card-body" style="padding:0">
+        <div class="tbl-wrap">
+            <table class="tbl admin-preflight-table">
+                <colgroup>
+                    <col style="width:230px">
+                    <col style="width:110px">
+                    <col>
+                </colgroup>
+                <thead>
+                    <tr>
+                        <th>Проверка</th>
+                        <th>Статус</th>
+                        <th>Детали</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{range .Checks}}
+                    <tr>
+                        <td>
+                            <strong>{{.Name}}</strong>{{if .Critical}} <span class="badge danger">critical</span>{{end}}
+                        </td>
+                        <td>
+                            {{if eq .Status "ok"}}<span class="badge ok">OK</span>{{end}}
+                            {{if eq .Status "warn"}}<span class="badge warn">WARN</span>{{end}}
+                            {{if eq .Status "err"}}<span class="badge danger">ERROR</span>{{end}}
+                        </td>
+                        <td style="word-break:break-word">
+                            <code>{{.Detail}}</code>
+                        </td>
+                    </tr>
+                    {{end}}
+                </tbody>
+            </table>
+        </div>
+    </div>
 </div>
 {{end}}

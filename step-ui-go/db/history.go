@@ -3,8 +3,9 @@ package db
 import (
 	"database/sql"
 	"fmt"
-	"step-ui/models"
 	"strings"
+
+	"step-ui/models"
 )
 
 // ─── Cert History ─────────────────────────────────────────────────────────────

@@ -11,9 +11,10 @@ import (
 	"strings"
 	"time"
 
+	"step-ui/security"
+
 	"github.com/pquerna/otp/totp"
 	appdb "step-ui/db"
-	"step-ui/security"
 )
 
 const (

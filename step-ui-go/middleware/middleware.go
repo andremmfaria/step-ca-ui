@@ -1,14 +1,21 @@
 package middleware
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/gorilla/sessions"
 )
 
+// SessionTimeout is the idle (sliding-window) timeout.  A session that has
+// not been active for this long is invalidated regardless of creation time.
 const SessionTimeout = 8 * time.Hour
+
+// SessionMaxLifetime is the absolute cap on session age.  Even an
+// continuously-active session cannot outlive this duration after it was
+// created.  This limits the blast radius of a stolen session cookie.
+const SessionMaxLifetime = 24 * time.Hour
 
 // SecurityHeaders добавляет security HTTP заголовки.
 func SecurityHeaders(enableHSTS bool) func(http.Handler) http.Handler {
@@ -25,8 +32,12 @@ func SecurityHeaders(enableHSTS bool) func(http.Handler) http.Handler {
 			}
 			// All CSS/JS/fonts are served locally; Google-Fonts grants removed (P2-3).
 			// 'unsafe-inline' removed from script-src after externalising all inline
-			// scripts (P2-3).  style-src retains 'unsafe-inline' for inline <style>
-			// blocks in templates (a separate cleanup ticket).
+			// scripts (P2-3).
+			// style-src retains 'unsafe-inline' because 10+ templates contain inline
+			// <style> blocks (login.html, history.html, le_issue.html, …).
+			// Removing it requires externalising ~150 lines of per-page CSS into
+			// static/css/ — tracked as Wave 4 frontend cleanup.  Until then, the CSP
+			// mitigates XSS only for script injection, not style injection.
 			w.Header().Set("Content-Security-Policy",
 				"default-src 'self'; script-src 'self'; "+
 					"style-src 'self' 'unsafe-inline'; "+
@@ -43,7 +54,7 @@ func RequireLogin(store *sessions.CookieStore) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			sess, err := store.Get(r, "step-ui")
 			if err != nil {
-				log.Printf("session decode failed: remote=%s host=%s path=%s err=%v", r.RemoteAddr, r.Host, r.URL.Path, err)
+				slog.Warn("session decode failed; redirecting to login", "remote", r.RemoteAddr, "host", r.Host, "path", r.URL.Path, "err", err)
 				sess.Options.MaxAge = -1
 				_ = sess.Save(r, w)
 				http.Redirect(w, r, "/login", http.StatusFound)
@@ -54,16 +65,31 @@ func RequireLogin(store *sessions.CookieStore) func(http.Handler) http.Handler {
 				http.Redirect(w, r, "/login", http.StatusFound)
 				return
 			}
-			// Проверяем таймаут сессии
+			now := time.Now()
+			// Absolute session-lifetime cap: stamp created_at on first request and
+			// reject the session once it exceeds SessionMaxLifetime regardless of
+			// activity.  This limits the damage from a stolen session cookie.
+			if created, ok := sess.Values["session_created_at"].(int64); ok {
+				if now.Sub(time.Unix(created, 0)) > SessionMaxLifetime {
+					sess.Values = map[interface{}]interface{}{}
+					_ = sess.Save(r, w)
+					http.Redirect(w, r, "/login", http.StatusFound)
+					return
+				}
+			} else {
+				// Stamp the creation time on sessions that pre-date this check.
+				sess.Values["session_created_at"] = now.Unix()
+			}
+			// Sliding-window idle timeout.
 			if last, ok := sess.Values["last_activity"].(int64); ok {
-				if time.Since(time.Unix(last, 0)) > SessionTimeout {
+				if now.Sub(time.Unix(last, 0)) > SessionTimeout {
 					sess.Values = map[interface{}]interface{}{}
 					_ = sess.Save(r, w)
 					http.Redirect(w, r, "/login", http.StatusFound)
 					return
 				}
 			}
-			sess.Values["last_activity"] = time.Now().Unix()
+			sess.Values["last_activity"] = now.Unix()
 			_ = sess.Save(r, w)
 			next.ServeHTTP(w, r)
 		})
@@ -77,7 +103,7 @@ func RequireRole(minRole string, store *sessions.CookieStore) func(http.Handler)
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			sess, err := store.Get(r, "step-ui")
 			if err != nil {
-				log.Printf("session decode failed: remote=%s host=%s path=%s err=%v", r.RemoteAddr, r.Host, r.URL.Path, err)
+				slog.Warn("session decode failed; redirecting to login", "remote", r.RemoteAddr, "host", r.Host, "path", r.URL.Path, "err", err)
 				sess.Options.MaxAge = -1
 				_ = sess.Save(r, w)
 				http.Redirect(w, r, "/login", http.StatusFound)

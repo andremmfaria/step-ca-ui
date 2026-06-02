@@ -40,6 +40,9 @@ type Certificate struct {
 	Status    string
 	KeyType   string
 	CreatedAt *time.Time
+	// IssueDuration stores the duration used at issuance so that Renew can
+	// reuse it instead of falling back to the hardcoded 8760h default.
+	IssueDuration string
 }
 
 type CertHistory struct {

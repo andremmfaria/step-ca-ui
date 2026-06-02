@@ -19,6 +19,8 @@ linters:
     - gosec
     - unconvert
     - unparam
+    # Added in PR-23 now that log/slog is adopted
+    - sloglint
 
   settings:
     gocritic:
@@ -35,6 +37,9 @@ linters:
         - G104
 
   exclusions:
+    paths:
+      # node_modules installed locally for frontend linters — not Go source
+      - node_modules/
     rules:
       # Suppress deprecated-symbol warnings on existing code — burn down in PR-23
       - linters: [staticcheck]
@@ -50,9 +55,17 @@ linters:
 formatters:
   enable:
     - gofumpt
+  settings:
+    gofumpt:
+      # module-path tells gofumpt which import prefix is "local" so it can
+      # produce the three-group layout (stdlib | external | local).
+      module-path: step-ui
 
 issues:
-  # Ratchet: only report findings on code changed since the docs commit.
-  # Legacy debt is burned down separately in PR-23.
-  new-from-rev: a3ba460
+  # Ratchet baseline advanced in PR-23.  The previous frozen SHA (a3ba460) had
+  # the full legacy backlog; this SHA freezes the post-PR-23 residual (82 issues:
+  # 50 revive exported-comment, 13 gosec pre-existing, 12 noctx pre-existing,
+  # 6 gocritic style, 1 unparam).  Each future PR must clean up its own diff;
+  # the residual backlog is tracked for Wave 4.
+  new-from-rev: a119977
   # Caps removed — the ratchet baseline handles scope.

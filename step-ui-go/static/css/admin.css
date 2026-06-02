@@ -13,14 +13,14 @@ html[data-theme="dark"] {
   --admin-text: #e8e8e8;
   --admin-muted: #8a8f98;
   --admin-accent: #4493f8;
-  --admin-accent-soft: rgba(68, 147, 248, .10);
+  --admin-accent-soft: rgb(68, 147, 248, .10);
   --admin-green: #3fb950;
-  --admin-green-soft: rgba(63, 185, 80, .13);
+  --admin-green-soft: rgb(63, 185, 80, .13);
   --admin-warn: #d29922;
-  --admin-warn-soft: rgba(210, 153, 34, .15);
+  --admin-warn-soft: rgb(210, 153, 34, .15);
   --admin-danger: #f85149;
-  --admin-danger-soft: rgba(248, 81, 73, .14);
-  --admin-shadow: rgba(0, 0, 0, .28);
+  --admin-danger-soft: rgb(248, 81, 73, .14);
+  --admin-shadow: rgb(0, 0, 0, .28);
 }
 
 html[data-theme="light"] {
@@ -33,14 +33,14 @@ html[data-theme="light"] {
   --admin-text: #172033;
   --admin-muted: #647084;
   --admin-accent: #2563eb;
-  --admin-accent-soft: rgba(37, 99, 235, .10);
+  --admin-accent-soft: rgb(37, 99, 235, .10);
   --admin-green: #16833a;
-  --admin-green-soft: rgba(22, 131, 58, .10);
+  --admin-green-soft: rgb(22, 131, 58, .10);
   --admin-warn: #9a6700;
-  --admin-warn-soft: rgba(154, 103, 0, .12);
+  --admin-warn-soft: rgb(154, 103, 0, .12);
   --admin-danger: #c9342f;
-  --admin-danger-soft: rgba(201, 52, 47, .10);
-  --admin-shadow: rgba(15, 23, 42, .10);
+  --admin-danger-soft: rgb(201, 52, 47, .10);
+  --admin-shadow: rgb(15, 23, 42, .10);
 }
 
 html[data-theme="blue"] {
@@ -53,14 +53,14 @@ html[data-theme="blue"] {
   --admin-text: #cdd9f0;
   --admin-muted: #7d97bd;
   --admin-accent: #60a5fa;
-  --admin-accent-soft: rgba(96, 165, 250, .15);
+  --admin-accent-soft: rgb(96, 165, 250, .15);
   --admin-green: #34d399;
-  --admin-green-soft: rgba(52, 211, 153, .12);
+  --admin-green-soft: rgb(52, 211, 153, .12);
   --admin-warn: #fbbf24;
-  --admin-warn-soft: rgba(251, 191, 36, .14);
+  --admin-warn-soft: rgb(251, 191, 36, .14);
   --admin-danger: #f87171;
-  --admin-danger-soft: rgba(248, 113, 113, .13);
-  --admin-shadow: rgba(0, 0, 0, .42);
+  --admin-danger-soft: rgb(248, 113, 113, .13);
+  --admin-shadow: rgb(0, 0, 0, .42);
 }
 
 body.admin-mode {

@@ -19,9 +19,10 @@ import (
 	"strings"
 	"time"
 
+	"step-ui/models"
+
 	"github.com/go-chi/chi/v5"
 	appdb "step-ui/db"
-	"step-ui/models"
 )
 
 type CertDetail struct {

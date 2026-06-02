@@ -6,9 +6,10 @@ import (
 	"strconv"
 	"time"
 
+	"step-ui/security"
+
 	"github.com/go-chi/chi/v5"
 	appdb "step-ui/db"
-	"step-ui/security"
 )
 
 func (h *Handler) Users(w http.ResponseWriter, r *http.Request) {

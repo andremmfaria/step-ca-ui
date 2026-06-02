@@ -1,47 +1,71 @@
 {{define "content"}}
 <div class="page-header">
-  <div><div class="breadcrumb">let's encrypt &middot; logs</div><h1>Журнал Let's Encrypt</h1></div>
+    <div>
+        <div class="breadcrumb">let's encrypt &middot; logs</div>
+        <h1>Журнал Let's Encrypt</h1>
+    </div>
 </div>
-
 <div class="card" style="margin-bottom:12px">
-  <div class="card-body" style="padding:12px 16px">
-    <form method="GET" action="/le/logs" id="leLogsForm" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-      <label style="margin-bottom:0;width:auto">Домен:</label>
-      <input type="text" name="domain" id="leDomainFilter" placeholder="example.com"
-        value="{{.FilterDomain}}" style="max-width:320px;flex:1" autocomplete="off">
-      {{if .FilterDomain}}
-      <a href="/le/logs" class="btn btn-ghost btn-sm">Сбросить</a>
-      {{end}}
-    </form>
-  </div>
+    <div class="card-body" style="padding:12px 16px">
+        <form method="GET"
+              action="/le/logs"
+              id="leLogsForm"
+              style="display:flex;
+                     gap:10px;
+                     align-items:center;
+                     flex-wrap:wrap">
+            <label style="margin-bottom:0;width:auto">Домен:</label>
+            <input type="text"
+                   name="domain"
+                   id="leDomainFilter"
+                   placeholder="example.com"
+                   value="{{.FilterDomain}}"
+                   style="max-width:320px;
+                          flex:1"
+                   autocomplete="off">
+            {{if .FilterDomain}}
+            <a href="/le/logs" class="btn btn-ghost btn-sm">Сбросить</a>
+            {{end}}
+        </form>
+    </div>
 </div>
-
 <div class="card">
-  <div class="tbl-wrap">
-  <table class="tbl">
-    <colgroup>
-          <col style="width:160px">
-          <col style="width:180px">
-          <col style="width:120px">
-          <col>
-        </colgroup>
-    
-    <thead><tr><th>Время</th><th>Домен</th><th>Событие</th><th>Сообщение</th></tr></thead>
-    <tbody>
-    {{range .LELogs}}
-    <tr>
-      <td style="color:var(--muted);font-size:11px">{{fmtLog .CreatedAt}}</td>
-      <td><code>{{.Domain}}</code></td>
-      <td><span class="badge {{if eq .Action "error"}}danger{{else if eq .Action "issue"}}ok{{else if eq .Action "renew"}}blue{{else if eq .Action "delete"}}danger{{else}}gray{{end}}">{{.Action}}</span></td>
-      <td style="color:var(--muted)">{{.Message}}</td>
-    </tr>
-    {{else}}
-    <tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px">Нет записей</td></tr>
-    {{end}}
-    </tbody>
-  </table>
-  </div>
+    <div class="tbl-wrap">
+        <table class="tbl">
+            <colgroup>
+                <col style="width:160px">
+                <col style="width:180px">
+                <col style="width:120px">
+                <col>
+            </colgroup>
+            <thead>
+                <tr>
+                    <th>Время</th>
+                    <th>Домен</th>
+                    <th>Событие</th>
+                    <th>Сообщение</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{range .LELogs}}
+                <tr>
+                    <td style="color:var(--muted);font-size:11px">{{fmtLog .CreatedAt}}</td>
+                    <td>
+                        <code>{{.Domain}}</code>
+                    </td>
+                    <td>
+                        <span class="badge {{if eq .Action "error"}}danger{{else if eq .Action "issue"}}ok{{else if eq .Action "renew"}}blue{{else if eq .Action "delete"}}danger{{else}}gray{{end}}">{{.Action}}</span>
+                    </td>
+                    <td style="color:var(--muted)">{{.Message}}</td>
+                </tr>
+            {{else}}
+                <tr>
+                    <td colspan="4" style="text-align:center;color:var(--muted);padding:24px">Нет записей</td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+    </div>
 </div>
-
 <script src="/static/js/pages/le-logs.js"></script>
 {{end}}

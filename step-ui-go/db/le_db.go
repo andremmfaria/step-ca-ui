@@ -2,8 +2,9 @@ package db
 
 import (
 	"database/sql"
-	"step-ui/models"
 	"time"
+
+	"step-ui/models"
 )
 
 func InitLESchema(d *sql.DB) error {
@@ -211,7 +212,7 @@ func GetLEStats(d *sql.DB) (total, active, expiringSoon, expired int) {
 	_ = d.QueryRow(`SELECT COUNT(*) FROM le_certificates WHERE status='active'`).Scan(&active)
 	_ = d.QueryRow(`SELECT COUNT(*) FROM le_certificates WHERE status='active' AND expires_at < NOW() + INTERVAL '30 days'`).Scan(&expiringSoon)
 	_ = d.QueryRow(`SELECT COUNT(*) FROM le_certificates WHERE expires_at < NOW() OR status='expired'`).Scan(&expired)
-	return
+	return total, active, expiringSoon, expired
 }
 
 // ─── Helper ───────────────────────────────────────────────────────────────────

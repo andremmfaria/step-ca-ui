@@ -7,8 +7,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gorilla/sessions"
 	"step-ui/config"
+
+	"github.com/gorilla/sessions"
 )
 
 // newMinimalHandler builds a Handler with no DB, no templates, and the given config.

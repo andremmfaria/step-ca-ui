@@ -7,8 +7,9 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"step-ui/config"
 	"testing"
+
+	"step-ui/config"
 )
 
 // ─── fakeRunner ───────────────────────────────────────────────────────────────

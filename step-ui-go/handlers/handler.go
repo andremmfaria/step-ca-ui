@@ -6,17 +6,21 @@ import (
 	"database/sql"
 	"fmt"
 	"html/template"
+	"io/fs"
 	"log"
+	"log/slog"
 	"net/http"
 	"time"
+
+	"step-ui/config"
+	"step-ui/models"
+	"step-ui/security"
 
 	gooidc "github.com/coreos/go-oidc/v3/oidc"
 	"github.com/gorilla/sessions"
 	"golang.org/x/oauth2"
-	"step-ui/config"
+
 	appdb "step-ui/db"
-	"step-ui/models"
-	"step-ui/security"
 )
 
 var StartedAt time.Time
@@ -33,14 +37,27 @@ type Handler struct {
 	cfg   *config.Config
 	store *sessions.CookieStore
 	tmpls map[string]*template.Template
+	// assets is the embedded FS rooted at the module root (contains templates/
+	// and static/ sub-trees).  When nil, loadTemplates falls back to reading
+	// from the filesystem at the current working directory.
+	assets fs.FS
 
 	// OIDC fields — non-nil only when cfg.OIDCEnabled is true
 	oidcOAuth2Config *oauth2.Config
 	oidcVerifier     *gooidc.IDTokenVerifier
 }
 
+// New creates a Handler that reads templates from the filesystem (CWD-relative).
+// Prefer NewWithFS in production to embed assets into the binary.
 func New(db *sql.DB, cfg *config.Config, store *sessions.CookieStore) *Handler {
-	h := &Handler{db: db, cfg: cfg, store: store, tmpls: make(map[string]*template.Template)}
+	return NewWithFS(db, cfg, store, nil)
+}
+
+// NewWithFS creates a Handler that reads templates from the provided FS.
+// Pass the module-root embed.FS so templates and static files are baked into
+// the binary and the working directory no longer matters at runtime.
+func NewWithFS(db *sql.DB, cfg *config.Config, store *sessions.CookieStore, assets fs.FS) *Handler {
+	h := &Handler{db: db, cfg: cfg, store: store, tmpls: make(map[string]*template.Template), assets: assets}
 	h.loadTemplates()
 	if cfg.OIDCEnabled {
 		h.initOIDC()
@@ -64,7 +81,7 @@ func (h *Handler) initOIDC() {
 		Scopes:       []string{gooidc.ScopeOpenID, "profile", "email", "groups"},
 	}
 	h.oidcVerifier = provider.Verifier(&gooidc.Config{ClientID: h.cfg.OIDCClientID})
-	log.Printf("OIDC enabled: issuer=%s", h.cfg.OIDCIssuerURL)
+	slog.Info("OIDC enabled", "issuer", h.cfg.OIDCIssuerURL)
 }
 
 func (h *Handler) loadTemplates() {
@@ -98,23 +115,40 @@ func (h *Handler) loadTemplates() {
 	}
 	for _, page := range pages {
 		baseFile := "templates/base.html"
+		baseName := "base.html"
 		if len(page) >= 6 && page[:6] == "admin_" || page == "admin" {
 			baseFile = "templates/admin_base.html"
+			baseName = "admin_base.html"
 		}
-		t, err := template.New("base.html").Funcs(funcs).ParseFiles(
-			baseFile,
-			fmt.Sprintf("templates/%s.html", page),
+		pageFile := fmt.Sprintf("templates/%s.html", page)
+		var (
+			t   *template.Template
+			err error
 		)
+		if h.assets != nil {
+			t, err = template.New(baseName).Funcs(funcs).ParseFS(h.assets, baseFile, pageFile)
+		} else {
+			t, err = template.New(baseName).Funcs(funcs).ParseFiles(baseFile, pageFile)
+		}
 		if err != nil {
-			log.Printf("template error (%s): %v", page, err)
+			slog.Error("template parse error", "page", page, "err", err)
 			continue
 		}
 		h.tmpls[page] = t
 	}
-	if t, err := template.New("login.html").Funcs(funcs).ParseFiles("templates/login.html"); err == nil {
-		h.tmpls["login"] = t
+	var (
+		loginTmpl *template.Template
+		loginErr  error
+	)
+	if h.assets != nil {
+		loginTmpl, loginErr = template.New("login.html").Funcs(funcs).ParseFS(h.assets, "templates/login.html")
 	} else {
-		log.Printf("login template error: %v", err)
+		loginTmpl, loginErr = template.New("login.html").Funcs(funcs).ParseFiles("templates/login.html")
+	}
+	if loginErr == nil {
+		h.tmpls["login"] = loginTmpl
+	} else {
+		slog.Error("login template parse error", "err", loginErr)
 	}
 }
 
@@ -187,7 +221,7 @@ func (h *Handler) templateFuncs() template.FuncMap {
 func (h *Handler) sess(r *http.Request) *sessions.Session {
 	s, err := h.store.Get(r, "step-ui")
 	if err != nil {
-		log.Printf("session decode failed: remote=%s host=%s path=%s err=%v", r.RemoteAddr, r.Host, r.URL.Path, err)
+		slog.Warn("session decode failed", "remote", r.RemoteAddr, "host", r.Host, "path", r.URL.Path, "err", err)
 	}
 	return s
 }
@@ -228,7 +262,7 @@ func (h *Handler) popFlash(w http.ResponseWriter, r *http.Request) []models.Flas
 func (h *Handler) csrf(w http.ResponseWriter, r *http.Request) string {
 	s, err := h.store.Get(r, "step-ui")
 	if err != nil {
-		log.Printf("session reset after decode failure: remote=%s host=%s path=%s err=%v", r.RemoteAddr, r.Host, r.URL.Path, err)
+		slog.Warn("session reset after decode failure", "remote", r.RemoteAddr, "host", r.Host, "path", r.URL.Path, "err", err)
 		s, _ = h.store.New(r, "step-ui")
 	}
 	token, ok := s.Values["csrf_token"].(string)
@@ -281,6 +315,6 @@ func (h *Handler) render(w http.ResponseWriter, page string, data map[string]int
 		name = "admin_layout"
 	}
 	if err := tmpl.ExecuteTemplate(w, name, data); err != nil {
-		log.Printf("render %s: %v", page, err)
+		slog.Error("template render failed", "page", page, "err", err)
 	}
 }
