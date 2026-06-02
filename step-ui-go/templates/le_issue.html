@@ -5,7 +5,7 @@
         <h1>Выпустить LE сертификат</h1>
     </div>
 </div>
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+<div class="grid-le-issue">
     <div class="card">
         <div class="card-header">
             <h3>Новый сертификат</h3>
@@ -16,7 +16,7 @@
                 <div class="form-full">
                     <label>Домен</label>
                     <input type="text" name="domain" placeholder="example.com" required>
-                    <div style="font-size:10px;color:var(--muted);margin-top:4px">Домен должен быть публично доступен</div>
+                    <div class="muted-fs7-mt4">Домен должен быть публично доступен</div>
                 </div>
                 <div class="form-full">
                     <label>Email</label>
@@ -25,7 +25,7 @@
                            placeholder="admin@example.com"
                            value="{{if .LESettings}}{{.LESettings.Email}}{{end}}"
                            required>
-                    <div style="font-size:10px;color:var(--muted);margin-top:4px">Для уведомлений Let's Encrypt</div>
+                    <div class="muted-fs7-mt4">Для уведомлений Let's Encrypt</div>
                 </div>
                 <div class="form-full">
                     <label>Challenge провайдер</label>
@@ -53,31 +53,22 @@
                 <strong>HTTP-01:</strong> Let's Encrypt обратится на <code>http://example.com/.well-known/acme-challenge/</code>.
                 Порт 80 должен быть открыт и доступен из интернета.
             </div>
-            <div id="helpCloudflare" class="le-help" style="display:none">
+            <div id="helpCloudflare" class="le-help d-none">
                 <strong>DNS-01 Cloudflare:</strong> Автоматически создаёт TXT запись через Cloudflare API.
-                Настрой API Token в <a href="/le/settings" style="color:var(--accent)">Настройках LE</a>.
+                Настрой API Token в <a href="/le/settings" class="link-accent">Настройках LE</a>.
             </div>
-            <div id="helpRoute53" class="le-help" style="display:none">
+            <div id="helpRoute53" class="le-help d-none">
                 <strong>DNS-01 Route53:</strong> Автоматически создаёт TXT запись через AWS Route53.
-                Настрой ключи в <a href="/le/settings" style="color:var(--accent)">Настройках LE</a>.
+                Настрой ключи в <a href="/le/settings" class="link-accent">Настройках LE</a>.
             </div>
-            <div class="form-full" style="margin-top:12px">
-                <label style="display:flex;
-                              align-items:center;
-                              gap:8px;
-                              text-transform:none;
-                              font-size:12px;
-                              font-weight:500;
-                              color:var(--text)">
-                    <input type="checkbox" name="auto_renew" checked style="width:auto">
+            <div class="form-full mt-12">
+                <label class="label-check-flex">
+                    <input type="checkbox" name="auto_renew" checked class="w-auto">
                     Авто-обновление за 30 дней до истечения
                 </label>
             </div>
             <button type="submit"
-                    class="btn"
-                    style="margin-top:8px;
-                           padding:10px 22px;
-                           font-weight:600">Выпустить сертификат</button>
+                    class="btn pad-mt8-10-22-fw6">Выпустить сертификат</button>
         </form>
     </div>
 </div>
@@ -86,26 +77,22 @@
         <h3>Как это работает</h3>
     </div>
     <div class="card-body">
-        <div style="font-size:12px;color:var(--muted);line-height:1.8">
-            <p style="margin-bottom:12px">
-                Let's Encrypt выпускает бесплатные SSL сертификаты для публичных доменов сроком на <strong style="color:var(--text)">90 дней</strong>.
+        <div class="muted-lh18-fs12">
+            <p class="mb-12">
+                Let's Encrypt выпускает бесплатные SSL сертификаты для публичных доменов сроком на <strong class="text-text">90 дней</strong>.
             </p>
-            <div style="margin-bottom:6px">
+            <div class="mb-6">
                 <span class="badge ok">HTTP-01</span>
             </div>
-            <p style="margin-bottom:12px">Подходит если сервер доступен из интернета на порту 80.</p>
-            <div style="margin-bottom:6px">
+            <p class="mb-12">Подходит если сервер доступен из интернета на порту 80.</p>
+            <div class="mb-6">
                 <span class="badge blue">DNS-01</span>
             </div>
-            <p style="margin-bottom:12px">Подходит для любых доменов. Требует доступ к DNS через API.</p>
-            <hr style="border-color:var(--border);margin:12px 0">
+            <p class="mb-12">Подходит для любых доменов. Требует доступ к DNS через API.</p>
+            <hr class="hr-margin-12">
             <p>Авто-обновление проверяет сертификаты каждые 24 часа и обновляет за 30 дней до истечения.</p>
         </div>
     </div>
 </div>
-</div>
-<style>
-.le-help{background:rgba(68,147,248,.08);border:1px solid rgba(68,147,248,.2);border-radius:6px;padding:10px 12px;font-size:11px;color:var(--muted);margin-top:4px;line-height:1.6}
-</style>
-<script src="/static/js/pages/le-issue.js"></script>
+</div><script src="/static/js/pages/le-issue.js"></script>
 {{end}}

@@ -11,6 +11,8 @@
     <link rel="stylesheet" href="/static/css/base.css">
     <link rel="stylesheet" href="/static/css/components.css">
     <link rel="stylesheet" href="/static/css/datepicker.css">
+    <link rel="stylesheet" href="/static/css/pages.css">
+    <link rel="stylesheet" href="/static/css/utilities.css">
 </head>
 <body>
     <button class="burger-float"
@@ -242,9 +244,9 @@
         </nav>
         <div class="sidebar-footer">
             <div class="user-info">
-                {{.Session.Username}} &middot; <span style="color:var(--muted);font-weight:400">{{.Session.Role}}</span>
+                {{.Session.Username}} &middot; <span class="sidebar-role">{{.Session.Role}}</span>
             </div>
-            <div style="font-size:10px;color:var(--muted)">
+            <div class="sidebar-ca-status">
                 <span class="dot"></span>CA online
             </div>
         </div>

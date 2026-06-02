@@ -5,23 +5,17 @@
         <h1>История операций</h1>
     </div>
 </div>
-<div class="card" style="margin-bottom:12px">
-    <div class="card-body" style="padding:14px 16px">
+<div class="card card-mb-12">
+    <div class="card-body p-14-16">
         <form method="GET"
               action="/history"
               id="historyForm"
-              style="display:flex;
-                     gap:12px;
-                     align-items:center;
-                     flex-wrap:wrap">
-            <label style="margin-bottom:0;width:auto">Действия:</label>
+              class="flex-filter-form">
+            <label class="mb-0 w-auto">Действия:</label>
             <!-- Multi-select с чипами -->
-            <div class="multi-select"
+            <div class="multi-select min-w280-flex1"
                  id="actionsMulti"
-                 data-name="action"
-                 style="min-width:280px;
-                        max-width:520px;
-                        flex:1">
+                 data-name="action">
                 <div class="ms-box" tabindex="0">
                     <div class="ms-chips" id="msChips"></div>
                     <span class="ms-placeholder" id="msPlaceholder">Все действия</span>
@@ -45,7 +39,7 @@
             {{if .FilterActions}}
             <a href="/history" class="btn btn-ghost btn-sm">Сбросить</a>
             {{end}}
-            <span style="color:var(--muted);font-size:11px;margin-left:auto">Всего: {{.Total}}</span>
+            <span class="muted-fs11-ml-auto">Всего: {{.Total}}</span>
         </form>
     </div>
 </div>
@@ -53,12 +47,12 @@
     <div class="tbl-wrap">
         <table class="tbl">
             <colgroup>
-                <col style="width:160px">
-                <col style="width:120px">
-                <col style="width:160px">
-                <col style="width:180px">
+                <col class="col-w160">
+                <col class="col-w120">
+                <col class="col-w160">
+                <col class="col-w180">
                 <col>
-                <col style="width:140px">
+                <col class="col-w140">
             </colgroup>
             <thead>
                 <tr>
@@ -73,7 +67,7 @@
             <tbody>
                 {{range .Entries}}
                 <tr>
-                    <td style="color:var(--muted);font-size:11px">{{fmtLog .CreatedAt}}</td>
+                    <td class="td-muted-ts">{{fmtLog .CreatedAt}}</td>
                     <td>
                         <span class="badge {{if eq .Action "issue"}}ok{{else if eq .Action "renew"}}blue{{else if eq .Action "revoke"}}danger{{else}}gray{{end}}">{{.Action}}</span>
                     </td>
@@ -83,12 +77,12 @@
                     <td>
                         <code>{{.Domain}}</code>
                     </td>
-                    <td style="color:var(--muted)">{{.Details}}</td>
+                    <td class="text-muted">{{.Details}}</td>
                     <td>{{.Username}}</td>
                 </tr>
             {{else}}
                 <tr>
-                    <td colspan="6" style="text-align:center;color:var(--muted);padding:24px">Нет записей</td>
+                    <td colspan="6" class="muted-center-p24">Нет записей</td>
                 </tr>
                 {{end}}
             </tbody>
@@ -96,60 +90,13 @@
     </div>
 </div>
 {{if gt .TotalPages 1}}
-<div style="display:flex;gap:6px;justify-content:center;margin-top:12px">
+<div class="pagination">
     {{$cur := .CurrentPage}}{{$acts := .FilterActions}}
     {{range seq 1 .TotalPages}}
     <a href="/history?page={{.}}{{range $acts}}&action={{.}}{{end}}"
        class="btn btn-sm {{if eq . $cur}}{{else}}btn-ghost{{end}}">{{.}}</a>
     {{end}}
 </div>
-{{end}}
-<style>
-.multi-select{position:relative}
-.ms-box{
-  min-height:36px;width:100%;background:var(--bg);border:1px solid var(--border);
-  border-radius:6px;padding:5px 32px 5px 8px;cursor:pointer;
-  display:flex;flex-wrap:wrap;gap:4px;align-items:center;
-  transition:border-color .15s;position:relative;outline:none;
-}
-.ms-box:hover{border-color:var(--muted)}
-.ms-box.open{border-color:var(--accent)}
-.ms-box::after{
-  content:'';position:absolute;right:10px;top:50%;transform:translateY(-50%);
-  width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;
-  border-top:5px solid var(--muted);transition:transform .15s;pointer-events:none;
-}
-.ms-box.open::after{transform:translateY(-50%) rotate(180deg)}
-.ms-chips{display:flex;flex-wrap:wrap;gap:4px}
-.ms-chip{
-  display:inline-flex;align-items:center;gap:4px;padding:2px 6px 2px 8px;
-  border-radius:4px;background:var(--active-nav);color:var(--accent);
-  font-size:11px;font-weight:500;
-}
-.ms-chip-x{
-  cursor:pointer;opacity:.7;font-size:13px;line-height:1;padding:0 2px;
-}
-.ms-chip-x:hover{opacity:1}
-.ms-placeholder{font-size:12px;color:var(--muted);padding:3px 0}
-.ms-dropdown{
-  display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:400;
-  background:var(--card);border:1px solid var(--border);border-radius:8px;padding:4px;
-  box-shadow:0 8px 24px var(--shadow);max-height:240px;overflow-y:auto;
-}
-.ms-dropdown.open{display:block}
-.ms-opt{
-  padding:8px 10px;border-radius:5px;font-size:12px;color:var(--muted);
-  cursor:pointer;display:flex;align-items:center;gap:8px;transition:.12s;
-}
-.ms-opt:hover{background:var(--hover-nav);color:var(--text)}
-.ms-opt.selected{color:var(--accent);background:var(--active-nav)}
-.ms-opt .chk{
-  width:14px;height:14px;border:1.5px solid var(--border);border-radius:3px;
-  flex-shrink:0;display:flex;align-items:center;justify-content:center;
-  font-size:10px;transition:.12s;color:transparent;
-}
-.ms-opt.selected .chk{background:var(--accent);border-color:var(--accent);color:#fff}
-</style>
-<script type="application/json" id="history-data">{"actions":[{{range .FilterActions}}"{{.}}",{{end}}]}</script>
+{{end}}<script type="application/json" id="history-data">{"actions":[{{range .FilterActions}}"{{.}}",{{end}}]}</script>
 <script src="/static/js/pages/history.js"></script>
 {{end}}

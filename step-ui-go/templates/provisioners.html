@@ -5,7 +5,7 @@
         <h1>Провижионеры</h1>
     </div>
 </div>
-<div class="card" style="margin-bottom:16px">
+<div class="card card-mb-16">
     <div class="card-header">
         <h3>Подключение к CA</h3>
     </div>
@@ -18,17 +18,13 @@
         </div>
         <div class="info-row">
             <div class="info-key">CA Certs</div>
-            <div class="info-val"
-                 style="display:flex;
-                        align-items:center;
-                        gap:10px;
-                        flex-wrap:wrap">
+            <div class="info-val row-gap10-center flex-wrap">
                 <code>{{.RootCert}}</code>
                 {{if eq .Session.Role "admin"}}
                 <a href="/download/ca"
                    class="btn btn-ghost btn-sm"
                    title="Скачать корневой сертификат"
-                   style="padding:3px 10px">
+                   class="pad-3-10"
                     <svg width="11"
                          height="11"
                          viewBox="0 0 12 12"
@@ -44,7 +40,7 @@
                 <a href="/download/intermediate-ca"
                    class="btn btn-ghost btn-sm"
                    title="Скачать intermediate сертификат"
-                   style="padding:3px 10px">
+                   class="pad-3-10"
                     <svg width="11"
                          height="11"
                          viewBox="0 0 12 12"
@@ -60,7 +56,7 @@
                 <a href="/download/full-chain"
                    class="btn btn-ghost btn-sm"
                    title="Скачать full chain: intermediate + root"
-                   style="padding:3px 10px">
+                   class="pad-3-10"
                     <svg width="11"
                          height="11"
                          viewBox="0 0 12 12"
@@ -91,10 +87,7 @@
 </div>
 {{else}}
 <div class="card">
-    <div class="card-body"
-         style="color:var(--muted);
-                text-align:center;
-                padding:24px">Нет провижионеров или CA недоступен</div>
+    <div class="card-body muted-center-p24">Нет провижионеров или CA недоступен</div>
 </div>
 {{end}}
 {{end}}

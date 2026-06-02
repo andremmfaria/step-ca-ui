@@ -1,22 +1,12 @@
 {{define "content"}}
 <div class="page-header">
-    <h1 style="margin:0 0 4px;font-size:22px;font-weight:700">Консоль сервера</h1>
-    <p class="muted" style="margin:0">Прямой доступ к выполнению команд внутри контейнера</p>
+    <h1 class="m-0-0-4-h3">Консоль сервера</h1>
+    <p class="muted m-0">Прямой доступ к выполнению команд внутри контейнера</p>
 </div>
-<div class="card"
-     style="margin-top:18px;
-            border-color:color-mix(in srgb, var(--admin-danger) 40%, var(--admin-border))">
-    <div class="card-body" style="padding:24px">
-        <div style="display:flex;align-items:flex-start;gap:14px">
-            <div style="flex-shrink:0;
-                        width:44px;
-                        height:44px;
-                        border-radius:10px;
-                        background:color-mix(in srgb, var(--admin-danger) 18%, transparent);
-                        color:var(--admin-danger);
-                        display:flex;
-                        align-items:center;
-                        justify-content:center">
+<div class="card card-mt-18 card-border-danger">
+    <div class="card-body p-24">
+        <div class="d-flex align-start gap-14">
+            <div class="admin-icon-box danger">
                 <svg width="22"
                      height="22"
                      viewBox="0 0 24 24"
@@ -29,28 +19,21 @@
                     <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
                 </svg>
             </div>
-            <div style="flex:1">
-                <h2 style="margin:0 0 6px;font-size:17px;font-weight:700">Требуется двухфакторная аутентификация</h2>
-                <p class="muted" style="margin:0 0 14px">
+            <div class="flex-1">
+                <h2 class="section-h2">Требуется двухфакторная аутентификация</h2>
+                <p class="muted mb-14">
                     Консоль даёт полный shell внутри контейнера — потенциально разрушительная операция.
                     Для активации настройте 2FA в профиле администратора.
                 </p>
-                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <div class="row-gap8-wrap">
                     <a href="/profile" class="btn btn-primary">Настроить 2FA</a>
                     <a href="/admin" class="btn btn-ghost">← Назад к панели</a>
                 </div>
             </div>
         </div>
-        <hr style="margin:22px 0;
-                   border:0;
-                   border-top:1px solid var(--admin-border)">
-        <strong style="display:block;
-                       margin-bottom:10px;
-                       font-size:13px;
-                       color:var(--admin-muted);
-                       text-transform:uppercase;
-                       letter-spacing:.05em">Что будет после 2FA</strong>
-        <ul style="margin:0;padding-left:20px;line-height:1.7">
+        <hr class="hr-22-0">
+        <strong class="admin-coming-label">Что будет после 2FA</strong>
+        <ul class="m-0-pl20-lh17">
             <li>Интерактивный shell внутри контейнера step-ui</li>
             <li>История команд и автодополнение</li>
             <li>Предустановленные команды: restart step-ca, reload, backup</li>

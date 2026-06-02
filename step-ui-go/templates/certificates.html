@@ -30,14 +30,9 @@
                 <option value="">Все</option>
             </select>
         </div>
-        <div style="display:flex;
-                    gap:8px;
-                    align-items:center;
-                    justify-content:flex-end">
+        <div class="row-end-gap8">
             <span id="f-counter"
-                  style="color:var(--muted);
-                         font-size:11px;
-                         white-space:nowrap">Всего: 0</span>
+                  class="muted-fs11 nowrap">Всего: 0</span>
             <button type="button" id="f-reset" class="btn btn-ghost btn-sm">Сбросить</button>
         </div>
     </div>
@@ -79,7 +74,7 @@
                     <td class="cert-domain-cell" data-label="Домен">
                         <code>{{.Domain}}</code>
                     </td>
-                    <td style="color:var(--muted)" data-label="Выдан">{{fmtTime .IssuedAt}}</td>
+                    <td class="text-muted" data-label="Выдан">{{fmtTime .IssuedAt}}</td>
                     <td data-label="Истекает">{{fmtTime .ExpiresAt}}</td>
                     <td data-label="Статус">
                         <span class="badge {{if eq .Status "active"}}{{badgeClass .ExpiresAt}}{{else}}danger{{end}}">{{.Status}}</span>
@@ -121,7 +116,7 @@
                 </tr>
             {{else}}
                 <tr id="emptyRow">
-                    <td colspan="8" style="text-align:center;color:var(--muted);padding:24px">Нет сертификатов</td>
+                    <td colspan="8" class="muted-center-p24">Нет сертификатов</td>
                 </tr>
                 {{end}}
             </tbody>

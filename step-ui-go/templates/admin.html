@@ -6,7 +6,7 @@
 <div class="card">
     <div class="card-header">
         <strong>Пользователи</strong>
-        <a href="/admin/users" class="btn btn-ghost" style="margin-left:auto">Управление →</a>
+        <a href="/admin/users" class="btn btn-ghost btn-ml-auto"Управление →</a>
     </div>
     <div class="card-body">
         <div class="admin-stats">
@@ -57,7 +57,7 @@
 <div class="card">
     <div class="card-header">
         <strong>Безопасность</strong>
-        <a href="/admin/security" class="btn btn-ghost" style="margin-left:auto">Журнал →</a>
+        <a href="/admin/security" class="btn btn-ghost btn-ml-auto"Журнал →</a>
     </div>
     <div class="card-body">
         <div class="admin-stats">
@@ -70,17 +70,14 @@
                 <div class="admin-stat-label">Неудачных за 24ч</div>
             </div>
         </div>
-        <h3 style="margin-top:18px;
-                   margin-bottom:10px;
-                   font-size:14px;
-                   font-weight:600">Последние успешные входы</h3>
+        <h3 class="section-h3-sec">Последние успешные входы</h3>
         {{if .RecentLogins}}
         <div class="table-wrap">
             <div class="tbl-wrap">
                 <table class="tbl">
                     <colgroup>
-                        <col style="width:200px">
-                        <col style="width:200px">
+                        <col class="col-w200">
+                        <col class="col-w200">
                         <col>
                     </colgroup>
                     <thead>

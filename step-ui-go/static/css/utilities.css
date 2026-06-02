@@ -1,0 +1,343 @@
+/* utilities.css — atomic utility + layout helper classes extracted from
+ * inline style="..." attributes across all templates.
+ * Loaded via base.html / admin_base.html alongside pages.css.
+ * All classes are static (no dynamic values) — safe for style-src 'self'.
+ */
+
+/* ── Display ──────────────────────────────────────────────────────────────── */
+.d-none      { display: none; }
+.d-inline    { display: inline; }
+.d-block     { display: block; }
+.d-flex      { display: flex; }
+.d-iflex     { display: inline-flex; }
+.d-grid      { display: grid; }
+
+/* ── Flex helpers ─────────────────────────────────────────────────────────── */
+.flex-col        { flex-direction: column; }
+.flex-wrap       { flex-wrap: wrap; }
+.flex-1          { flex: 1; }
+.flex-shrink-0   { flex-shrink: 0; }
+.align-center    { align-items: center; }
+.align-start     { align-items: flex-start; }
+.align-between   { align-items: center; justify-content: space-between; }
+.justify-end     { justify-content: flex-end; }
+.justify-center  { justify-content: center; }
+.gap-4           { gap: 4px; }
+.gap-6           { gap: 6px; }
+.gap-8           { gap: 8px; }
+.gap-10          { gap: 10px; }
+.gap-12          { gap: 12px; }
+.gap-14          { gap: 14px; }
+.gap-16          { gap: 16px; }
+
+/* ── Flex shorthand combos used across templates ──────────────────────────── */
+/* display:flex + a combination that appears ≥2 times */
+.row-gap8-center     { display: flex; gap: 8px; align-items: center; }
+.row-gap8-wrap       { display: flex; gap: 8px; flex-wrap: wrap; }
+.row-gap10-center    { display: flex; gap: 10px; align-items: center; }
+.row-gap12-center    { display: flex; align-items: center; gap: 12px; }
+.row-gap6-center     { display: flex; gap: 6px; justify-content: center; margin-top: 12px; }
+.row-gap6-wrap       { display: flex; gap: 6px; justify-content: center; margin-top: 12px; }
+.row-end-gap8        { display: flex; gap: 8px; align-items: center; justify-content: flex-end; }
+.col-gap14           { display: flex; flex-direction: column; gap: 14px; }
+.col-gap12           { display: flex; flex-direction: column; gap: 12px; }
+.flex-filter-form    { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.flex-filter-form-sm { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+/* ── Grid layouts ─────────────────────────────────────────────────────────── */
+.grid-2col-gap14      { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.grid-2col-gap16      { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.grid-2col-gap14-mb14 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+.grid-3col-gap10-mb16 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+.grid-auto180-gap16   { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; }
+.grid-3col-minmax-gap12 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.grid-4col-minmax-gap12 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 14px; }
+
+/* Profile page two-col (asymmetric) */
+.grid-profile         { display: grid; grid-template-columns: minmax(280px, 1fr) minmax(320px, 1.4fr); gap: 14px; }
+
+/* Issue page (form + sidebar) */
+.grid-issue           { display: grid; grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr); gap: 16px; align-items: start; }
+
+/* Dashboard server+activity */
+.grid-dash-server     { display: grid; grid-template-columns: 1fr 2fr; gap: 14px; margin-bottom: 14px; }
+
+/* Admin users filter grid */
+.grid-users-filter    { display: grid; grid-template-columns: minmax(220px, 1fr) 170px 170px auto; gap: 10px; align-items: end; }
+
+/* le_issue two equal cols */
+.grid-le-issue        { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+/* le_settings / certificate_detail deploy snippets */
+.grid-mw600           { max-width: 600px; }
+
+/* admin_user_profile / user_profile top grid */
+.grid-user-profile    { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+
+/* security_log / admin_security stats */
+.grid-sec-stats       { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+
+/* ── Spacing — margin ─────────────────────────────────────────────────────── */
+.m-0          { margin: 0; }
+.m-0-auto     { margin: 0 auto; }
+.m-0-18       { margin: 0 0 18px; max-width: 520px; margin-left: auto; margin-right: auto; }
+.mb-0         { margin-bottom: 0; }
+.mb-4         { margin-bottom: 4px; }
+.mb-6         { margin-bottom: 6px; }
+.mb-8         { margin-bottom: 8px; }
+.mb-10        { margin-bottom: 10px; }
+.mb-12        { margin-bottom: 12px; }
+.mb-14        { margin-bottom: 14px; }
+.mb-16        { margin-bottom: 16px; }
+.mt-0         { margin-top: 0; }
+.mt-2         { margin-top: 2px; }
+.mt-4         { margin-top: 4px; }
+.mt-8         { margin-top: 8px; }
+.mt-10        { margin-top: 10px; }
+.mt-12        { margin-top: 12px; }
+.mt-14        { margin-top: 14px; }
+.mt-18        { margin-top: 18px; }
+.mt-18-mb-10  { margin-top: 18px; margin-bottom: 10px; }
+.ml-auto      { margin-left: auto; }
+.m-0-0-4-h3   { margin: 0 0 4px; font-size: 22px; font-weight: 700; }
+.m-0-0-18     { margin: 0 0 18px; }
+.m-0-pl20-lh17 { margin: 0; padding-left: 20px; line-height: 1.7; }
+.mb-12-border { margin-bottom: 12px; border-color: var(--border); }
+
+/* ── Spacing — padding ────────────────────────────────────────────────────── */
+.p-0          { padding: 0; }
+.p-12-16      { padding: 12px 16px; }
+.p-14-16      { padding: 14px 16px; }
+.p-24         { padding: 24px; }
+.p-40-20      { text-align: center; padding: 40px 20px; }
+.p-10-14      { padding: 10px 14px; }
+.pad-8-18-fw6 { padding: 8px 18px; font-weight: 600; }
+.pad-10-22-fw6 { padding: 10px 22px; font-weight: 600; }
+.pad-10-24-fw6 { padding: 10px 24px; font-weight: 600; }
+.pad-3-10     { padding: 3px 10px; }
+.pad-mt8-10-22-fw6 { margin-top: 8px; padding: 10px 22px; font-weight: 600; }
+.pad-mt14-8-18-fw6 { margin-top: 14px; padding: 8px 18px; font-weight: 600; }
+
+/* ── Typography ───────────────────────────────────────────────────────────── */
+.fs-10        { font-size: 10px; }
+.fs-11        { font-size: 11px; }
+.fs-12        { font-size: 12px; }
+.fs-13        { font-size: 13px; }
+.fs-14        { font-size: 14px; }
+.fs-18        { font-size: 18px; }
+.fs-22        { font-size: 22px; }
+.fw-600       { font-weight: 600; }
+.fw-700       { font-weight: 700; }
+.fw-400       { font-weight: 400; }
+.text-muted   { color: var(--muted); }
+.text-accent  { color: var(--accent); }
+.text-green   { color: var(--green); }
+.text-danger  { color: var(--danger); }
+.text-warn    { color: var(--warn); }
+.text-text    { color: var(--text); }
+.text-center  { text-align: center; }
+.text-left    { text-align: left; }
+.lh-12        { line-height: 1.2; }
+.lh-17        { line-height: 1.7; }
+.lh-18        { line-height: 1.8; }
+.tt-none      { text-transform: none; }
+.tt-upper     { text-transform: uppercase; }
+.ls-05        { letter-spacing: .05em; }
+.nowrap       { white-space: nowrap; }
+.sel-all      { user-select: all; }
+.word-break   { word-break: break-all; overflow-wrap: break-word; }
+.ow-anywhere  { white-space: normal; overflow-wrap: anywhere; }
+
+/* ── Color-specific text combos ──────────────────────────────────────────── */
+.muted-fs11       { color: var(--muted); font-size: 11px; }
+.muted-fs11-ml-auto { color: var(--muted); font-size: 11px; margin-left: auto; }
+.muted-fs10       { color: var(--muted); font-size: 10px; }
+.muted-fs12-mt2   { color: var(--muted); font-size: 12px; margin-top: 2px; }
+.muted-fs7-mt4    { font-size: 10px; color: var(--muted); margin-top: 4px; }
+.muted-fs11-mt4   { font-size: 11px; color: var(--muted); margin-top: 4px; }
+.muted-fs11-mt2   { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.muted-center-p24 { text-align: center; color: var(--muted); padding: 24px; }
+.muted-center-p32 { text-align: center; color: var(--muted); padding: 32px; }
+.muted-fs12-mb16  { color: var(--muted); margin-bottom: 16px; font-size: 12px; }
+.muted-lh18-fs12  { font-size: 12px; color: var(--muted); line-height: 1.8; }
+
+/* table td muted timestamps (very common pattern) */
+.td-muted-ts  { color: var(--muted); font-size: 11px; }
+
+/* ── Width constraints ────────────────────────────────────────────────────── */
+.w-auto       { width: auto; }
+.w-180        { width: 180px; }
+.mw-560       { max-width: 560px; }
+.mw-600       { max-width: 600px; }
+.mw-720       { max-width: 720px; }
+.mw-320-flex1 { max-width: 320px; flex: 1; }
+.flex1-min220-max360 { flex: 1; min-width: 220px; max-width: 360px; }
+.flex1-min0   { flex: 1; min-width: 0; }
+.min-w280-flex1 { min-width: 280px; max-width: 520px; flex: 1; }
+.min-w700     { min-width: 700px; }
+.overflow-x-auto { overflow-x: auto; }
+
+/* ── Border helpers ───────────────────────────────────────────────────────── */
+.border-accent    { border-color: var(--accent); }
+.hr-margin-12     { border-color: var(--border); margin: 12px 0; }
+.hr-22-0          { margin: 22px 0; border: 0; border-top: 1px solid var(--admin-border); }
+
+/* ── Card modifiers ───────────────────────────────────────────────────────── */
+.card-mb-0        { margin-bottom: 0; }
+.card-mb-0-ov     { margin-bottom: 0; overflow: visible; }
+.card-mb-12       { margin-bottom: 12px; }
+.card-mb-16       { margin-bottom: 16px; }
+.card-mt-18       { margin-top: 18px; }
+.card-mw-560      { max-width: 560px; }
+.card-mw-720      { max-width: 720px; }
+.card-sticky-top  { position: sticky; top: 16px; }
+
+/* Special border-color card variants */
+.card-border-amber { border-color: color-mix(in srgb, #f59e0b 40%, var(--border)); }
+.card-border-green { border-color: color-mix(in srgb, #16a34a 50%, var(--admin-border)); }
+.card-border-danger { border-color: color-mix(in srgb, var(--admin-danger) 40%, var(--admin-border)); }
+
+/* ── Admin icon badge (warning/info icon in a rounded box) ───────────────── */
+.admin-icon-box {
+    flex-shrink: 0;
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.admin-icon-box.amber {
+    background: color-mix(in srgb, #f59e0b 18%, transparent);
+    color: #f59e0b;
+}
+.admin-icon-box.danger {
+    background: color-mix(in srgb, var(--admin-danger) 18%, transparent);
+    color: var(--admin-danger);
+}
+.admin-icon-box.accent {
+    background: color-mix(in srgb, var(--admin-accent) 15%, transparent);
+    color: var(--admin-accent);
+    display: inline-flex;
+    width: 60px;
+    height: 60px;
+    border-radius: 12px;
+    margin-bottom: 14px;
+}
+
+/* ── Admin coming-soon "what's next" box ─────────────────────────────────── */
+.admin-coming-box {
+    max-width: 460px;
+    margin: 0 auto;
+    text-align: left;
+    border: 1px solid var(--admin-border);
+    border-radius: 10px;
+    padding: 14px 20px;
+    background: var(--admin-bg);
+}
+.admin-coming-label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 13px;
+    color: var(--admin-muted);
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    font-weight: 700;
+}
+
+/* ── Flash / credential-reveal box ───────────────────────────────────────── */
+.flash-stack       { margin-bottom: 14px; display: flex; flex-direction: column; gap: 8px; }
+.flash-ok          { padding: 10px 14px; border-radius: 8px; border: 1px solid #2e7d32; background: rgb(46 125 50 / 12%); color: var(--text); }
+.flash-err         { padding: 10px 14px; border-radius: 8px; border: 1px solid #cc3d3d; background: rgb(204 61 61 / 12%); color: var(--text); }
+
+.cred-share-box {
+    margin-top: 10px;
+    padding: 10px;
+    background: var(--admin-bg);
+    border: 1px solid var(--admin-border);
+    border-radius: 6px;
+    font-family: var(--mono, monospace);
+    font-size: 12px;
+}
+.cred-copy-row { display: flex; justify-content: flex-end; margin: 6px 0; }
+.cred-strong-green { color: #16a34a; }
+
+/* ── Table column widths (col elements) ──────────────────────────────────── */
+/* Named per pixel-width; used in <colgroup><col class="..."> */
+.col-w80    { width: 80px; }
+.col-w90    { width: 90px; }
+.col-w100   { width: 100px; }
+.col-w110   { width: 110px; }
+.col-w120   { width: 120px; }
+.col-w130   { width: 130px; }
+.col-w140   { width: 140px; }
+.col-w160   { width: 160px; }
+.col-w170   { width: 170px; }
+.col-w180   { width: 180px; }
+.col-w200   { width: 200px; }
+.col-w210   { width: 210px; }
+.col-w230   { width: 230px; }
+.col-w110-th { width: 110px; } /* duplicated for th elements too */
+
+/* ── Table layout ─────────────────────────────────────────────────────────── */
+.tbl-fixed    { table-layout: fixed; }
+
+/* ── Misc one-off patterns ────────────────────────────────────────────────── */
+.cursor-pointer   { cursor: pointer; }
+.overflow-visible { overflow: visible; }
+.pos-sticky-16    { position: sticky; top: 16px; }
+.font-mono-fs12   { font-family: var(--mono); font-size: 12px; }
+.link-accent      { color: var(--accent); text-decoration: none; }
+.link-accent-fs11 { font-size: 11px; color: var(--accent); text-decoration: none; }
+.muted-fw400      { color: var(--muted); font-weight: 400; }
+.muted-fw400-ttnone { color: var(--muted); font-weight: 400; text-transform: none; }
+
+/* h2 inside admin pages (card header variant) */
+.section-h2       { margin: 0 0 6px; font-size: 17px; font-weight: 700; }
+.section-h3-sec   { margin-top: 18px; margin-bottom: 10px; font-size: 14px; font-weight: 600; }
+
+/* label with checkbox (inline flex + spacing) */
+.label-check-flex { display: flex; align-items: center; gap: 8px; text-transform: none; font-size: 12px; font-weight: 500; color: var(--text); }
+
+/* admin dashboard "Manage →" button margin */
+.btn-ml-auto      { margin-left: auto; }
+
+/* btn amber (admin panel entry) */
+.btn-amber        { background: #f59e0b; border-color: #f59e0b; color: #111; text-align: center; font-weight: 700; }
+
+/* fs14-fw600 combo (version/build labels) */
+.fs14-fw600       { font-size: 14px; font-weight: 600; }
+
+/* small label combos in dashboard about-section */
+.stat-sublabel    { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
+.stat-val-18      { font-size: 18px; font-weight: 700; }
+.stat-val-fw700   { font-weight: 700; line-height: 1.2; }
+
+/* overflow-x on dashboard table wrapper */
+.tbl-overflow     { overflow-x: auto; }
+
+/* Pagination bar */
+.pagination       { display: flex; gap: 6px; justify-content: center; margin-top: 12px; }
+
+/* badge with small margin for SAN lists */
+.badge-m2         { margin: 2px; }
+
+/* admin_users_temp new-user created card */
+.card-border-green-mt18 { margin-top: 18px; border-color: color-mix(in srgb, #16a34a 50%, var(--admin-border)); }
+
+/* LE settings / console hidden provider sections (start hidden) */
+/* (display:none already covered by .d-none) */
+
+/* le_issue/le_settings inline accent link */
+.fs11-accent-fw600 { font-size: 11px; color: var(--accent); margin-bottom: 10px; font-weight: 600; }
+.fs11-warn-fw600   { font-size: 11px; color: var(--warn); margin-bottom: 10px; font-weight: 600; }
+
+/* le_dashboard "Все логи" link in card header */
+.card-header-link  { font-size: 11px; color: var(--accent); text-decoration: none; }
+
+/* sidebar footer muted role label */
+.sidebar-role      { color: var(--muted); font-weight: 400; }
+.sidebar-ca-status { font-size: 10px; color: var(--muted); }
+
+/* profile admin card body text */
+.fw700-lh12        { font-weight: 700; line-height: 1.2; }

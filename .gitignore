@@ -2,6 +2,9 @@
 .env
 *.env.local
 secrets/
+node_modules/
+package-lock.json
+package.json
 
 # Бинарники Go
 step-ui-go/step-ui

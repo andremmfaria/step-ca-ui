@@ -6,12 +6,8 @@
     </div>
 </div>
 <!-- Панель фильтров -->
-<div class="card" style="margin-bottom:12px">
-    <div class="card-body"
-         style="display:grid;
-                grid-template-columns:minmax(220px,1fr) 170px 170px auto;
-                gap:10px;
-                align-items:end">
+<div class="card card-mb-12">
+    <div class="card-body grid-users-filter">
         <div>
             <label>Поиск по логину</label>
             <input type="text" id="uf-search" placeholder="admin" autocomplete="off">
@@ -33,32 +29,27 @@
                 <option value="blocked">Заблокированные</option>
             </select>
         </div>
-        <div style="display:flex;
-                    gap:8px;
-                    align-items:center;
-                    justify-content:flex-end">
+        <div class="row-end-gap8">
             <span id="uf-counter"
-                  style="color:var(--muted);
-                         font-size:11px;
-                         white-space:nowrap">Всего: 0</span>
+                  class="muted-fs11 nowrap">Всего: 0</span>
             <button type="button" id="uf-reset" class="btn btn-ghost btn-sm">Сбросить</button>
         </div>
     </div>
 </div>
-<div class="card" style="margin-bottom:16px">
+<div class="card card-mb-16">
     <div class="card-header">
         <h3>Список пользователей</h3>
     </div>
     <div class="tbl-wrap">
-        <table class="tbl" id="usersTable" style="min-width:700px">
+        <table class="tbl min-w700" id="usersTable">
             <colgroup>
-                <col style="width:140px">
-                <col style="width:90px">
-                <col style="width:90px">
-                <col style="width:160px">
-                <col style="width:160px">
-                <col style="width:110px">
-                <col style="width:160px">
+                <col class="col-w140">
+                <col class="col-w90">
+                <col class="col-w90">
+                <col class="col-w160">
+                <col class="col-w160">
+                <col class="col-w110">
+                <col class="col-w160">
                 <col>
             </colgroup>
             <thead>
@@ -84,7 +75,7 @@
                         <strong>{{.Username}}</strong>
                     </a>
                 {{else}}
-                    <strong>{{.Username}}</strong> <span style="color:var(--muted);font-size:10px">(Вы)</span>
+                    <strong>{{.Username}}</strong> <span class="muted-fs10">(Вы)</span>
                     {{end}}
                 </td>
                 <td>
@@ -95,17 +86,17 @@
                 <td>
                     {{if .IsActive}}<span class="badge ok">активен</span>{{else}}<span class="badge danger">заблокирован</span>{{end}}
                 </td>
-                <td style="color:var(--muted)">{{fmtTime .LastLogin}}</td>
-                <td style="color:var(--muted)">{{if .LastIP}}{{deref .LastIP}}{{else}}&mdash;{{end}}</td>
+                <td class="text-muted">{{fmtTime .LastLogin}}</td>
+                <td class="text-muted">{{if .LastIP}}{{deref .LastIP}}{{else}}&mdash;{{end}}</td>
                 <td>
                     {{$fc := index $.FailCounts .ID}}{{if gt $fc 0}}<span class="badge danger">{{$fc}}</span>{{else}}0{{end}}
                 </td>
-                <td style="color:var(--muted)">{{fmtTime .CreatedAt}}</td>
+                <td class="text-muted">{{fmtTime .CreatedAt}}</td>
                 <td>
                     {{if ne .ID $.Session.UserID}}
                 <form method="POST"
                       action="/admin/users"
-                      style="display:inline"
+                      class="d-inline"
                       data-confirm="{{if .IsActive}}Заблокировать{{else}}Разблокировать{{end}} пользователя {{.Username}}?"
                       data-confirm-btn="{{if .IsActive}}Заблокировать{{else}}Разблокировать{{end}}"
                       data-confirm-class="warning"
@@ -121,7 +112,7 @@
             </form>
             <form method="POST"
                   action="/admin/users"
-                  style="display:inline"
+                  class="d-inline"
                   data-confirm="Удалить пользователя {{.Username}}? Действие необратимо."
                   data-confirm-btn="Удалить"
                   data-confirm-title="Удаление пользователя">
@@ -138,7 +129,7 @@
 </table>
 </div>
 </div>
-<div class="card" style="max-width:560px">
+<div class="card card-mw-560">
     <div class="card-header">
         <h3>Добавить пользователя</h3>
     </div>
@@ -171,17 +162,8 @@
                     <option value="admin">admin &mdash; полный доступ</option>
                 </select>
             </div>
-            <button type="submit" class="btn" style="padding:8px 18px;font-weight:600">Создать пользователя</button>
+            <button type="submit" class="btn pad-8-18-fw6">Создать пользователя</button>
         </form>
     </div>
-</div>
-<style>
-.user-link{
-  color:var(--text);text-decoration:none;transition:color .12s;
-  display:inline-block;padding:2px 0;
-}
-.user-link:hover{color:var(--accent)}
-.user-link:hover strong{text-decoration:underline}
-</style>
-<script src="/static/js/pages/users.js"></script>
+</div><script src="/static/js/pages/users.js"></script>
 {{end}}

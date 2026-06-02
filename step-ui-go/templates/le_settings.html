@@ -5,7 +5,7 @@
         <h1>Настройки Let's Encrypt</h1>
     </div>
 </div>
-<div style="max-width:600px">
+<div class="mw-600">
     <div class="card">
         <div class="card-header">
             <h3>Общие настройки</h3>
@@ -19,7 +19,7 @@
                            name="email"
                            placeholder="admin@example.com"
                            value="{{if .LESettings}}{{.LESettings.Email}}{{end}}">
-                    <div style="font-size:10px;color:var(--muted);margin-top:4px">Let's Encrypt будет слать уведомления об истечении</div>
+                    <div class="muted-fs7-mt4">Let's Encrypt будет слать уведомления об истечении</div>
                 </div>
                 <div class="form-full">
                     <label>Провайдер по умолчанию</label>
@@ -44,19 +44,16 @@
                 </select>
             </div>
             <!-- Cloudflare -->
-            <div id="cfSettings" style="display:none">
-                <hr style="border-color:var(--border);margin:12px 0">
-                <div style="font-size:11px;
-                            color:var(--accent);
-                            margin-bottom:10px;
-                            font-weight:600">Cloudflare DNS</div>
+            <div id="cfSettings" class="d-none">
+                <hr class="hr-margin-12">
+                <div class="fs11-accent-fw600">Cloudflare DNS</div>
                 <div class="form-full">
                     <label>API Token</label>
                     <input type="password"
                            name="cf_token"
                            placeholder="Cloudflare API Token"
                            value="{{if .LESettings}}{{.LESettings.CFToken}}{{end}}">
-                    <div style="font-size:10px;color:var(--muted);margin-top:4px">Permissions: Zone &mdash; DNS &mdash; Edit</div>
+                    <div class="muted-fs7-mt4">Permissions: Zone &mdash; DNS &mdash; Edit</div>
                 </div>
                 <div class="form-full">
                     <label>Zone ID (опционально)</label>
@@ -67,12 +64,9 @@
                 </div>
             </div>
             <!-- Route53 -->
-            <div id="r53Settings" style="display:none">
-                <hr style="border-color:var(--border);margin:12px 0">
-                <div style="font-size:11px;
-                            color:var(--warn);
-                            margin-bottom:10px;
-                            font-weight:600">AWS Route53</div>
+            <div id="r53Settings" class="d-none">
+                <hr class="hr-margin-12">
+                <div class="fs11-warn-fw600">AWS Route53</div>
                 <div class="form-row">
                     <div>
                         <label>Access Key ID</label>
@@ -98,10 +92,7 @@
                 </div>
             </div>
             <button type="submit"
-                    class="btn"
-                    style="margin-top:8px;
-                           padding:10px 22px;
-                           font-weight:600">Сохранить настройки</button>
+                    class="btn pad-mt8-10-22-fw6">Сохранить настройки</button>
         </form>
     </div>
 </div>

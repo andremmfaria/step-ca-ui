@@ -1,43 +1,32 @@
 {{define "content"}}
 {{if .Flashes}}
-<div class="flash-stack"
-     style="margin-bottom:14px;
-            display:flex;
-            flex-direction:column;
-            gap:8px">
+<div class="flash-stack">
     {{range .Flashes}}
-<div class="flash flash-{{.Type}}"
-     style="padding:10px 14px;
-            border-radius:8px;
-            border:1px solid {{if eq .Type "err"}}#cc3d3d{{else}}#2e7d32{{end}};
-            background:{{if eq .Type "err"}}rgba(204,61,61,.12){{else}}rgba(46,125,50,.12){{end}};
-            color:var(--text)">{{if eq .Type "err"}}⛔ {{else}}✓ {{end}}{{.Text}}</div>
+<div class="flash flash-{{.Type}} {{if eq .Type "err"}}flash-err{{else}}flash-ok{{end}}">{{if eq .Type "err"}}⛔ {{else}}✓ {{end}}{{.Text}}</div>
 {{end}}
 </div>
 {{end}}
 <div class="page-header">
-    <h1 style="margin:0 0 4px;font-size:22px;font-weight:700">Временные пользователи</h1>
-    <p class="muted" style="margin:0">Краткосрочные аккаунты для подрядчиков и гостей</p>
+    <h1 class="m-0-0-4-h3">Временные пользователи</h1>
+    <p class="muted m-0">Краткосрочные аккаунты для подрядчиков и гостей</p>
 </div>
 {{if .NewUsername}}
-<div class="card"
-     style="margin-top:18px;
-            border-color:color-mix(in srgb, #16a34a 50%, var(--admin-border))">
+<div class="card card-border-green-mt18">
     <div class="card-header">
-        <strong style="color:#16a34a">Аккаунт создан — передайте эти данные пользователю</strong>
+        <strong class="cred-strong-green">Аккаунт создан — передайте эти данные пользователю</strong>
     </div>
     <div class="card-body">
-        <p class="muted" style="margin:0 0 12px">
+        <p class="muted mb-12">
             Это единственный раз, когда отображается пароль. Сохраните или передайте его сейчас.
         </p>
-        <table class="tbl" style="margin-bottom:12px">
+        <table class="tbl mb-12">
             <tbody>
                 <tr>
-                    <td style="width:140px">
+                    <td class="col-w140">
                         <strong>Логин</strong>
                     </td>
                     <td>
-                        <code style="font-size:14px">{{.NewUsername}}</code>
+                        <code class="fs-14">{{.NewUsername}}</code>
                     </td>
                 </tr>
                 <tr>
@@ -45,25 +34,19 @@
                         <strong>Пароль</strong>
                     </td>
                     <td>
-                        <code id="newpwd" style="font-size:14px;user-select:all">{{.NewPassword}}</code>
+                        <code id="newpwd" class="fs-14 sel-all">{{.NewPassword}}</code>
                     </td>
                 </tr>
             </tbody>
         </table>
         <details>
-            <summary class="muted" style="cursor:pointer;font-size:12px">Готовая строка для передачи</summary>
-            <div style="display:flex;justify-content:flex-end;margin:6px 0">
+            <summary class="muted cursor-pointer fs-12">Готовая строка для передачи</summary>
+            <div class="cred-copy-row">
                 <button type="button"
                         class="btn btn-sm btn-ghost"
                         data-action="copy-share-line">📋 Скопировать строку</button>
             </div>
-            <div style="margin-top:10px;
-                        padding:10px;
-                        background:var(--admin-bg);
-                        border:1px solid var(--admin-border);
-                        border-radius:6px;
-                        font-family:var(--mono,monospace);
-                        font-size:12px"
+            <div class="cred-share-box"
                  id="credShareLine">
                 Логин: <b>{{.NewUsername}}</b> · Пароль: <b>{{.NewPassword}}</b> · URL: <code>{{.LoginURL}}</code>
             </div>
@@ -71,17 +54,14 @@
     </div>
 </div>
 {{end}}
-<div class="card" style="margin-top:18px">
+<div class="card card-mt-18">
     <div class="card-header">
         <strong>Создать временного пользователя</strong>
     </div>
     <div class="card-body">
         <form method="post" action="/admin/users-temp">
             <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-            <div style="display:grid;
-                        grid-template-columns:1fr 1fr;
-                        gap:14px;
-                        margin-bottom:14px">
+            <div class="grid-2col-gap14 mb-14">
                 <div>
                     <label>Роль</label>
                     <select name="role">
@@ -102,7 +82,7 @@
                     </select>
                 </div>
             </div>
-            <div style="margin-bottom:14px">
+            <div class="mb-14">
                 <label>Или точная дата и время (переопределяет пресет)</label>
                 <div class="dp-wrap"
                      data-datepicker
@@ -110,7 +90,7 @@
                      data-min="now"
                      data-placeholder="Выберите дату и время"></div>
             </div>
-            <div style="margin-bottom:14px">
+            <div class="mb-14">
                 <label>Заметка (для чего/кому)</label>
                 <input type="text"
                        name="note"
@@ -121,21 +101,21 @@
         </form>
     </div>
 </div>
-<div class="card" style="margin-top:18px">
+<div class="card card-mt-18">
     <div class="card-header">
         <strong>Список временных пользователей</strong>
-        <span class="muted" style="margin-left:auto;font-size:12px">Всего: {{len .Users}}</span>
+        <span class="muted muted-fs11-ml-auto">Всего: {{len .Users}}</span>
     </div>
     <div class="card-body">
         {{if .Users}}
         <div class="tbl-wrap">
             <table class="tbl">
                 <colgroup>
-                    <col style="width:160px">
-                    <col style="width:90px">
-                    <col style="width:110px">
-                    <col style="width:170px">
-                    <col style="width:170px">
+                    <col class="col-w160">
+                    <col class="col-w90">
+                    <col class="col-w110">
+                    <col class="col-w170">
+                    <col class="col-w170">
                     <col>
                 </colgroup>
                 <thead>
@@ -175,7 +155,7 @@
             </table>
         </div>
     {{else}}
-        <p class="muted" style="margin:0">Ещё не создано ни одного временного пользователя.</p>
+        <p class="muted m-0">Ещё не создано ни одного временного пользователя.</p>
         {{end}}
     </div>
 </div>

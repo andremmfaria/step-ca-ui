@@ -5,10 +5,7 @@
         <h1>Выпустить сертификат</h1>
     </div>
 </div>
-<div style="display:grid;
-            grid-template-columns:minmax(0,2fr) minmax(260px,1fr);
-            gap:16px;
-            align-items:start">
+<div class="grid-issue">
     <!-- ═ Основная форма ═ -->
     <form method="POST" action="/issue" id="issueForm">
         <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
@@ -135,13 +132,10 @@
         </div>
         <!-- ── Submit ── -->
         <button type="submit"
-                class="btn"
-                style="padding:10px 24px;
-                       font-size:13px;
-                       font-weight:600">Выпустить сертификат</button>
+                class="btn pad-10-24-fw6 fs-13">Выпустить сертификат</button>
     </form>
     <!-- ═ Боковая панель — превью ═ -->
-    <div class="card" style="position:sticky;top:16px">
+    <div class="card card-sticky-top">
         <div class="card-header">
             <h3>Предпросмотр</h3>
         </div>
@@ -149,7 +143,7 @@
             <div class="info-row">
                 <div class="info-key">Название</div>
                 <div class="info-val">
-                    <strong id="pvName" style="color:var(--muted)">—</strong>
+                    <strong id="pvName" class="text-muted">—</strong>
                 </div>
             </div>
             <div class="info-row">
@@ -178,52 +172,9 @@
             </div>
             <div class="info-row">
                 <div class="info-key">Истекает</div>
-                <div class="info-val" style="color:var(--muted)" id="pvExpires">—</div>
+                <div class="info-val text-muted" id="pvExpires">—</div>
             </div>
         </div>
     </div>
-</div>
-<style>
-/* Карточки выбора типа ключа */
-.template-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}
-.template-card{
-  width:100%;text-align:left;border:1px solid var(--border);border-radius:8px;padding:13px 14px;
-  cursor:pointer;transition:border-color .15s,background .15s;background:var(--bg);color:var(--text);
-  font-family:inherit;
-}
-.template-card:hover{border-color:var(--muted)}
-.template-card.active{border-color:var(--accent);background:var(--active-nav)}
-.template-title{display:block;font-size:13px;font-weight:700;margin-bottom:5px}
-.template-sub{display:block;font-size:11px;color:var(--muted);line-height:1.35}
-
-.key-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
-.key-card{
-  border:1px solid var(--border);border-radius:8px;padding:14px 14px;cursor:pointer;
-  transition:border-color .15s,background .15s;background:var(--bg);
-  position:relative;
-}
-.key-card:hover{border-color:var(--muted)}
-.key-card.active{border-color:var(--accent);background:var(--active-nav)}
-.key-card.active::after{
-  content:'';position:absolute;top:8px;right:8px;width:6px;height:6px;
-  border-radius:50%;background:var(--accent);
-}
-.key-title{font-size:13px;font-weight:700;margin-bottom:4px}
-.key-sub{font-size:11px;color:var(--muted);margin-bottom:8px}
-.key-badge{display:inline-block;padding:2px 7px;border-radius:4px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.5px}
-.key-badge.ok{background:rgba(39,174,96,.15);color:var(--green)}
-.key-badge.warn{background:rgba(230,126,34,.15);color:var(--warn)}
-.key-badge.gray{background:rgba(102,102,102,.15);color:var(--muted)}
-
-/* Чипы срока */
-.chip-row{display:flex;gap:8px;flex-wrap:wrap}
-.chip{
-  padding:7px 14px;border-radius:20px;border:1px solid var(--border);
-  background:var(--bg);color:var(--text);font-size:12px;cursor:pointer;
-  transition:.15s;font-family:inherit;
-}
-.chip:hover{border-color:var(--muted)}
-.chip.active{border-color:var(--accent);background:var(--active-nav);color:var(--accent);font-weight:600}
-</style>
-<script src="/static/js/pages/issue.js"></script>
+</div><script src="/static/js/pages/issue.js"></script>
 {{end}}

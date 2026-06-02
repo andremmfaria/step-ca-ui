@@ -2,18 +2,15 @@
 <div class="page-header">
     <div>
         <div class="breadcrumb">пользователи &middot; профиль</div>
-        <h1 style="display:flex;align-items:center;gap:10px">
+        <h1 class="d-flex align-center gap-10">
             <a href="/admin/users" class="back-link" title="Назад к пользователям">&larr;</a>
             <span>{{.U.Username}}</span>
-            {{if .U.IsActive}}<span class="badge ok" style="font-size:11px">активен</span>
-            {{else}}<span class="badge danger" style="font-size:11px">заблокирован</span>{{end}}
+            {{if .U.IsActive}}<span class="badge ok fs-11">активен</span>
+            {{else}}<span class="badge danger fs-11">заблокирован</span>{{end}}
         </h1>
     </div>
 </div>
-<div style="display:grid;
-            grid-template-columns:1fr 1fr;
-            gap:14px;
-            margin-bottom:14px">
+<div class="grid-user-profile">
     <div class="card">
         <div class="card-header">
             <h3>Информация</h3>
@@ -45,11 +42,11 @@
             </div>
             <div class="info-row">
                 <div class="info-key">Успешных входов</div>
-                <div class="info-val" style="color:var(--green)">{{.TotalOK}}</div>
+                <div class="info-val text-green">{{.TotalOK}}</div>
             </div>
             <div class="info-row">
                 <div class="info-key">Неудачных попыток</div>
-                <div class="info-val" style="color:var(--danger)">{{.TotalFail}}</div>
+                <div class="info-val text-danger">{{.TotalFail}}</div>
             </div>
             <div class="info-row">
                 <div class="info-key">IP блокировка</div>
@@ -60,7 +57,7 @@
             </div>
         </div>
     </div>
-    <div style="display:flex;flex-direction:column;gap:14px">
+    <div class="col-gap14">
         <div class="card">
             <div class="card-header">
                 <h3>Сменить роль</h3>
@@ -110,9 +107,9 @@
             <div class="card-header">
                 <h3>Управление доступом</h3>
             </div>
-            <div class="card-body" style="display:flex;gap:8px;flex-wrap:wrap">
+            <div class="card-body row-gap8-wrap">
                 {{if .IPBlocked}}
-                <form method="POST" action="/admin/users" style="display:inline">
+                <form method="POST" action="/admin/users" class="d-inline">
                     <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
                     <input type="hidden" name="return_to" value="/admin/users/{{.U.ID}}">
                     <input type="hidden" name="action" value="unblock_ip">
@@ -163,9 +160,9 @@
     <div class="tbl-wrap">
         <table class="tbl">
             <colgroup>
-                <col style="width:160px">
-                <col style="width:180px">
-                <col style="width:110px">
+                <col class="col-w160">
+                <col class="col-w180">
+                <col class="col-w110">
                 <col>
             </colgroup>
             <thead>
@@ -179,7 +176,7 @@
             <tbody>
                 {{range .Logs}}
                 <tr>
-                    <td style="color:var(--muted);font-size:11px">{{fmtLog .CreatedAt}}</td>
+                    <td class="td-muted-ts">{{fmtLog .CreatedAt}}</td>
                     <td>
                         <code>{{.IP}}</code>
                     </td>
@@ -187,24 +184,14 @@
                         {{if .Success}}<span class="badge ok">Вход</span>
                         {{else}}<span class="badge danger">Отказ</span>{{end}}
                     </td>
-                    <td style="color:var(--muted)">{{.Reason}}</td>
+                    <td class="text-muted">{{.Reason}}</td>
                 </tr>
             {{else}}
                 <tr>
-                    <td colspan="4" style="text-align:center;color:var(--muted);padding:24px">Нет записей</td>
+                    <td colspan="4" class="muted-center-p24">Нет записей</td>
                 </tr>
                 {{end}}
             </tbody>
         </table>
     </div>
-</div>
-<style>
-.back-link{
-  display:inline-flex;align-items:center;justify-content:center;
-  width:30px;height:30px;border-radius:7px;border:1px solid var(--border);
-  color:var(--muted);text-decoration:none;font-size:15px;line-height:1;
-  transition:.15s;flex-shrink:0;
-}
-.back-link:hover{border-color:var(--accent);color:var(--accent);background:var(--hover-nav)}
-</style>
-{{end}}
+</div>{{end}}

@@ -4,17 +4,14 @@
         <div class="breadcrumb">certificates &middot; details</div>
         <h1>{{.Cert.Name}}</h1>
     </div>
-    <div style="display:flex;gap:8px;align-items:center">
+    <div class="row-gap8-center">
         <a href="/certificates" class="btn btn-ghost">← Назад</a>
         <a href="/download/cert/{{.Cert.ID}}" class="btn btn-ghost">CRT</a>
         {{if .Cert.KeyPath}}<a href="/download/key/{{.Cert.ID}}" class="btn btn-ghost">KEY</a>{{end}}
     </div>
 </div>
 {{if .Detail}}
-<div style="display:grid;
-            grid-template-columns:repeat(4,minmax(0,1fr));
-            gap:12px;
-            margin-bottom:14px">
+<div class="grid-4col-minmax-gap12">
     <div class="stat-card">
         <div class="stat-label">Статус</div>
     <div class="stat-value {{if eq .Cert.Status "active"}}ok{{else}}danger{{end}}">{{.Cert.Status}}</div>
@@ -25,11 +22,11 @@
 </div>
 <div class="stat-card">
     <div class="stat-label">Ключ</div>
-    <div class="stat-value" style="font-size:18px">{{.Detail.PublicKey}}</div>
+    <div class="stat-value fs-18">{{.Detail.PublicKey}}</div>
 </div>
 <div class="stat-card">
     <div class="stat-label">Домен</div>
-    <div class="stat-value" style="font-size:18px;overflow-wrap:anywhere">{{.Cert.Domain}}</div>
+    <div class="stat-value fs-18 ow-anywhere">{{.Cert.Domain}}</div>
 </div>
 </div>
 {{end}}
@@ -37,7 +34,7 @@
     <div class="card-header">
         <h3>Validation</h3>
     </div>
-    <div class="card-body" style="padding:0">
+    <div class="card-body p-0">
         <div class="tbl-wrap">
             <table class="tbl">
                 <thead>
@@ -59,7 +56,7 @@
                             {{if eq .Status "err"}}<span class="badge danger">ERROR</span>{{end}}
                         </td>
                         <td>
-                            <code style="white-space:normal;overflow-wrap:anywhere">{{.Detail}}</code>
+                            <code class="ow-anywhere">{{.Detail}}</code>
                         </td>
                     </tr>
                     {{end}}
@@ -136,7 +133,7 @@
         </div>
     </div>
 </div>
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+<div class="grid-2col-gap14">
     <div class="card">
         <div class="card-header">
             <h3>Subject Alternative Names</h3>
@@ -145,13 +142,13 @@
             <div class="info-row">
                 <div class="info-key">DNS</div>
                 <div class="info-val">
-                    {{range .Detail.DNSNames}}<span class="badge blue" style="margin:2px">{{.}}</span>{{else}}<span style="color:var(--muted)">—</span>{{end}}
+                    {{range .Detail.DNSNames}}<span class="badge blue badge-m2">{{.}}</span>{{else}}<span class="text-muted">—</span>{{end}}
                 </div>
             </div>
             <div class="info-row">
                 <div class="info-key">IP</div>
                 <div class="info-val">
-                    {{range .Detail.IPAddresses}}<span class="badge purple" style="margin:2px">{{.}}</span>{{else}}<span style="color:var(--muted)">—</span>{{end}}
+                    {{range .Detail.IPAddresses}}<span class="badge purple badge-m2">{{.}}</span>{{else}}<span class="text-muted">—</span>{{end}}
                 </div>
             </div>
         </div>
@@ -164,13 +161,13 @@
             <div class="info-row">
                 <div class="info-key">Key usage</div>
                 <div class="info-val">
-                    {{range .Detail.KeyUsage}}<span class="badge gray" style="margin:2px">{{.}}</span>{{else}}<span style="color:var(--muted)">—</span>{{end}}
+                    {{range .Detail.KeyUsage}}<span class="badge gray badge-m2">{{.}}</span>{{else}}<span class="text-muted">—</span>{{end}}
                 </div>
             </div>
             <div class="info-row">
                 <div class="info-key">Extended</div>
                 <div class="info-val">
-                    {{range .Detail.ExtKeyUsage}}<span class="badge gray" style="margin:2px">{{.}}</span>{{else}}<span style="color:var(--muted)">—</span>{{end}}
+                    {{range .Detail.ExtKeyUsage}}<span class="badge gray badge-m2">{{.}}</span>{{else}}<span class="text-muted">—</span>{{end}}
                 </div>
             </div>
         </div>
@@ -182,9 +179,7 @@
         <h3>Deploy snippets</h3>
     </div>
     <div class="card-body">
-        <div style="display:grid;
-                    grid-template-columns:repeat(3,minmax(0,1fr));
-                    gap:12px">
+        <div class="grid-3col-minmax-gap12">
             <div>
                 <label>nginx</label>
                 <textarea readonly rows="6">ssl_certificate {{.Cert.CertPath}};

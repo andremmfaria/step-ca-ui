@@ -5,7 +5,7 @@
         Проверка цепочки CA, provisioner claims, password sync и безопасного обновления step-ca
     </p>
 </div>
-<div class="admin-stats" style="margin-bottom:14px">
+<div class="admin-stats mb-14">
     <div class="admin-stat ok">
         <div class="admin-stat-value">{{.Summary.OK}}</div>
         <div class="admin-stat-label">OK</div>
@@ -78,12 +78,12 @@
     <div class="card-header">
         <strong>Integrity checks</strong>
     </div>
-    <div class="card-body" style="padding:0">
+    <div class="card-body p-0">
         <div class="tbl-wrap">
             <table class="tbl admin-preflight-table">
                 <colgroup>
-                    <col style="width:230px">
-                    <col style="width:110px">
+                    <col class="col-w230">
+                    <col class="col-w110">
                     <col>
                 </colgroup>
                 <thead>
@@ -104,7 +104,7 @@
                             {{if eq .Status "warn"}}<span class="badge warn">WARN</span>{{end}}
                             {{if eq .Status "err"}}<span class="badge danger">ERROR</span>{{end}}
                         </td>
-                        <td style="word-break:break-word">
+                        <td class="word-break">
                             <code>{{.Detail}}</code>
                         </td>
                     </tr>

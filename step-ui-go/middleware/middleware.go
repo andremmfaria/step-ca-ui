@@ -33,16 +33,12 @@ func SecurityHeaders(enableHSTS bool) func(http.Handler) http.Handler {
 				w.Header().Set("Strict-Transport-Security", "max-age=0")
 			}
 			// All CSS/JS/fonts are served locally; Google-Fonts grants removed (P2-3).
-			// 'unsafe-inline' removed from script-src after externalising all inline
-			// scripts (P2-3).
-			// style-src retains 'unsafe-inline' because 10+ templates contain inline
-			// <style> blocks (login.html, history.html, le_issue.html, …).
-			// Removing it requires externalising ~150 lines of per-page CSS into
-			// static/css/ — tracked as Wave 4 frontend cleanup.  Until then, the CSP
-			// mitigates XSS only for script injection, not style injection.
+			// 'unsafe-inline' removed from script-src (P2-3) and from style-src (W4-4)
+			// after all inline <style> blocks were moved into static/css/pages.css.
+			// No unsafe-inline remains anywhere in the CSP.
 			w.Header().Set("Content-Security-Policy",
 				"default-src 'self'; script-src 'self'; "+
-					"style-src 'self' 'unsafe-inline'; "+
+					"style-src 'self'; "+
 					"font-src 'self'; img-src 'self' data:;")
 			w.Header().Del("Server")
 			next.ServeHTTP(w, r)

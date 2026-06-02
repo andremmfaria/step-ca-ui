@@ -30,13 +30,13 @@
     <div class="tbl-wrap">
         <table class="tbl">
             <colgroup>
-                <col style="width:180px">
-                <col style="width:200px">
-                <col style="width:110px">
-                <col style="width:130px">
-                <col style="width:130px">
-                <col style="width:100px">
-                <col style="width:80px">
+                <col class="col-w180">
+                <col class="col-w200">
+                <col class="col-w110">
+                <col class="col-w130">
+                <col class="col-w130">
+                <col class="col-w100">
+                <col class="col-w80">
                 <col>
             </colgroup>
             <thead>
@@ -57,11 +57,11 @@
                     <td>
                         <strong>{{.Domain}}</strong>
                     </td>
-                    <td style="color:var(--muted)">{{.Email}}</td>
+                    <td class="text-muted">{{.Email}}</td>
                     <td>
                         <span class="badge gray">{{.Provider}}</span>
                     </td>
-                    <td style="color:var(--muted)">{{fmtTime .IssuedAt}}</td>
+                    <td class="text-muted">{{fmtTime .IssuedAt}}</td>
                     <td>{{fmtTime .ExpiresAt}}</td>
                     <td>
                         {{if eq .Status "active"}}<span class="badge ok">активен</span>
@@ -70,7 +70,7 @@
                         {{else}}<span class="badge gray">{{.Status}}</span>{{end}}
                     </td>
                     <td>
-                        <form method="POST" action="/le/{{.ID}}/autorenew" style="display:inline">
+                        <form method="POST" action="/le/{{.ID}}/autorenew" class="d-inline">
                             <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
                         <button type="submit"
                                 class="btn btn-sm {{if .AutoRenew}}btn-success{{else}}btn-ghost{{end}}"
@@ -79,14 +79,14 @@
                         </button>
                     </form>
                 </td>
-                <td style="display:flex;gap:4px;flex-wrap:wrap">
+                <td class="d-flex gap-4 flex-wrap">
                     {{if eq .Status "active"}}
                     <a href="/le/download/cert/{{.ID}}" class="btn btn-ghost btn-sm">CRT</a>
                     <a href="/le/download/key/{{.ID}}" class="btn btn-ghost btn-sm">KEY</a>
                     {{end}}
                     <form method="POST"
                           action="/le/{{.ID}}/renew"
-                          style="display:inline"
+                          class="d-inline"
                           data-confirm="Перевыпустить сертификат для {{.Domain}}?"
                           data-confirm-btn="Перевыпустить"
                           data-confirm-class="warning"
@@ -96,7 +96,7 @@
                     </form>
                     <form method="POST"
                           action="/le/{{.ID}}/delete"
-                          style="display:inline"
+                          class="d-inline"
                           data-confirm="Удалить сертификат для {{.Domain}}? Файлы останутся на диске."
                           data-confirm-btn="Удалить"
                           data-confirm-title="Удаление LE сертификата">
@@ -107,8 +107,8 @@
             </tr>
         {{else}}
             <tr>
-                <td colspan="8" style="text-align:center;color:var(--muted);padding:32px">
-                    Нет сертификатов. <a href="/le/issue" style="color:var(--accent)">Выпустить первый</a>
+                <td colspan="8" class="muted-center-p32">
+                    Нет сертификатов. <a href="/le/issue" class="link-accent">Выпустить первый</a>
                 </td>
             </tr>
             {{end}}
@@ -121,11 +121,9 @@
     <div class="card-header">
         <h3>Последние события</h3>
         <a href="/le/logs"
-           style="font-size:11px;
-                  color:var(--accent);
-                  text-decoration:none">Все логи &rarr;</a>
+           class="card-header-link">Все логи &rarr;</a>
     </div>
-    <div style="overflow-x:auto">
+    <div class="tbl-overflow">
         <table>
             <thead>
                 <tr>
@@ -138,14 +136,14 @@
             <tbody>
                 {{range .LELogs}}
                 <tr>
-                    <td style="color:var(--muted);font-size:11px">{{fmtLog .CreatedAt}}</td>
+                    <td class="td-muted-ts">{{fmtLog .CreatedAt}}</td>
                     <td>
                         <code>{{.Domain}}</code>
                     </td>
                     <td>
                         <span class="badge {{if eq .Action "error"}}danger{{else if eq .Action "issue"}}ok{{else if eq .Action "renew"}}blue{{else}}gray{{end}}">{{.Action}}</span>
                     </td>
-                    <td style="color:var(--muted)">{{.Message}}</td>
+                    <td class="text-muted">{{.Message}}</td>
                 </tr>
                 {{end}}
             </tbody>
