@@ -54,10 +54,12 @@ func staticHandlerWithMIME(rootDir string) http.Handler {
 		// безопасная склейка пути
 		clean := filepath.Clean("/" + r.URL.Path)
 		full := filepath.Join(rootDir, clean)
-		// защита от path traversal
+		// Path-traversal guard: require absFile to be strictly inside absRoot.
+		// The separator suffix prevents the sibling-directory attack where
+		// "/app/static-x/..." would match a naive prefix of "/app/static".
 		absRoot, _ := filepath.Abs(rootDir)
 		absFile, _ := filepath.Abs(full)
-		if !strings.HasPrefix(absFile, absRoot) {
+		if !strings.HasPrefix(absFile, absRoot+string(filepath.Separator)) {
 			http.NotFound(w, r)
 			return
 		}

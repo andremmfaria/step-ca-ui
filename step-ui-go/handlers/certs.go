@@ -166,8 +166,14 @@ func (h *Handler) IssuePost(w http.ResponseWriter, r *http.Request) {
 		h.render(w, "issue", data)
 		return
 	}
-	certDir := filepath.Join(h.cfg.CertsDir, sanitizeName(name))
-	if err := os.MkdirAll(certDir, 0o750); err != nil { //nolint:gosec // G703: path containment enforced by PR-6 safeName/containedPath
+	safeCertName, nameErr := safeName(name)
+	if nameErr != nil {
+		data["Msgs"] = []models.FlashMsg{{Type: "err", Text: "Недопустимое имя сертификата: " + nameErr.Error()}}
+		h.render(w, "issue", data)
+		return
+	}
+	certDir := filepath.Join(h.cfg.CertsDir, safeCertName)
+	if err := os.MkdirAll(certDir, 0o750); err != nil { //nolint:gosec // G703: safeName validated the component; certDir is h.cfg.CertsDir+safeName
 		data["Msgs"] = []models.FlashMsg{{Type: "err", Text: "Ошибка создания директории: " + err.Error()}}
 		h.render(w, "issue", data)
 		return
@@ -302,7 +308,11 @@ func (h *Handler) DownloadCert(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s.crt", sanitizeName(c.Name)))
+	fn := "certificate.crt"
+	if safe, err := safeName(c.Name); err == nil {
+		fn = safe + ".crt"
+	}
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", fn))
 	http.ServeFile(w, r, c.CertPath)
 }
 
@@ -313,7 +323,11 @@ func (h *Handler) DownloadKey(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s.key", sanitizeName(c.Name)))
+	fn := "private.key"
+	if safe, err := safeName(c.Name); err == nil {
+		fn = safe + ".key"
+	}
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", fn))
 	http.ServeFile(w, r, c.KeyPath)
 }
 
@@ -354,8 +368,14 @@ func (h *Handler) importUpload(w http.ResponseWriter, r *http.Request, si *model
 		return
 	}
 	defer func() { _ = certFile.Close() }()
-	certDir := filepath.Join(h.cfg.CertsDir, sanitizeName(name))
-	if err := os.MkdirAll(certDir, 0o750); err != nil { //nolint:gosec // G703: path containment enforced by PR-6 safeName/containedPath
+	safeUploadName, nameErr := safeName(name)
+	if nameErr != nil {
+		data["Msgs"] = []models.FlashMsg{{Type: "err", Text: "Недопустимое имя сертификата: " + nameErr.Error()}}
+		h.render(w, "import", data)
+		return
+	}
+	certDir := filepath.Join(h.cfg.CertsDir, safeUploadName)
+	if err := os.MkdirAll(certDir, 0o750); err != nil { //nolint:gosec // G703: safeName validated the component; certDir is h.cfg.CertsDir+safeName
 		data["Msgs"] = []models.FlashMsg{{Type: "err", Text: "Ошибка создания директории"}}
 		h.render(w, "import", data)
 		return
@@ -421,14 +441,30 @@ func (h *Handler) importScan(w http.ResponseWriter, r *http.Request, si *models.
 func (h *Handler) importManual(w http.ResponseWriter, r *http.Request, si *models.SessionInfo) {
 	name := trimStr(r.FormValue("name"))
 	domain := trimStr(r.FormValue("domain"))
-	certPath := trimStr(r.FormValue("cert_path"))
-	keyPath := trimStr(r.FormValue("key_path"))
+	rawCertPath := trimStr(r.FormValue("cert_path"))
+	rawKeyPath := trimStr(r.FormValue("key_path"))
 	data := h.base(w, r, "import")
 	data["ActiveTab"] = "manual"
-	if name == "" || domain == "" || certPath == "" {
+	if name == "" || domain == "" || rawCertPath == "" {
 		data["Msgs"] = []models.FlashMsg{{Type: "err", Text: "Заполните все поля"}}
 		h.render(w, "import", data)
 		return
+	}
+	// Restrict cert and key paths to cfg.CertsDir to prevent arbitrary file reads.
+	certPath, err := containedPath(h.cfg.CertsDir, rawCertPath)
+	if err != nil {
+		data["Msgs"] = []models.FlashMsg{{Type: "err", Text: "Недопустимый путь к сертификату: " + err.Error()}}
+		h.render(w, "import", data)
+		return
+	}
+	var keyPath string
+	if rawKeyPath != "" {
+		keyPath, err = containedPath(h.cfg.CertsDir, rawKeyPath)
+		if err != nil {
+			data["Msgs"] = []models.FlashMsg{{Type: "err", Text: "Недопустимый путь к ключу: " + err.Error()}}
+			h.render(w, "import", data)
+			return
+		}
 	}
 	if _, err := os.Stat(certPath); err != nil {
 		data["Msgs"] = []models.FlashMsg{{Type: "err", Text: "Файл не найден: " + certPath}}

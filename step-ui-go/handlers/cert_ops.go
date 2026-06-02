@@ -177,14 +177,6 @@ func scanExistingCerts(certsDir string, d *sql.DB) []map[string]string {
 	return found
 }
 
-func sanitizeName(name string) string {
-	replacer := strings.NewReplacer(
-		" ", "_", "/", "_", "\\", "_",
-		"..", "_", "<", "_", ">", "_",
-	)
-	return replacer.Replace(name)
-}
-
 func saveUploadedFile(file multipart.File, dst string) error {
 	f, err := os.Create(dst)
 	if err != nil {
