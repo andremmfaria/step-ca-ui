@@ -198,6 +198,9 @@ func (h *Handler) IssuePost(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Renew(w http.ResponseWriter, r *http.Request) {
+	if !h.requireCSRF(w, r, "/certificates") {
+		return
+	}
 	si := h.sessionInfo(r)
 	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
 	c, _ := appdb.GetCert(h.db, id)
@@ -226,6 +229,9 @@ func (h *Handler) Renew(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Revoke(w http.ResponseWriter, r *http.Request) {
+	if !h.requireCSRF(w, r, "/certificates") {
+		return
+	}
 	si := h.sessionInfo(r)
 	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
 	c, _ := appdb.GetCert(h.db, id)

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"crypto/subtle"
 	"database/sql"
 	"fmt"
 	"html/template"
@@ -243,7 +244,9 @@ func (h *Handler) csrfOK(r *http.Request) bool {
 	s := h.sess(r)
 	token := r.FormValue("csrf_token")
 	sess, _ := s.Values["csrf_token"].(string)
-	return token != "" && token == sess
+	// Guard against empty tokens before the constant-time comparison so an
+	// empty session token cannot be matched by an empty form value.
+	return token != "" && subtle.ConstantTimeCompare([]byte(token), []byte(sess)) == 1
 }
 
 func (h *Handler) requireCSRF(w http.ResponseWriter, r *http.Request, redirectTo string) bool {

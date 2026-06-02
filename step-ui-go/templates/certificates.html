@@ -61,12 +61,18 @@
         <div class="cert-actions">
         <a href="/certificates/{{.ID}}" class="btn btn-ghost btn-sm">Детали</a>
         {{if hasRole $.Session.Role "manager"}}
-        <a href="/renew/{{.ID}}" class="btn btn-warn btn-sm confirm-renew" data-name="{{.Name}}" title="Перевыпустить">&#x21BA;</a>
+        <form method="POST" action="/renew/{{.ID}}" class="inline-form confirm-renew-form" data-name="{{.Name}}">
+          <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+          <button type="submit" class="btn btn-warn btn-sm" title="Перевыпустить">&#x21BA;</button>
+        </form>
         <a href="/download/cert/{{.ID}}" class="btn btn-ghost btn-sm">CRT</a>
         {{if .KeyPath}}<a href="/download/key/{{.ID}}" class="btn btn-ghost btn-sm">KEY</a>{{end}}
         {{end}}
         {{if eq $.Session.Role "admin"}}{{if eq .Status "active"}}
-        <a href="/revoke/{{.ID}}" class="btn btn-danger btn-sm confirm-revoke" data-name="{{.Name}}">Отозвать</a>
+        <form method="POST" action="/revoke/{{.ID}}" class="inline-form confirm-revoke-form" data-name="{{.Name}}">
+          <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+          <button type="submit" class="btn btn-danger btn-sm">Отозвать</button>
+        </form>
         {{end}}{{end}}
         </div>
       </td>
@@ -135,24 +141,30 @@
   applyFilters();
 })();
 
-// Confirm-диалоги для перевыпуска и отзыва
-function certConfirm(cls){
-  return function(e){
-    e.preventDefault();
-    var href=this.getAttribute('href'),name=this.getAttribute('data-name')||'сертификат';
-    var msg=cls==='confirm-renew'?'Перевыпустить сертификат "'+name+'"? Файл будет заменён.':'ОТОЗВАТЬ "'+name+'"? Действие необратимо.';
-    var btn=cls==='confirm-renew'?'Перевыпустить':'Отозвать';
-    var title=cls==='confirm-renew'?'Перевыпуск':'Отзыв сертификата';
-    var f=document.createElement('form');
-    f.setAttribute('data-confirm',msg);f.setAttribute('data-confirm-btn',btn);
-    f.setAttribute('data-confirm-class',cls==='confirm-renew'?'warning':'danger');
-    f.setAttribute('data-confirm-title',title);
-    f.submit=function(){window.location.href=href;};
-    document.body.appendChild(f);
-    f.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
-  };
+// Confirm-диалоги для перевыпуска и отзыва (POST forms with CSRF)
+function certFormConfirm(formCls, isRevoke) {
+  document.querySelectorAll('.' + formCls).forEach(function(form) {
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+      var name = form.getAttribute('data-name') || 'сертификат';
+      var msg = isRevoke
+        ? 'ОТОЗВАТЬ "' + name + '"? Действие необратимо.'
+        : 'Перевыпустить сертификат "' + name + '"? Файл будет заменён.';
+      var btn = isRevoke ? 'Отозвать' : 'Перевыпустить';
+      var title = isRevoke ? 'Отзыв сертификата' : 'Перевыпуск';
+      var confirmClass = isRevoke ? 'danger' : 'warning';
+      var proxy = document.createElement('form');
+      proxy.setAttribute('data-confirm', msg);
+      proxy.setAttribute('data-confirm-btn', btn);
+      proxy.setAttribute('data-confirm-class', confirmClass);
+      proxy.setAttribute('data-confirm-title', title);
+      proxy.submit = function() { form.submit(); };
+      document.body.appendChild(proxy);
+      proxy.dispatchEvent(new Event('submit', {bubbles: true, cancelable: true}));
+    });
+  });
 }
-document.querySelectorAll('.confirm-renew').forEach(function(el){el.addEventListener('click',certConfirm('confirm-renew'));});
-document.querySelectorAll('.confirm-revoke').forEach(function(el){el.addEventListener('click',certConfirm('confirm-revoke'));});
+certFormConfirm('confirm-renew-form', false);
+certFormConfirm('confirm-revoke-form', true);
 </script>
 {{end}}

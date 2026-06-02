@@ -5,24 +5,25 @@ import (
 	"crypto/tls"
 	"encoding/gob"
 	"fmt"
+	"io"
 	"log"
+	"mime"
 	"net/http"
 	"os"
+	"path/filepath"
+	"step-ui/config"
+	"step-ui/handlers"
+	"step-ui/le"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	chiMiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/gorilla/sessions"
 
-	"io"
-	"mime"
-	"path/filepath"
-	"step-ui/config"
 	appdb "step-ui/db"
-	"step-ui/handlers"
-	"step-ui/le"
+
 	mw "step-ui/middleware"
-	"strings"
 )
 
 // staticHandlerWithMIME раздаёт статические файлы с ПРАВИЛЬНЫМ Content-Type.
@@ -202,7 +203,7 @@ func main() {
 			r.Use(mw.RequireRole("manager", store))
 			r.Get("/issue", h.IssueGet)
 			r.Post("/issue", h.IssuePost)
-			r.Get("/renew/{id}", h.Renew)
+			r.Post("/renew/{id}", h.Renew)
 			r.Get("/import", h.ImportGet)
 			r.Post("/import", h.ImportPost)
 			r.Get("/download/cert/{id}", h.DownloadCert)
@@ -212,7 +213,7 @@ func main() {
 		// Отзыв (admin)
 		r.Group(func(r chi.Router) {
 			r.Use(mw.RequireRole("admin", store))
-			r.Get("/revoke/{id}", h.Revoke)
+			r.Post("/revoke/{id}", h.Revoke)
 		})
 
 		// Управление пользователями (admin)
@@ -267,7 +268,7 @@ func main() {
 	r.Handle("/static/*", http.StripPrefix("/static/", staticHandlerWithMIME("static")))
 	// ─── Start server ─────────────────────────────────────────────────────────
 	for _, dir := range []string{cfg.CertsDir, cfg.UploadDir, "/opt/step-ui/ssl", "/opt/step-ui/data"} {
-		_ = os.MkdirAll(dir, 0755)
+		_ = os.MkdirAll(dir, 0o750) //nolint:gosec // G301: app data dirs; restrictive perms appropriate for non-root service user
 	}
 
 	// // temp_users_expire_ticker
