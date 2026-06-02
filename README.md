@@ -377,12 +377,11 @@ architectural, not an oversight:
   build tag) that runs against a real Postgres service in CI; those numbers are not
   reflected in the default `go test ./...` profile.
 
-**The remaining coverage comes from live/integration tests, not mocks.** A follow-up
-wave runs `handlers`, `le`, and `db` against real services (Postgres + step-ca + an
-ACME test server such as Pebble), measured with `-coverpkg` and merged into the unit
-profile so the gate reflects real coverage and ratchets toward the per-module targets.
-Until then the gate sits at the honest unit-only baseline. See `REMEDIATION_SPEC.md`
-(P3-0) and `IMPLEMENTATION_PLAN.md` (Wave 4) for the plan.
+**The remaining coverage comes from live/integration tests, not mocks.** A deferred
+follow-up effort runs `handlers`, `le`, and `db` against real services (Postgres +
+step-ca + an ACME test server such as Pebble), measured with `-coverpkg` and merged
+into the unit profile so the gate reflects real coverage and ratchets toward the
+per-module targets. Until then the gate sits at the honest unit-only baseline.
 
 ### Meta Lint
 
