@@ -177,6 +177,57 @@ func TestRequireLogin_WithValidSession_Passes(t *testing.T) {
 	}
 }
 
+// TestRequireLogin_AbsoluteLifetimeExpired verifies that a session past
+// SessionMaxLifetime is rejected even when last_activity is recent.
+func TestRequireLogin_AbsoluteLifetimeExpired(t *testing.T) {
+	store := newTestStore()
+	// session_created_at is more than 24 h ago → absolute cap exceeded.
+	oldCreatedAt := time.Now().Add(-(SessionMaxLifetime + time.Minute)).Unix()
+	cookies := injectSessionMiddleware(t, store, map[interface{}]interface{}{
+		"user_id":            42,
+		"session_created_at": oldCreatedAt,
+		"last_activity":      time.Now().Unix(), // recently active — must still be rejected
+	})
+
+	handler := RequireLogin(store)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	req := newReq("GET", "/protected")
+	applyRequestCookies(req, cookies)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusFound {
+		t.Errorf("absolute lifetime exceeded: expected 302, got %d", rr.Code)
+	}
+	if loc := rr.Header().Get("Location"); loc != "/login" {
+		t.Errorf("expected redirect to /login, got %q", loc)
+	}
+}
+
+// TestRequireLogin_FreshSession_AbsoluteLifetimeNotExpired confirms a brand-new
+// session with a recent created_at timestamp passes the absolute-lifetime check.
+func TestRequireLogin_FreshSession_AbsoluteLifetimeNotExpired(t *testing.T) {
+	store := newTestStore()
+	cookies := injectSessionMiddleware(t, store, map[interface{}]interface{}{
+		"user_id":            99,
+		"session_created_at": time.Now().Unix(),
+		"last_activity":      time.Now().Unix(),
+	})
+
+	handler := RequireLogin(store)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	req := newReq("GET", "/protected")
+	applyRequestCookies(req, cookies)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("fresh session: expected 200, got %d", rr.Code)
+	}
+}
+
 func TestRequireLogin_ExpiredSession_Redirects(t *testing.T) {
 	store := newTestStore()
 	expired := time.Now().Add(-(SessionTimeout + time.Minute)).Unix()

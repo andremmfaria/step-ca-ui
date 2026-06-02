@@ -1,6 +1,7 @@
 package config
 
 import (
+	"os"
 	"testing"
 )
 
@@ -140,14 +141,62 @@ func clearEnvVars(t *testing.T) {
 	t.Helper()
 	vars := []string{
 		"PORT", "DATABASE_URL", "CA_URL", "ROOT_CERT", "PROVISIONER",
-		"PASSWORD_FILE", "STEP_CA_IMAGE", "SECRET_KEY", "SESSION_SECURE",
-		"ENABLE_HSTS", "TRUST_PROXY", "OIDC_ENABLED", "OIDC_ISSUER_URL",
-		"OIDC_CLIENT_ID", "OIDC_CLIENT_SECRET", "OIDC_REDIRECT_URL",
-		"OIDC_GROUP_CLAIM", "OIDC_GROUP_ADMIN", "OIDC_GROUP_MANAGER",
-		"OIDC_GROUP_VIEWER", "OIDC_DEFAULT_ROLE", "OIDC_SYNC_ROLE",
-		"LOCAL_LOGIN_ENABLED", "USE_HTTPS",
+		"PASSWORD_FILE", "STEP_CA_IMAGE", "SECRET_KEY", "SECRET_KEY_FILE",
+		"SESSION_SECURE", "ENABLE_HSTS", "TRUST_PROXY", "OIDC_ENABLED",
+		"OIDC_ISSUER_URL", "OIDC_CLIENT_ID", "OIDC_CLIENT_SECRET",
+		"OIDC_REDIRECT_URL", "OIDC_GROUP_CLAIM", "OIDC_GROUP_ADMIN",
+		"OIDC_GROUP_MANAGER", "OIDC_GROUP_VIEWER", "OIDC_DEFAULT_ROLE",
+		"OIDC_SYNC_ROLE", "LOCAL_LOGIN_ENABLED", "USE_HTTPS",
 	}
 	for _, v := range vars {
 		t.Setenv(v, "")
 	}
+}
+
+// TestGetEnvOrFile covers all four branches of getEnvOrFile:
+//   - plain env var set → returns the var value
+//   - _FILE variant pointing at a temp file → returns trimmed file contents
+//   - neither set → returns the default
+//   - _FILE set but file unreadable → returns the default
+func TestGetEnvOrFile(t *testing.T) {
+	t.Run("plain_env_var", func(t *testing.T) {
+		clearEnvVars(t)
+		t.Setenv("SECRET_KEY", "mysecretkey")
+		cfg := Load()
+		if cfg.SecretKey != "mysecretkey" {
+			t.Errorf("SecretKey: got %q want %q", cfg.SecretKey, "mysecretkey")
+		}
+	})
+
+	t.Run("file_variant", func(t *testing.T) {
+		clearEnvVars(t)
+		dir := t.TempDir()
+		// Write the secret with a trailing newline, as docker secrets typically do.
+		f := dir + "/secret.txt"
+		if err := os.WriteFile(f, []byte("file-based-secret\n"), 0o600); err != nil {
+			t.Fatalf("write temp file: %v", err)
+		}
+		t.Setenv("SECRET_KEY_FILE", f)
+		cfg := Load()
+		if cfg.SecretKey != "file-based-secret" {
+			t.Errorf("SecretKey via _FILE: got %q want %q", cfg.SecretKey, "file-based-secret")
+		}
+	})
+
+	t.Run("neither_set_returns_default", func(t *testing.T) {
+		clearEnvVars(t)
+		cfg := Load()
+		if cfg.SecretKey != "change-me-in-production-32chars!" {
+			t.Errorf("SecretKey default: got %q", cfg.SecretKey)
+		}
+	})
+
+	t.Run("file_unreadable_returns_default", func(t *testing.T) {
+		clearEnvVars(t)
+		t.Setenv("SECRET_KEY_FILE", "/nonexistent/path/secret.txt")
+		cfg := Load()
+		if cfg.SecretKey != "change-me-in-production-32chars!" {
+			t.Errorf("SecretKey on bad path: got %q", cfg.SecretKey)
+		}
+	})
 }
