@@ -166,7 +166,7 @@ func (h *Handler) preflight(ctx context.Context) ([]HealthCheck, HealthSummary) 
 		add("PostgreSQL", "ok", "database connection is alive", true)
 	}
 
-	if out, err := runCheck(ctx, 5*time.Second, "step", "ca", "health", "--ca-url", h.cfg.CAURL, "--root", h.cfg.RootCert); err != nil {
+	if out, err := runStep(ctx, h.cfg, execRunner, []string{"ca", "health"}, nil, nil); err != nil {
 		add("Step-CA API", "err", cleanCheckOutput(out, err), true)
 	} else {
 		add("Step-CA API", "ok", "CA health endpoint is reachable", true)
@@ -201,7 +201,7 @@ func (h *Handler) preflight(ctx context.Context) ([]HealthCheck, HealthSummary) 
 func (h *Handler) caIntegrity(ctx context.Context) ([]HealthCheck, HealthSummary) {
 	var checks []HealthCheck
 
-	if out, err := runCheck(ctx, 5*time.Second, "step", "ca", "health", "--ca-url", h.cfg.CAURL, "--root", h.cfg.RootCert); err != nil {
+	if out, err := runStep(ctx, h.cfg, execRunner, []string{"ca", "health"}, nil, nil); err != nil {
 		checks = append(checks, HealthCheck{Name: "Step-CA API", Status: "err", Detail: cleanCheckOutput(out, err), Critical: true})
 	} else {
 		checks = append(checks, HealthCheck{Name: "Step-CA API", Status: "ok", Detail: "CA health endpoint is reachable", Critical: true})

@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"time"
@@ -20,10 +19,7 @@ import (
 func (h *Handler) Home(w http.ResponseWriter, r *http.Request) {
 	// Статус CA: проверяем через step ca health
 	caOnline := true
-	_, err := exec.Command("step", "ca", "health",
-		"--ca-url", h.cfg.CAURL,
-		"--root", h.cfg.RootCert).Output()
-	if err != nil {
+	if _, err := runStep(r.Context(), h.cfg, execRunner, []string{"ca", "health"}, nil, nil); err != nil {
 		caOnline = false
 	}
 
@@ -171,14 +167,14 @@ func (h *Handler) IssuePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	certDir := filepath.Join(h.cfg.CertsDir, sanitizeName(name))
-	if err := os.MkdirAll(certDir, 0755); err != nil {
+	if err := os.MkdirAll(certDir, 0o750); err != nil { //nolint:gosec // G703: path containment enforced by PR-6 safeName/containedPath
 		data["Msgs"] = []models.FlashMsg{{Type: "err", Text: "Ошибка создания директории: " + err.Error()}}
 		h.render(w, "issue", data)
 		return
 	}
 	certPath := filepath.Join(certDir, "certificate.crt")
 	keyPath := filepath.Join(certDir, "private.key")
-	if err := issueCert(domain, certPath, keyPath, policy.Duration, policy.KeyType, h.cfg); err != nil {
+	if err := issueCert(r.Context(), domain, certPath, keyPath, policy.Duration, policy.KeyType, h.cfg); err != nil {
 		h.notifyAsync("", "certificate.issue_failed", "error",
 			"Certificate issue failed",
 			fmt.Sprintf("Не удалось выпустить сертификат %s для %s: %s", name, domain, err.Error()),
@@ -210,7 +206,7 @@ func (h *Handler) Renew(w http.ResponseWriter, r *http.Request) {
 		if keyType == "" {
 			keyType = "EC:P-256"
 		}
-		if err := issueCert(c.Domain, c.CertPath, c.KeyPath, "8760h", keyType, h.cfg); err == nil {
+		if err := issueCert(r.Context(), c.Domain, c.CertPath, c.KeyPath, "8760h", keyType, h.cfg); err == nil {
 			issued, expires, serial, _ := parseCertDates(c.CertPath)
 			_ = appdb.InsertCert(h.db, &models.Certificate{
 				Name: c.Name, Domain: c.Domain, CertPath: c.CertPath, KeyPath: c.KeyPath,
@@ -234,7 +230,11 @@ func (h *Handler) Revoke(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
 	c, _ := appdb.GetCert(h.db, id)
 	if c != nil {
-		revokeStep(c.CertPath, c.KeyPath, h.cfg)
+		if err := revokeStep(r.Context(), c.CertPath, c.KeyPath, h.cfg); err != nil {
+			h.flash(w, r, "err", "Ошибка отзыва: "+err.Error())
+			http.Redirect(w, r, "/certificates", http.StatusFound)
+			return
+		}
 		_ = appdb.UpdateCertStatus(h.db, id, "revoked")
 		_ = appdb.InsertHistory(h.db, "revoke", c.Name, c.Domain, "Отозван (CRL)", si.Username, si.Role)
 		h.flash(w, r, "ok", "Сертификат отозван")
@@ -349,7 +349,7 @@ func (h *Handler) importUpload(w http.ResponseWriter, r *http.Request, si *model
 	}
 	defer func() { _ = certFile.Close() }()
 	certDir := filepath.Join(h.cfg.CertsDir, sanitizeName(name))
-	if err := os.MkdirAll(certDir, 0755); err != nil {
+	if err := os.MkdirAll(certDir, 0o750); err != nil { //nolint:gosec // G703: path containment enforced by PR-6 safeName/containedPath
 		data["Msgs"] = []models.FlashMsg{{Type: "err", Text: "Ошибка создания директории"}}
 		h.render(w, "import", data)
 		return

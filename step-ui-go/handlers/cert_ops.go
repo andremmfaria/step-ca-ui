@@ -1,15 +1,14 @@
 package handlers
 
 import (
+	"context"
 	"crypto/x509"
 	"database/sql"
 	"encoding/pem"
 	"fmt"
 	"io"
-	"log"
 	"mime/multipart"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -61,39 +60,45 @@ func normalizeIssuePolicy(template, duration, keyType, domain string) (IssuePoli
 	return policy, nil
 }
 
-func issueCert(domain, certPath, keyPath, duration, keyType string, cfg *config.Config) error {
-	args := []string{
-		"ca", "certificate",
-		"--ca-url", cfg.CAURL,
-		"--root", cfg.RootCert,
+func issueCert(ctx context.Context, domain, certPath, keyPath, duration, keyType string, cfg *config.Config) error {
+	extraFlags := []string{
 		"--provisioner", cfg.Provisioner,
 		"--provisioner-password-file", cfg.PasswordFile,
 		"--not-after", duration,
 		"--force",
 	}
 	if strings.HasPrefix(keyType, "EC:") {
-		args = append(args, "--kty", "EC", "--curve", strings.TrimPrefix(keyType, "EC:"))
+		extraFlags = append(extraFlags, "--kty", "EC", "--curve", strings.TrimPrefix(keyType, "EC:"))
 	} else if strings.HasPrefix(keyType, "RSA:") {
-		args = append(args, "--kty", "RSA", "--size", strings.TrimPrefix(keyType, "RSA:"))
+		extraFlags = append(extraFlags, "--kty", "RSA", "--size", strings.TrimPrefix(keyType, "RSA:"))
 	}
-	args = append(args, domain, certPath, keyPath)
-	log.Printf("[step-cli] step %s", strings.Join(args, " "))
-	cmd := exec.Command("step", args...)
-	out, err := cmd.CombinedOutput()
+	// Validate domain before passing to the shell.  certPath and keyPath are
+	// server-generated paths and do not need hostname validation.
+	// We include the "--" separator so step cannot interpret domain as a flag.
+	if err := validateIdentifier(domain); err != nil {
+		return err
+	}
+	extraFlags = append(extraFlags, "--", domain, certPath, keyPath)
+	out, err := runStep(ctx, cfg, execRunner, []string{"ca", "certificate"}, extraFlags, nil)
 	if err != nil {
 		return fmt.Errorf("%s: %s", err, string(out))
 	}
 	return nil
 }
 
-func revokeStep(certPath, keyPath string, cfg *config.Config) {
-	// best-effort: revoke via step CLI; errors are non-fatal (status updated in DB regardless)
-	_ = exec.Command("step", "ca", "revoke",
-		"--cert", certPath,
-		"--key", keyPath,
-		"--ca-url", cfg.CAURL,
-		"--root", cfg.RootCert,
-	).Run()
+// revokeStep revokes a certificate via the step CLI and returns any error so
+// callers can decide whether to mark the cert as revoked in the database.
+func revokeStep(ctx context.Context, certPath, keyPath string, cfg *config.Config) error {
+	out, err := runStep(
+		ctx, cfg, execRunner,
+		[]string{"ca", "revoke"},
+		[]string{"--cert", certPath, "--key", keyPath},
+		nil,
+	)
+	if err != nil {
+		return fmt.Errorf("step ca revoke: %w: %s", err, string(out))
+	}
+	return nil
 }
 
 func parseCertDates(certPath string) (issued, expires *time.Time, serial string, err error) {

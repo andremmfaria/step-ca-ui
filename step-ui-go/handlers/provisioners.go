@@ -3,15 +3,11 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
-	"os/exec"
 )
 
 func (h *Handler) Provisioners(w http.ResponseWriter, r *http.Request) {
 	var provs []map[string]interface{}
-	out, err := exec.Command("step", "ca", "provisioner", "list",
-		"--ca-url", h.cfg.CAURL,
-		"--root", h.cfg.RootCert,
-	).Output()
+	out, err := runStep(r.Context(), h.cfg, execRunner, []string{"ca", "provisioner", "list"}, nil, nil)
 	if err == nil {
 		_ = json.Unmarshal(out, &provs)
 	}
