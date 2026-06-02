@@ -31,7 +31,7 @@ services:
       - "9443:9443"
     volumes:
       - step-ca-data:/home/step
-      - ./step-ca-bootstrap.sh:/usr/local/bin/step-ca-bootstrap.sh:ro
+      - ./scripts/step-ca-bootstrap.sh:/usr/local/bin/step-ca-bootstrap.sh:ro
     environment:
       TZ: "${TZ:-UTC}"
       DOCKER_STEPCA_INIT_NAME:             "Home CA"

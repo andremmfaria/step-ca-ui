@@ -281,8 +281,8 @@ make backup
 ```
 
 Backups include PostgreSQL, `step-ca-data`, Step-CA UI data/certs/uploads and
-`manifest.json` with SHA-256 checksums. Restore is manual by design; follow
-[BACKUP_RESTORE.md](BACKUP_RESTORE.md).
+`manifest.json` with SHA-256 checksums. Restore is manual by design: unpack the
+archive, then restore the PostgreSQL dump and the Docker volumes.
 </details>
 
 <details>

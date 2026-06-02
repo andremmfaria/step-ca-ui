@@ -81,7 +81,7 @@ func (h *Handler) buildBackupBundle(ctx context.Context) (string, string, error)
 		BuildDate:  BuildDate,
 		GitCommit:  GitCommit,
 		Database:   h.backupDBInfo(),
-		RestoreDoc: "BACKUP_RESTORE.md",
+		RestoreDoc: "README.md (Backup & restore section)",
 	}
 	if host, err := os.Hostname(); err == nil {
 		manifest.Hostname = host
