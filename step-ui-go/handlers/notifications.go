@@ -102,13 +102,13 @@ func (h *Handler) AdminNotificationsTest(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *Handler) notifyAsync(eventKey, eventType, severity, title, message string, meta map[string]string) {
-	go func() {
+	safeGo("notify:"+eventType, func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 7*time.Second)
 		defer cancel()
 		if err := h.sendNotification(ctx, eventKey, eventType, severity, title, message, meta); err != nil {
 			log.Printf("notification %s failed: %v", eventType, err)
 		}
-	}()
+	})
 }
 
 func (h *Handler) sendNotification(ctx context.Context, eventKey, eventType, severity, title, message string, meta map[string]string) error {
@@ -190,14 +190,14 @@ func notificationAllowed(settings *models.NotificationSettings, eventType string
 }
 
 func (h *Handler) StartNotificationWorker() {
-	go func() {
+	safeGo("notification-worker", func() {
 		h.checkExpiringCertificates(context.Background())
 		t := time.NewTicker(24 * time.Hour)
 		defer t.Stop()
 		for range t.C {
 			h.checkExpiringCertificates(context.Background())
 		}
-	}()
+	})
 }
 
 func (h *Handler) checkExpiringCertificates(ctx context.Context) {

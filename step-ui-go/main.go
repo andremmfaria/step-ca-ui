@@ -1,20 +1,23 @@
 package main
 
 import (
+	"context"
 	"crypto/sha256"
 	"crypto/tls"
 	"encoding/gob"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"mime"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"step-ui/config"
 	"step-ui/handlers"
-	"step-ui/le"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -152,7 +155,7 @@ func main() {
 	h := handlers.New(conn, cfg, store)
 
 	// ─── Let's Encrypt auto-renewer ──────────────────────────────────────────
-	le.StartRenewer(conn)
+	h.StartRenewer()
 	h.StartNotificationWorker()
 
 	// ─── Router ──────────────────────────────────────────────────────────────
@@ -273,8 +276,8 @@ func main() {
 		_ = os.MkdirAll(dir, 0o750) //nolint:gosec // G301: app data dirs; restrictive perms appropriate for non-root service user
 	}
 
-	// // temp_users_expire_ticker
-	go func() {
+	// temp_users_expire_ticker — panic-safe background goroutine
+	handlers.SafeGoExported("temp-users-expiry", func() {
 		t := time.NewTicker(60 * time.Second)
 		defer t.Stop()
 		for range t.C {
@@ -282,16 +285,54 @@ func main() {
 				log.Printf("temp-users: expired %d account(s)", n)
 			}
 		}
-	}()
+	})
 
 	addr := fmt.Sprintf("0.0.0.0:%d", cfg.Port)
-	if _, err := os.Stat(cfg.SSLCert); err == nil {
-		tlsCfg := &tls.Config{MinVersion: tls.VersionTLS12}
-		srv := &http.Server{Addr: addr, Handler: r, TLSConfig: tlsCfg}
-		fmt.Printf("[*] Starting Step-CA UI (HTTPS) on port %d\n", cfg.Port)
-		log.Fatal(srv.ListenAndServeTLS(cfg.SSLCert, cfg.SSLKey))
+
+	// useHTTPS: explicit config flag takes precedence; falls back to probing
+	// whether the SSL cert file exists (preserves original auto-detect behaviour).
+	useHTTPS := cfg.UseHTTPS || func() bool {
+		_, err := os.Stat(cfg.SSLCert)
+		return err == nil
+	}()
+
+	srv := &http.Server{
+		Addr:              addr,
+		Handler:           r,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       120 * time.Second,
+	}
+
+	// Graceful-shutdown: block on SIGINT/SIGTERM then drain in-flight requests.
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	srvErr := make(chan error, 1)
+	if useHTTPS {
+		srv.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+		log.Printf("[*] Starting Step-CA UI (HTTPS) on port %d", cfg.Port)
+		go func() { srvErr <- srv.ListenAndServeTLS(cfg.SSLCert, cfg.SSLKey) }()
 	} else {
-		fmt.Printf("[!] SSL cert not found, starting HTTP on port %d\n", cfg.Port)
-		log.Fatal(http.ListenAndServe(addr, r))
+		log.Printf("[!] Starting Step-CA UI (HTTP) on port %d — not suitable for production", cfg.Port)
+		go func() { srvErr <- srv.ListenAndServe() }()
+	}
+
+	select {
+	case err := <-srvErr:
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatalf("server error: %v", err)
+		}
+	case <-ctx.Done():
+		stop()
+		log.Println("[*] Shutdown signal received; draining in-flight requests…")
+		shutCtx, shutCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer shutCancel()
+		if err := srv.Shutdown(shutCtx); err != nil {
+			log.Printf("graceful shutdown error: %v", err)
+		}
+		_ = conn.Close()
+		log.Println("[*] Server stopped cleanly")
 	}
 }

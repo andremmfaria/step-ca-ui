@@ -21,6 +21,7 @@ type Config struct {
 	UploadDir     string
 	SSLCert       string
 	SSLKey        string
+	UseHTTPS      bool // explicit override; defaults to auto-detect via os.Stat
 
 	// OIDC / JumpCloud SSO
 	OIDCEnabled      bool
@@ -71,6 +72,10 @@ func Load() *Config {
 		OIDCSyncRole:     getEnvBool("OIDC_SYNC_ROLE", true),
 
 		LocalLoginEnabled: getEnvBool("LOCAL_LOGIN_ENABLED", true),
+		// UseHTTPS: when false (default), the server probes os.Stat(SSLCert) to decide.
+		// Set USE_HTTPS=true to force TLS; USE_HTTPS=false to force plain HTTP.
+		// The empty env case preserves the existing auto-detect behaviour.
+		UseHTTPS: getEnvBool("USE_HTTPS", false),
 	}
 }
 

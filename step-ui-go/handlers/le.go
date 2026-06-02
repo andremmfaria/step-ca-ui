@@ -72,7 +72,7 @@ func (h *Handler) LEIssuePost(w http.ResponseWriter, r *http.Request) {
 	appdb.AddLELog(h.db, domain, "issue", "Начало выпуска сертификата")
 
 	// Выпускаем в фоне
-	go func() {
+	safeGo("le-issue:"+domain, func() {
 		result, err := le.IssueCert(le.LEConfig{
 			Email:     email,
 			Domain:    domain,
@@ -90,7 +90,7 @@ func (h *Handler) LEIssuePost(w http.ResponseWriter, r *http.Request) {
 		}
 		_ = appdb.UpdateLECertPaths(h.db, id, result.CertPath, result.KeyPath, result.IssuedAt, result.ExpiresAt)
 		appdb.AddLELog(h.db, domain, "issue", "Сертификат успешно выпущен")
-	}()
+	})
 
 	h.flash(w, r, "ok", fmt.Sprintf("Выпуск сертификата для %s запущен! Статус обновится через минуту.", domain))
 	http.Redirect(w, r, "/le", http.StatusFound)
@@ -113,7 +113,7 @@ func (h *Handler) LERenew(w http.ResponseWriter, r *http.Request) {
 	_ = appdb.UpdateLECertStatus(h.db, id, "pending", "")
 	appdb.AddLELog(h.db, cert.Domain, "renew", "Ручное обновление запущено")
 
-	go func() {
+	safeGo("le-renew:"+cert.Domain, func() {
 		result, err := le.IssueCert(le.LEConfig{
 			Email:    cert.Email,
 			Domain:   cert.Domain,
@@ -128,7 +128,7 @@ func (h *Handler) LERenew(w http.ResponseWriter, r *http.Request) {
 		}
 		_ = appdb.UpdateLECertPaths(h.db, id, result.CertPath, result.KeyPath, result.IssuedAt, result.ExpiresAt)
 		appdb.AddLELog(h.db, cert.Domain, "renew", "Сертификат успешно обновлён")
-	}()
+	})
 
 	h.flash(w, r, "ok", "Обновление запущено!")
 	http.Redirect(w, r, "/le", http.StatusFound)
