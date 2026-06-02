@@ -1,10 +1,15 @@
+// Package config loads application configuration from environment variables.
+// Sensitive values (SECRET_KEY, DATABASE_URL) are read via *_FILE variants
+// when set so that they never appear in the process environment at runtime.
 package config
 
 import (
 	"os"
 	"strconv"
+	"strings"
 )
 
+// Config holds all runtime configuration loaded from environment variables.
 type Config struct {
 	DatabaseURL   string
 	CAURL         string
@@ -40,6 +45,10 @@ type Config struct {
 	LocalLoginEnabled bool
 }
 
+// Load reads configuration from environment variables.
+// Sensitive values support a *_FILE variant: if SECRET_KEY_FILE is set its
+// contents are used as SECRET_KEY (entrypoint.sh performs the same expansion
+// for DATABASE_URL).
 func Load() *Config {
 	port, _ := strconv.Atoi(getEnv("PORT", "8443"))
 	return &Config{
@@ -49,7 +58,7 @@ func Load() *Config {
 		Provisioner:   getEnv("PROVISIONER", "admin"),
 		PasswordFile:  getEnv("PASSWORD_FILE", "/opt/step-ui/data/provisioner_password"),
 		StepCAImage:   getEnv("STEP_CA_IMAGE", "smallstep/step-ca:0.30.2"),
-		SecretKey:     getEnv("SECRET_KEY", "change-me-in-production-32chars!"),
+		SecretKey:     getEnvOrFile("SECRET_KEY", "SECRET_KEY_FILE", "change-me-in-production-32chars!"),
 		SessionSecure: getEnvBool("SESSION_SECURE", true),
 		EnableHSTS:    getEnvBool("ENABLE_HSTS", false),
 		TrustProxy:    getEnvBool("TRUST_PROXY", false),
@@ -82,6 +91,22 @@ func Load() *Config {
 func getEnv(key, def string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
+	}
+	return def
+}
+
+// getEnvOrFile reads key from the environment; if absent it falls back to
+// reading the path stored in fileKey (the *_FILE pattern).  def is returned
+// when neither is set.
+func getEnvOrFile(key, fileKey, def string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	if path := os.Getenv(fileKey); path != "" {
+		//nolint:gosec // G304: path comes from an operator-controlled env var (*_FILE), same trust level as PasswordFile
+		if data, err := os.ReadFile(path); err == nil {
+			return strings.TrimRight(string(data), "\r\n")
+		}
 	}
 	return def
 }

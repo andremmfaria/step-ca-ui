@@ -7,9 +7,11 @@ services:
     restart: unless-stopped
     environment:
       TZ: "${TZ:-UTC}"
-      POSTGRES_DB:       stepui
-      POSTGRES_USER:     stepui
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB:            stepui
+      POSTGRES_USER:          stepui
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets:
+      - postgres_password
     volumes:
       - postgres-data:/var/lib/postgresql/data
     networks:
@@ -36,10 +38,12 @@ services:
       DOCKER_STEPCA_INIT_DNS_NAMES:        "step-ca,${HOST_IP:-127.0.0.1}"
       DOCKER_STEPCA_INIT_ADDRESS:          ":9443"
       DOCKER_STEPCA_INIT_PROVISIONER_NAME: "${PROVISIONER:-admin}"
-      DOCKER_STEPCA_INIT_PASSWORD:         "${CA_PASSWORD}"
+      DOCKER_STEPCA_INIT_PASSWORD_FILE:    /run/secrets/ca_password
       DOCKER_STEPCA_INIT_SSH:              "false"
       STEPCA_DEFAULT_TLS_CERT_DURATION:    "${STEPCA_DEFAULT_TLS_CERT_DURATION:-8760h}"
       STEPCA_MAX_TLS_CERT_DURATION:        "${STEPCA_MAX_TLS_CERT_DURATION:-87600h}"
+    secrets:
+      - ca_password
     command: ["/bin/sh", "/usr/local/bin/step-ca-bootstrap.sh", "/usr/local/bin/step-ca", "--password-file", "/home/step/secrets/password", "/home/step/config/ca.json"]
     networks:
       - step-net
@@ -65,20 +69,30 @@ services:
       - step-ui-data:/opt/step-ui/data
       - step-ui-uploads:/opt/step-ui/uploads
       - step-ca-data:/home/step:ro
+    secrets:
+      - postgres_password
+      - secret_key
+      - ca_password
     environment:
       TZ: "${TZ:-UTC}"
-      DATABASE_URL: "postgres://stepui:${POSTGRES_PASSWORD}@postgres:5432/stepui?sslmode=disable"
-      CA_URL:        "https://step-ca:9443"
-      ROOT_CERT:     "/home/step/certs/root_ca.crt"
-      PROVISIONER:   "${PROVISIONER:-admin}"
-      PASSWORD_FILE: "/opt/step-ui/data/provisioner_password"
-      PROVISIONER_PASSWORD: "${CA_PASSWORD}"
-      SECRET_KEY:    "${SECRET_KEY}"
-      SESSION_SECURE: "${SESSION_SECURE:-true}"
-      ENABLE_HSTS:   "${ENABLE_HSTS:-false}"
-      STEP_CA_IMAGE:  "${STEP_CA_IMAGE:-smallstep/step-ca:0.30.2}"
-      HOST_IP:       "${HOST_IP:-127.0.0.1}"
-      PORT:          "8443"
+      # DATABASE_URL is constructed in entrypoint.sh from POSTGRES_PASSWORD_FILE
+      # so the password never appears in `docker inspect` or /proc/<pid>/environ.
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      POSTGRES_HOST:    postgres
+      POSTGRES_PORT:    "5432"
+      POSTGRES_USER:    stepui
+      POSTGRES_DB:      stepui
+      CA_URL:           "https://step-ca:9443"
+      ROOT_CERT:        "/home/step/certs/root_ca.crt"
+      PROVISIONER:      "${PROVISIONER:-admin}"
+      PASSWORD_FILE:    "/opt/step-ui/data/provisioner_password"
+      PROVISIONER_PASSWORD_FILE: /run/secrets/ca_password
+      SECRET_KEY_FILE:  /run/secrets/secret_key
+      SESSION_SECURE:   "${SESSION_SECURE:-true}"
+      ENABLE_HSTS:      "${ENABLE_HSTS:-false}"
+      STEP_CA_IMAGE:    "${STEP_CA_IMAGE:-smallstep/step-ca:0.30.2}"
+      HOST_IP:          "${HOST_IP:-127.0.0.1}"
+      PORT:             "8443"
       STEPUI_ADMIN_PASSWORD: "${STEPUI_ADMIN_PASSWORD:-}"
     depends_on:
       postgres:
@@ -93,6 +107,23 @@ services:
       timeout: 5s
       retries: 10
       start_period: 20s
+
+# ─── Secrets ───────────────────────────────────────────────────────────────
+# Each secret is a host file mounted read-only at /run/secrets/<name>.
+# Values do NOT appear in `docker inspect` environment or /proc/<pid>/environ.
+# Create them once (install.sh does this automatically):
+#   mkdir -p secrets && chmod 700 secrets
+#   printf '%s' 'strong-pg-pass'  > secrets/postgres_password && chmod 600 secrets/postgres_password
+#   printf '%s' 'strong-ca-pass'  > secrets/ca_password       && chmod 600 secrets/ca_password
+#   printf '%s' 'strong-48char-key' > secrets/secret_key      && chmod 600 secrets/secret_key
+secrets:
+  postgres_password:
+    file: ./secrets/postgres_password
+  secret_key:
+    file: ./secrets/secret_key
+  ca_password:
+    file: ./secrets/ca_password
+
 # ─── Volumes ───────────────────────────────────────────────────────────────
 volumes:
   postgres-data:

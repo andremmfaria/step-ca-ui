@@ -5,7 +5,52 @@ echo "======================================="
 echo "  Step-CA UI (Go) — starting up"
 echo "======================================="
 
-# Ждём PostgreSQL
+# ─── Secret-file helpers ──────────────────────────────────────────────────
+# read_secret_file VAR FILE
+# If VAR is already set, use it (backward-compat plain-env path).
+# Otherwise read the value from FILE and export VAR.
+read_secret_file() {
+  _var="$1"
+  _file="$2"
+  eval "_current=\${${_var}:-}"
+  if [ -n "$_current" ]; then
+    return 0  # plain env already set — honour it
+  fi
+  if [ -f "$_file" ]; then
+    _val="$(cat "$_file")"
+    export "${_var}=${_val}"
+  fi
+}
+
+# ─── Secrets from files ───────────────────────────────────────────────────
+# POSTGRES_PASSWORD: used to construct DATABASE_URL below.
+read_secret_file POSTGRES_PASSWORD "${POSTGRES_PASSWORD_FILE:-/run/secrets/postgres_password}"
+
+# SECRET_KEY: session/CSRF signing key read by the Go app.
+read_secret_file SECRET_KEY "${SECRET_KEY_FILE:-/run/secrets/secret_key}"
+
+# PROVISIONER_PASSWORD: step-ca provisioner password (already handled below,
+# but ensure the plain-env fallback still works).
+read_secret_file PROVISIONER_PASSWORD "${PROVISIONER_PASSWORD_FILE:-/run/secrets/ca_password}"
+
+# ─── DATABASE_URL construction ────────────────────────────────────────────
+# Construct DATABASE_URL from parts so the password never appears in the
+# compose environment block or `docker inspect`.  If DATABASE_URL is already
+# set (plain-env backward-compat), use it as-is.
+if [ -z "${DATABASE_URL:-}" ]; then
+  _pg_host="${POSTGRES_HOST:-postgres}"
+  _pg_port="${POSTGRES_PORT:-5432}"
+  _pg_user="${POSTGRES_USER:-stepui}"
+  _pg_db="${POSTGRES_DB:-stepui}"
+  if [ -z "${POSTGRES_PASSWORD:-}" ]; then
+    echo "[!] Neither DATABASE_URL nor POSTGRES_PASSWORD/POSTGRES_PASSWORD_FILE is set."
+    echo "[!] Cannot construct the database connection string — aborting."
+    exit 1
+  fi
+  export DATABASE_URL="postgres://${_pg_user}:${POSTGRES_PASSWORD}@${_pg_host}:${_pg_port}/${_pg_db}?sslmode=disable"
+fi
+
+# ─── Ждём PostgreSQL ──────────────────────────────────────────────────────
 echo "[*] Waiting for PostgreSQL..."
 until nc -z postgres 5432 2>/dev/null; do
   sleep 1

@@ -1,6 +1,7 @@
 # Секреты
 .env
 *.env.local
+secrets/
 
 # Бинарники Go
 step-ui-go/step-ui
