@@ -10,6 +10,12 @@ package.json
 step-ui-go/step-ui
 step-ui-go/*.exe
 
+# Coverage profiles (unit + merged integration)
+coverage.out
+*.coverprofile
+integration.out
+merged.out
+
 # Данные
 *.db
 *.sqlite
