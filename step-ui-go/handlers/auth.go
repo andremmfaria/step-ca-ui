@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"net"
 	"net/http"
 	"strconv"
 	"time"
@@ -12,8 +13,22 @@ import (
 	"step-ui/security"
 )
 
+// clientIP returns the host portion of r.RemoteAddr, stripping the ephemeral
+// port so that all connections from the same client count under one rate-limit
+// key regardless of TCP connection cycling.
+// When TrustProxy=true the chi RealIP middleware has already normalised
+// RemoteAddr to a bare IP, so SplitHostPort returns an error and we fall back
+// to the raw value — both cases produce the correct host-only string.
+func clientIP(r *http.Request) string {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return host
+}
+
 func (h *Handler) LoginGet(w http.ResponseWriter, r *http.Request) {
-	ip := r.RemoteAddr
+	ip := clientIP(r)
 	data := h.base(w, r, "")
 	if h.pending2FAUserID(r) > 0 {
 		data["NeedTOTP"] = true
@@ -28,7 +43,7 @@ func (h *Handler) LoginGet(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) LoginPost(w http.ResponseWriter, r *http.Request) {
-	ip := r.RemoteAddr
+	ip := clientIP(r)
 
 	if !h.cfg.LocalLoginEnabled {
 		if h.cfg.OIDCEnabled {
@@ -109,7 +124,7 @@ func (h *Handler) LoginPost(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) loginPost2FA(w http.ResponseWriter, r *http.Request, uid int) {
-	ip := r.RemoteAddr
+	ip := clientIP(r)
 	user, _ := appdb.GetUserByID(h.db, uid)
 	if user == nil || !user.IsActive || !user.TOTPEnabled {
 		h.clearPending2FA(w, r)
@@ -167,7 +182,7 @@ func (h *Handler) clearPending2FA(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) completeLogin(w http.ResponseWriter, r *http.Request, user *models.User, reason string) {
-	security.RL.Clear(r.RemoteAddr)
+	security.RL.Clear(clientIP(r))
 	s := h.sess(r)
 	s.Values = map[interface{}]interface{}{}
 	s.Values["user_id"] = user.ID

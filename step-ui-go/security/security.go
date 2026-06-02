@@ -104,7 +104,14 @@ type RateLimiter struct {
 	attempts map[string][]time.Time
 }
 
-var RL = &RateLimiter{attempts: make(map[string][]time.Time)}
+// RL is the process-global rate limiter used for login attempt tracking.
+var RL = NewRateLimiter()
+
+// NewRateLimiter returns an initialised RateLimiter. Use this in tests instead
+// of constructing the struct literal directly, to avoid touching unexported fields.
+func NewRateLimiter() *RateLimiter {
+	return &RateLimiter{attempts: make(map[string][]time.Time)}
+}
 
 func (r *RateLimiter) clean(ip string) {
 	now := time.Now()
