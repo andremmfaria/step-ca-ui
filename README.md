@@ -368,7 +368,33 @@ Five GitHub Actions workflows run on every push and pull request.
 
 ### CI
 
-Runs `gofmt` formatting check, `go vet`, `go build`, `go test -race`, and golangci-lint v2. All checks must pass before merge.
+Runs `gofumpt` formatting check, `go vet`, `go build`, `go test -race`, golangci-lint v2 (expanded ruleset on a ratcheted `new-from-rev` baseline), and a coverage gate. All checks must pass before merge.
+
+### Testing and coverage
+
+Unit tests run under the race detector on every push and PR, and a coverage gate
+(`scripts/coverage-gate.sh`) enforces a minimum total that ratchets upward — it can
+only rise, never regress.
+
+**Known limitation — overall coverage is currently low (~15%).** This is
+architectural, not an oversight:
+
+- Well-isolated packages are thoroughly tested and **exceed** their targets:
+  `middleware` 100%, `config` 100%, `security` 97%.
+- The `handlers` (~13%) and `le`/ACME (~28%) packages are not yet unit-testable
+  without changes to production code. Most handlers call the database
+  unconditionally in their first lines, and certificate issuance is tightly coupled
+  to the ACME client constructor — both panic on a nil dependency, so there is no
+  seam to substitute a fake in a unit test.
+- The `db` layer is covered by an **integration** suite (behind the `integration`
+  build tag) that runs against a real Postgres service in CI; those numbers are not
+  reflected in the default `go test ./...` profile.
+
+**Reaching a high total (e.g. 80%) requires a dependency-injection refactor first** —
+introducing a database interface for `handlers` and an issuer interface for `le` so
+collaborators can be mocked. That refactor is tracked as a follow-up; until it lands,
+the coverage gate sits at the honest measured baseline rather than an aspirational
+target. See `REMEDIATION_SPEC.md` (P3-0) and `IMPLEMENTATION_PLAN.md` for the plan.
 
 ### Meta Lint
 
@@ -386,7 +412,7 @@ Runs four scanners and uploads SARIF results to the GitHub Security tab:
 | trivy (filesystem) | Dependency and config vulnerabilities across the repo |
 | trivy (image) | Vulnerabilities in the built container image |
 
-All scanners run in non-blocking mode while an initial baseline is being established. Exit codes will be tightened after the baseline is triaged.
+`govulncheck` is **blocking** — a known CVE in a dependency fails the build. `gitleaks` and trivy (HIGH/CRITICAL) block on new findings, with a committed baseline for any pre-existing items still being triaged.
 
 ### CodeQL
 
