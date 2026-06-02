@@ -9,12 +9,11 @@ services:
       TZ: "${TZ:-UTC}"
       POSTGRES_DB:       stepui
       POSTGRES_USER:     stepui
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-stepui_secret}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres-data:/var/lib/postgresql/data
     networks:
       - step-net
-    privileged: true
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U stepui -d stepui"]
       interval: 5s
@@ -25,7 +24,6 @@ services:
   step-ca:
     image: "${STEP_CA_IMAGE:-smallstep/step-ca:0.30.2}"
     container_name: step-ca
-    privileged: true
     restart: unless-stopped
     ports:
       - "9443:9443"
@@ -38,7 +36,7 @@ services:
       DOCKER_STEPCA_INIT_DNS_NAMES:        "step-ca,${HOST_IP:-127.0.0.1}"
       DOCKER_STEPCA_INIT_ADDRESS:          ":9443"
       DOCKER_STEPCA_INIT_PROVISIONER_NAME: "${PROVISIONER:-admin}"
-      DOCKER_STEPCA_INIT_PASSWORD:         "${CA_PASSWORD:-change-me-min-8-chars}"
+      DOCKER_STEPCA_INIT_PASSWORD:         "${CA_PASSWORD}"
       DOCKER_STEPCA_INIT_SSH:              "false"
       STEPCA_DEFAULT_TLS_CERT_DURATION:    "${STEPCA_DEFAULT_TLS_CERT_DURATION:-8760h}"
       STEPCA_MAX_TLS_CERT_DURATION:        "${STEPCA_MAX_TLS_CERT_DURATION:-87600h}"
@@ -54,7 +52,6 @@ services:
 
   # ─── Step-CA UI (Go) ───────────────────────────────────────────────────────
   step-ui:
-    privileged: true
     build:
       context: ./step-ui-go
       dockerfile: Dockerfile
@@ -70,13 +67,13 @@ services:
       - step-ca-data:/home/step:ro
     environment:
       TZ: "${TZ:-UTC}"
-      DATABASE_URL: "postgres://stepui:${POSTGRES_PASSWORD:-stepui_secret}@postgres:5432/stepui?sslmode=disable"
+      DATABASE_URL: "postgres://stepui:${POSTGRES_PASSWORD}@postgres:5432/stepui?sslmode=disable"
       CA_URL:        "https://step-ca:9443"
       ROOT_CERT:     "/home/step/certs/root_ca.crt"
       PROVISIONER:   "${PROVISIONER:-admin}"
       PASSWORD_FILE: "/opt/step-ui/data/provisioner_password"
-      PROVISIONER_PASSWORD: "${CA_PASSWORD:-change-me-min-8-chars}"
-      SECRET_KEY:    "${SECRET_KEY:-change-me-to-a-long-random-string-at-least-32-chars}"
+      PROVISIONER_PASSWORD: "${CA_PASSWORD}"
+      SECRET_KEY:    "${SECRET_KEY}"
       SESSION_SECURE: "${SESSION_SECURE:-true}"
       ENABLE_HSTS:   "${ENABLE_HSTS:-false}"
       STEP_CA_IMAGE:  "${STEP_CA_IMAGE:-smallstep/step-ca:0.30.2}"
