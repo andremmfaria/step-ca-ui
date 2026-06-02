@@ -22,7 +22,7 @@
         </div>
         <div class="form-full">
           <label>Challenge провайдер</label>
-          <select name="provider" id="providerSelect" onchange="showProviderHelp(this.value)">
+          <select name="provider" id="providerSelect" data-initial="{{if .LESettings}}{{.LESettings.Provider}}{{else}}http01{{end}}">
             <option value="http01"     {{if eq .LESettings.Provider "http01"}}selected{{end}}>HTTP-01 (порт 80 должен быть открыт)</option>
             <option value="cloudflare" {{if eq .LESettings.Provider "cloudflare"}}selected{{end}}>DNS-01 &mdash; Cloudflare</option>
             <option value="route53"    {{if eq .LESettings.Provider "route53"}}selected{{end}}>DNS-01 &mdash; AWS Route53</option>
@@ -70,12 +70,5 @@
 <style>
 .le-help{background:rgba(68,147,248,.08);border:1px solid rgba(68,147,248,.2);border-radius:6px;padding:10px 12px;font-size:11px;color:var(--muted);margin-top:4px;line-height:1.6}
 </style>
-<script>
-function showProviderHelp(v){
-  document.querySelectorAll('.le-help').forEach(function(el){el.style.display='none';});
-  var m={'http01':'helpHttp01','cloudflare':'helpCloudflare','route53':'helpRoute53'};
-  if(m[v]) document.getElementById(m[v]).style.display='block';
-}
-showProviderHelp(document.getElementById('providerSelect').value);
-</script>
+<script src="/static/js/pages/le-issue.js"></script>
 {{end}}

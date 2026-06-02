@@ -112,6 +112,19 @@ function autoWrapSelects(){
 autoWrapSelects();
 
 
+/* ── burger buttons ── */
+(function(){
+  var bf=document.getElementById('burgerFloat');
+  var bb=document.getElementById('burgerBtn');
+  if(bf) bf.addEventListener('click', toggleSidebar);
+  if(bb) bb.addEventListener('click', toggleSidebar);
+})();
+
+/* ── nav-group toggles (onclick replaced with data-group) ── */
+document.querySelectorAll('.nav-group-toggle[data-group]').forEach(function(el){
+  el.addEventListener('click', function(){ toggleGroup(el.getAttribute('data-group')); });
+});
+
 var _mf=null;
 function showConfirm(form,msg,btn,cls,title){
   _mf=form;
@@ -124,7 +137,14 @@ function showConfirm(form,msg,btn,cls,title){
 }
 function closeModal(){document.getElementById('confirmModal').classList.remove('active');_mf=null;}
 function modalConfirm(){if(_mf){var s=_mf.submit.bind(_mf);_mf.removeAttribute('data-confirm');s();}closeModal();}
-(function(){var m=document.getElementById('confirmModal'); if(m){m.addEventListener('click',function(e){if(e.target===this)closeModal();});}})();
+(function(){
+  var m=document.getElementById('confirmModal');
+  if(m){m.addEventListener('click',function(e){if(e.target===this)closeModal();});}
+  var cancel=document.getElementById('modalCancelBtn');
+  if(cancel) cancel.addEventListener('click', closeModal);
+  var confirm=document.getElementById('modalConfirmBtn');
+  if(confirm) confirm.addEventListener('click', modalConfirm);
+})();
 document.addEventListener('submit',function(e){
   var f=e.target,msg=f.getAttribute('data-confirm');
   if(msg){e.preventDefault();showConfirm(f,msg,f.getAttribute('data-confirm-btn'),f.getAttribute('data-confirm-class'),f.getAttribute('data-confirm-title'));}

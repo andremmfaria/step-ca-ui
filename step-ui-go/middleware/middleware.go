@@ -16,17 +16,21 @@ func SecurityHeaders(enableHSTS bool) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("X-Frame-Options", "DENY")
 			w.Header().Set("X-Content-Type-Options", "nosniff")
-			w.Header().Set("X-XSS-Protection", "1; mode=block")
+			// X-XSS-Protection is deprecated in modern browsers and removed (P2-3).
 			w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
 			if enableHSTS {
 				w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 			} else {
 				w.Header().Set("Strict-Transport-Security", "max-age=0")
 			}
+			// All CSS/JS/fonts are served locally; Google-Fonts grants removed (P2-3).
+			// 'unsafe-inline' removed from script-src after externalising all inline
+			// scripts (P2-3).  style-src retains 'unsafe-inline' for inline <style>
+			// blocks in templates (a separate cleanup ticket).
 			w.Header().Set("Content-Security-Policy",
-				"default-src 'self'; script-src 'self' 'unsafe-inline'; "+
-					"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "+
-					"font-src 'self' https://fonts.gstatic.com; img-src 'self' data:;")
+				"default-src 'self'; script-src 'self'; "+
+					"style-src 'self' 'unsafe-inline'; "+
+					"font-src 'self'; img-src 'self' data:;")
 			w.Header().Del("Server")
 			next.ServeHTTP(w, r)
 		})

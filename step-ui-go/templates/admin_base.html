@@ -98,18 +98,7 @@
   </main>
 </div>
 
-<script>
-  (function(){
-    const t = {{if .Session.Theme}}"{{.Session.Theme}}"{{else}}"dark"{{end}};
-    if (t === "auto") {
-      const mq = window.matchMedia('(prefers-color-scheme: dark)');
-      const apply = () => document.documentElement.setAttribute('data-theme', mq.matches ? 'dark' : 'light');
-      apply();
-      mq.addEventListener('change', apply);
-    }
-    try { localStorage.removeItem('step-ui-theme'); } catch (e) {}
-  })();
-</script>
+<script src="/static/js/pages/admin-theme.js"></script>
 <script src="/static/js/select.js"></script>
 <script src="/static/js/datepicker.js" defer></script>
 
@@ -118,8 +107,8 @@
     <div class="modal-title" id="modalTitle">Подтвердите действие</div>
     <div class="modal-msg" id="modalMsg"></div>
     <div class="modal-actions">
-      <button class="modal-btn-cancel" onclick="closeModal()">Отмена</button>
-      <button class="modal-btn-confirm danger" id="modalConfirmBtn" onclick="modalConfirm()">Подтвердить</button>
+      <button class="modal-btn-cancel" id="modalCancelBtn">Отмена</button>
+      <button class="modal-btn-confirm danger" id="modalConfirmBtn">Подтвердить</button>
     </div>
   </div>
 </div>

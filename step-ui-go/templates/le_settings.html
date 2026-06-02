@@ -17,7 +17,7 @@
         </div>
         <div class="form-full">
           <label>Провайдер по умолчанию</label>
-          <select name="provider" id="provSelect" onchange="showSettings(this.value)">
+          <select name="provider" id="provSelect" data-initial="{{if .LESettings}}{{.LESettings.Provider}}{{else}}http01{{end}}">
             <option value="http01"     {{if eq .LESettings.Provider "http01"}}selected{{end}}>HTTP-01</option>
             <option value="cloudflare" {{if eq .LESettings.Provider "cloudflare"}}selected{{end}}>DNS-01 &mdash; Cloudflare</option>
             <option value="route53"    {{if eq .LESettings.Provider "route53"}}selected{{end}}>DNS-01 &mdash; AWS Route53</option>
@@ -70,11 +70,5 @@
   </div>
 </div>
 
-<script>
-function showSettings(v){
-  document.getElementById('cfSettings').style.display  = v==='cloudflare' ? 'block' : 'none';
-  document.getElementById('r53Settings').style.display = v==='route53'   ? 'block' : 'none';
-}
-showSettings('{{if .LESettings}}{{.LESettings.Provider}}{{else}}http01{{end}}');
-</script>
+<script src="/static/js/pages/le-settings.js"></script>
 {{end}}
