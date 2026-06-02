@@ -2,9 +2,8 @@ package db
 
 import (
 	"database/sql"
-	"time"
-
 	"step-ui/models"
+	"time"
 )
 
 func InitLESchema(d *sql.DB) error {

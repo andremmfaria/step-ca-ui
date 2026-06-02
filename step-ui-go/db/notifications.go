@@ -2,7 +2,6 @@ package db
 
 import (
 	"database/sql"
-
 	"step-ui/models"
 )
 
