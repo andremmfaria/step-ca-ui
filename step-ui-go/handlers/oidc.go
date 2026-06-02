@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"log"
 	"net/http"
 
 	gooidc "github.com/coreos/go-oidc/v3/oidc"
@@ -104,7 +105,10 @@ func (h *Handler) OIDCCallback(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
 	token, err := h.oidcOAuth2Config.Exchange(ctx, r.URL.Query().Get("code"), oauth2.VerifierOption(savedVerifier))
 	if err != nil {
-		_ = appdb.LogAuth(h.db, "", ip, false, "OIDC token exchange failed: "+err.Error())
+		// Log the detail server-side only; the audit record gets a fixed string
+		// so that raw tokens or error payloads from the IdP are never persisted.
+		log.Printf("[oidc] token exchange failed ip=%q: %v", ip, err) //nolint:gosec // G706: ip already stored in auth_log; error value is from the IdP library
+		_ = appdb.LogAuth(h.db, "", ip, false, "OIDC token exchange failed")
 		h.flash(w, r, "err", "OIDC authentication failed")
 		http.Redirect(w, r, "/login", http.StatusFound)
 		return
@@ -120,7 +124,9 @@ func (h *Handler) OIDCCallback(w http.ResponseWriter, r *http.Request) {
 	}
 	idToken, err := h.oidcVerifier.Verify(ctx, rawIDToken)
 	if err != nil {
-		_ = appdb.LogAuth(h.db, "", ip, false, "OIDC id_token verification failed: "+err.Error())
+		// Raw JWT content may appear in verification errors — keep it server-side.
+		log.Printf("[oidc] id_token verification failed ip=%q: %v", ip, err) //nolint:gosec // G706: ip already stored in auth_log
+		_ = appdb.LogAuth(h.db, "", ip, false, "OIDC id_token verification failed")
 		h.flash(w, r, "err", "OIDC token verification failed")
 		http.Redirect(w, r, "/login", http.StatusFound)
 		return
@@ -137,7 +143,9 @@ func (h *Handler) OIDCCallback(w http.ResponseWriter, r *http.Request) {
 	// --- extract claims ---
 	var claims map[string]interface{}
 	if err := idToken.Claims(&claims); err != nil {
-		_ = appdb.LogAuth(h.db, "", ip, false, "OIDC claims parse failed: "+err.Error())
+		// Claim values from the IdP may contain PII — log server-side only.
+		log.Printf("[oidc] claims parse failed ip=%q: %v", ip, err) //nolint:gosec // G706: ip already stored in auth_log
+		_ = appdb.LogAuth(h.db, "", ip, false, "OIDC claims parse failed")
 		h.flash(w, r, "err", "OIDC claims error")
 		http.Redirect(w, r, "/login", http.StatusFound)
 		return
@@ -187,12 +195,11 @@ func (h *Handler) OIDCCallback(w http.ResponseWriter, r *http.Request) {
 	// --- upsert user ---
 	user, err := appdb.UpsertOIDCUser(h.db, username, displayName, role, h.cfg.OIDCSyncRole)
 	if err != nil || user == nil {
-		_ = appdb.LogAuth(h.db, username, ip, false, "OIDC upsert failed: "+func() string {
-			if err != nil {
-				return err.Error()
-			}
-			return "nil user"
-		}())
+		// DB errors may surface internal details; log server-side, store a fixed reason.
+		if err != nil {
+			log.Printf("[oidc] upsert failed username=%q: %v", username, err) //nolint:gosec // G706: username from IdP token already written to DB on this path
+		}
+		_ = appdb.LogAuth(h.db, username, ip, false, "OIDC upsert failed")
 		h.flash(w, r, "err", "OIDC login error: could not create/update user account")
 		http.Redirect(w, r, "/login", http.StatusFound)
 		return

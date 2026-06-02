@@ -396,7 +396,7 @@ func LogAuth(d *sql.DB, username, ip string, success bool, reason string) error 
 		username, ip, success, reason)
 	if success {
 		if loginErr := UpdateUserLogin(d, username, ip); loginErr != nil {
-			fmt.Printf("[warn] UpdateUserLogin: %v\n", loginErr)
+			log.Printf("[warn] UpdateUserLogin: %v", loginErr)
 		}
 	}
 	return err

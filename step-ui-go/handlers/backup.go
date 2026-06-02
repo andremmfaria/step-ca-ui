@@ -130,7 +130,8 @@ func (h *Handler) buildBackupBundle(ctx context.Context) (string, string, error)
 
 	bundleName := fmt.Sprintf("step-ca-ui-backup-%s.tgz", ts)
 	bundlePath := filepath.Join(tmp, bundleName)
-	if err := writeBundleTGZ(bundlePath, []string{manifestPath,
+	if err := writeBundleTGZ(bundlePath, []string{
+		manifestPath,
 		filepath.Join(tmp, "postgres-stepui.sql"),
 		filepath.Join(tmp, "step-ca-data.tgz"),
 		filepath.Join(tmp, "step-ui-data.tgz"),
@@ -148,12 +149,44 @@ func (h *Handler) writePGDump(ctx context.Context, path string) error {
 		return err
 	}
 
+	// Write a temporary .pgpass file so the password is never visible in the
+	// process environment (readable via /proc on Linux).  pg_dump honours
+	// PGPASSFILE pointing at a 0600 file.
+	pgpassFile, err := os.CreateTemp("", "pgpass-*")
+	if err != nil {
+		return fmt.Errorf("creating pgpass tempfile: %w", err)
+	}
+	pgpassPath := pgpassFile.Name()
+	defer func() { _ = os.Remove(pgpassPath) }()
+
+	if err := pgpassFile.Chmod(0o600); err != nil {
+		_ = pgpassFile.Close()
+		return fmt.Errorf("chmod pgpass: %w", err)
+	}
+	// Format: hostname:port:database:username:password
+	pgpassLine := fmt.Sprintf("%s:%s:%s:%s:%s\n", info.host, info.port, info.db, info.user, info.password)
+	if _, err := pgpassFile.WriteString(pgpassLine); err != nil {
+		_ = pgpassFile.Close()
+		return fmt.Errorf("writing pgpass: %w", err)
+	}
+	if err := pgpassFile.Close(); err != nil {
+		return fmt.Errorf("closing pgpass: %w", err)
+	}
+
 	timeoutCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 
 	args := []string{"-h", info.host, "-p", info.port, "-U", info.user, "-d", info.db, "--no-owner", "--no-privileges"}
 	cmd := exec.CommandContext(timeoutCtx, "pg_dump", args...)
-	cmd.Env = append(os.Environ(), "PGPASSWORD="+info.password)
+	// Pass PGPASSFILE rather than PGPASSWORD to keep the password off /proc.
+	env := make([]string, 0, len(os.Environ())+1)
+	for _, e := range os.Environ() {
+		if !strings.HasPrefix(e, "PGPASSWORD=") {
+			env = append(env, e)
+		}
+	}
+	env = append(env, "PGPASSFILE="+pgpassPath)
+	cmd.Env = env
 	out, err := os.Create(path)
 	if err != nil {
 		return err
