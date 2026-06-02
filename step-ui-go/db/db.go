@@ -3,6 +3,7 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"log"
 	"os"
 	"strings"
 	"time"
@@ -120,20 +121,16 @@ func InitSchema(d *sql.DB) error {
 		return fmt.Errorf("counting users: %w", err)
 	}
 	if count == 0 {
-		// Seed first admin. Honor STEPUI_ADMIN_PASSWORD if provided,
-		// otherwise fall back to the legacy default with a warning.
-		adminPwd := os.Getenv("STEPUI_ADMIN_PASSWORD")
-		if adminPwd == "" {
-			adminPwd = "Admin123!"
-			fmt.Println("[!] STEPUI_ADMIN_PASSWORD not set — seeding admin with default password \"Admin123!\" (CHANGE IT IMMEDIATELY)")
-		} else {
-			fmt.Println("[*] Seeding admin user with password from STEPUI_ADMIN_PASSWORD")
+		adminPwd, err := resolveAdminPassword(os.Getenv)
+		if err != nil {
+			log.Fatal(err.Error())
 		}
+		fmt.Println("[*] Seeding admin user with password from STEPUI_ADMIN_PASSWORD")
 		if _, err := d.Exec(`INSERT INTO users (username,password_hash,role,is_active) VALUES ($1,$2,'admin',true)`,
 			"admin", security.HashPassword(adminPwd)); err != nil {
 			return fmt.Errorf("seeding admin user: %w", err)
 		}
-		fmt.Println("[*] Default admin user is ready (login: admin)")
+		fmt.Println("[*] Admin user seeded. Remove STEPUI_ADMIN_PASSWORD from the environment after first login.")
 	}
 
 	// -- temp_users_migration_v1
@@ -141,6 +138,20 @@ func InitSchema(d *sql.DB) error {
 	_, _ = d.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_temporary BOOLEAN DEFAULT false`)
 	_, _ = d.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS temp_note TEXT DEFAULT ''`)
 	return nil
+}
+
+// resolveAdminPassword returns the value of STEPUI_ADMIN_PASSWORD from the
+// provided lookup function, or an error if it is empty. The caller must treat
+// the error as fatal — seeding a literal password would create a known
+// network-reachable credential. The getenv parameter allows injection in tests.
+func resolveAdminPassword(getenv func(string) string) (string, error) {
+	pw := getenv("STEPUI_ADMIN_PASSWORD")
+	if pw == "" {
+		return "", fmt.Errorf("[FATAL] No admin user exists and STEPUI_ADMIN_PASSWORD is not set. " +
+			"Set STEPUI_ADMIN_PASSWORD to a strong password and restart. " +
+			"Example: STEPUI_ADMIN_PASSWORD=$(openssl rand -base64 32)")
+	}
+	return pw, nil
 }
 
 // ─── Users ────────────────────────────────────────────────────────────────────
