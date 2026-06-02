@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -209,13 +210,18 @@ func (h *Handler) Renew(w http.ResponseWriter, r *http.Request) {
 	}
 	si := h.sessionInfo(r)
 	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
-	c, _ := appdb.GetCert(h.db, id)
+	c, err := appdb.GetCert(h.db, id)
+	if err != nil {
+		log.Printf("[error] Renew: GetCert id=%d: %v", id, err)
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
 	if c != nil {
 		keyType := c.KeyType
 		if keyType == "" {
 			keyType = "EC:P-256"
 		}
-		if err := issueCert(r.Context(), c.Domain, c.CertPath, c.KeyPath, "8760h", keyType, h.cfg); err == nil {
+		if issueErr := issueCert(r.Context(), c.Domain, c.CertPath, c.KeyPath, "8760h", keyType, h.cfg); issueErr == nil {
 			issued, expires, serial, _ := parseCertDates(c.CertPath)
 			_ = appdb.InsertCert(h.db, &models.Certificate{
 				Name: c.Name, Domain: c.Domain, CertPath: c.CertPath, KeyPath: c.KeyPath,
@@ -226,9 +232,9 @@ func (h *Handler) Renew(w http.ResponseWriter, r *http.Request) {
 		} else {
 			h.notifyAsync("", "certificate.renew_failed", "error",
 				"Certificate renew failed",
-				fmt.Sprintf("Не удалось перевыпустить сертификат %s для %s: %s", c.Name, c.Domain, err.Error()),
+				fmt.Sprintf("Не удалось перевыпустить сертификат %s для %s: %s", c.Name, c.Domain, issueErr.Error()),
 				map[string]string{"id": strconv.Itoa(c.ID), "name": c.Name, "domain": c.Domain, "key_type": keyType})
-			h.flash(w, r, "err", "Ошибка: "+err.Error())
+			h.flash(w, r, "err", "Ошибка: "+issueErr.Error())
 		}
 	}
 	http.Redirect(w, r, "/certificates", http.StatusFound)
@@ -240,10 +246,15 @@ func (h *Handler) Revoke(w http.ResponseWriter, r *http.Request) {
 	}
 	si := h.sessionInfo(r)
 	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
-	c, _ := appdb.GetCert(h.db, id)
+	c, err := appdb.GetCert(h.db, id)
+	if err != nil {
+		log.Printf("[error] Revoke: GetCert id=%d: %v", id, err)
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
 	if c != nil {
-		if err := revokeStep(r.Context(), c.CertPath, c.KeyPath, h.cfg); err != nil {
-			h.flash(w, r, "err", "Ошибка отзыва: "+err.Error())
+		if revokeErr := revokeStep(r.Context(), c.CertPath, c.KeyPath, h.cfg); revokeErr != nil {
+			h.flash(w, r, "err", "Ошибка отзыва: "+revokeErr.Error())
 			http.Redirect(w, r, "/certificates", http.StatusFound)
 			return
 		}
@@ -303,13 +314,18 @@ func (h *Handler) serveCAFile(w http.ResponseWriter, r *http.Request, path, file
 
 func (h *Handler) DownloadCert(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
-	c, _ := appdb.GetCert(h.db, id)
+	c, err := appdb.GetCert(h.db, id)
+	if err != nil {
+		log.Printf("[error] DownloadCert: GetCert id=%d: %v", id, err)
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
 	if c == nil || c.CertPath == "" {
 		http.NotFound(w, r)
 		return
 	}
 	fn := "certificate.crt"
-	if safe, err := safeName(c.Name); err == nil {
+	if safe, nameErr := safeName(c.Name); nameErr == nil {
 		fn = safe + ".crt"
 	}
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", fn))
@@ -318,13 +334,18 @@ func (h *Handler) DownloadCert(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) DownloadKey(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
-	c, _ := appdb.GetCert(h.db, id)
+	c, err := appdb.GetCert(h.db, id)
+	if err != nil {
+		log.Printf("[error] DownloadKey: GetCert id=%d: %v", id, err)
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
 	if c == nil || c.KeyPath == "" {
 		http.NotFound(w, r)
 		return
 	}
 	fn := "private.key"
-	if safe, err := safeName(c.Name); err == nil {
+	if safe, nameErr := safeName(c.Name); nameErr == nil {
 		fn = safe + ".key"
 	}
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", fn))

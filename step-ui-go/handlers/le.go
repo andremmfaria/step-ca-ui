@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -103,7 +104,12 @@ func (h *Handler) LERenew(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
-	cert, _ := appdb.GetLECert(h.db, id)
+	cert, err := appdb.GetLECert(h.db, id)
+	if err != nil {
+		log.Printf("[error] LERenew: GetLECert id=%d: %v", id, err)
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
 	if cert == nil {
 		http.Redirect(w, r, "/le", http.StatusFound)
 		return
@@ -141,7 +147,12 @@ func (h *Handler) LEDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
-	cert, _ := appdb.GetLECert(h.db, id)
+	cert, err := appdb.GetLECert(h.db, id)
+	if err != nil {
+		log.Printf("[error] LEDelete: GetLECert id=%d: %v", id, err)
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
 	if cert != nil {
 		appdb.AddLELog(h.db, cert.Domain, "delete", "Сертификат удалён из системы")
 		_ = appdb.DeleteLECert(h.db, id)
@@ -157,7 +168,12 @@ func (h *Handler) LEToggleAutoRenew(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
-	cert, _ := appdb.GetLECert(h.db, id)
+	cert, err := appdb.GetLECert(h.db, id)
+	if err != nil {
+		log.Printf("[error] LEToggleAutoRenew: GetLECert id=%d: %v", id, err)
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
 	if cert != nil {
 		_ = appdb.UpdateLECertAutoRenew(h.db, id, !cert.AutoRenew)
 		if !cert.AutoRenew {
@@ -173,7 +189,12 @@ func (h *Handler) LEToggleAutoRenew(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) LEDownloadCert(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
-	cert, _ := appdb.GetLECert(h.db, id)
+	cert, err := appdb.GetLECert(h.db, id)
+	if err != nil {
+		log.Printf("[error] LEDownloadCert: GetLECert id=%d: %v", id, err)
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
 	if cert == nil || cert.CertPath == "" {
 		http.NotFound(w, r)
 		return
@@ -184,7 +205,12 @@ func (h *Handler) LEDownloadCert(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) LEDownloadKey(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
-	cert, _ := appdb.GetLECert(h.db, id)
+	cert, err := appdb.GetLECert(h.db, id)
+	if err != nil {
+		log.Printf("[error] LEDownloadKey: GetLECert id=%d: %v", id, err)
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
 	if cert == nil || cert.KeyPath == "" {
 		http.NotFound(w, r)
 		return
