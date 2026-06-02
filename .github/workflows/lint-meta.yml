@@ -49,3 +49,39 @@ jobs:
         with:
           file_or_dir: .github/
           config_file: .github/.yamllint.yml
+
+  style:
+    name: Frontend style (stylelint / eslint / djlint)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "20"
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: Install frontend linters
+        run: |
+          npm install --no-save stylelint@^16 stylelint-config-standard@^37 eslint@^9
+          pip install --quiet djlint
+
+      - name: stylelint (CSS)
+        run: |
+          # --config-basedir points stylelint at the repo-root node_modules for the extended config
+          node_modules/.bin/stylelint \
+            --config step-ui-go/.stylelintrc.json \
+            --config-basedir "$(pwd)" \
+            "step-ui-go/static/css/**/*.css"
+
+      - name: eslint (JS)
+        run: node_modules/.bin/eslint --config step-ui-go/eslint.config.js "step-ui-go/static/js/**/*.js"
+
+      - name: djlint (Go templates — lint only; format burn-down is PR-23)
+        run: djlint step-ui-go/templates/ --profile=golang --lint

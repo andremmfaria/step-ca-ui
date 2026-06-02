@@ -1,0 +1,19 @@
+{
+  "extends": ["stylelint-config-standard"],
+  "files": ["static/css/**/*.css"],
+  "rules": {
+    "color-hex-length": null,
+    "color-function-notation": null,
+    "alpha-value-notation": null,
+    "declaration-block-no-redundant-longhand-properties": null,
+    "no-descending-specificity": null,
+    "selector-not-notation": null,
+    "media-feature-range-notation": null,
+    "comment-empty-line-before": null,
+    "declaration-block-single-line-max-declarations": null,
+    "rule-empty-line-before": null,
+    "property-no-vendor-prefix": null,
+    "no-duplicate-selectors": null,
+    "shorthand-property-no-redundant-values": null
+  }
+}

@@ -1,0 +1,65 @@
+repos:
+  # ── Whitespace / EOL hygiene ──────────────────────────────────────────────
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: mixed-line-ending
+        args: [--fix=lf]
+
+  # ── Go formatter (gofumpt) ────────────────────────────────────────────────
+  - repo: https://github.com/dnephin/pre-commit-golang
+    rev: v0.5.1
+    hooks:
+      - id: go-fmt
+        name: gofumpt
+        entry: gofumpt -l -w
+        types: [go]
+        language: system
+
+  # ── Go linter (golangci-lint) ─────────────────────────────────────────────
+  - repo: https://github.com/dnephin/pre-commit-golang
+    rev: v0.5.1
+    hooks:
+      - id: golangci-lint
+        name: golangci-lint
+        entry: golangci-lint run
+        types: [go]
+        language: system
+        pass_filenames: false
+        args: [--config=step-ui-go/.golangci.yml]
+
+  # ── CSS (stylelint) ───────────────────────────────────────────────────────
+  - repo: local
+    hooks:
+      - id: stylelint
+        name: stylelint
+        language: node
+        entry: stylelint
+        args: [--config=step-ui-go/.stylelintrc.json]
+        files: ^step-ui-go/static/css/.*\.css$
+        additional_dependencies:
+          - stylelint@^16
+          - stylelint-config-standard@^37
+
+  # ── JavaScript (eslint) ───────────────────────────────────────────────────
+  - repo: local
+    hooks:
+      - id: eslint
+        name: eslint
+        language: node
+        entry: eslint
+        args: [--config=step-ui-go/eslint.config.js]
+        files: ^step-ui-go/static/js/.*\.js$
+        additional_dependencies:
+          - eslint@^9
+
+  # ── Go templates (djlint) ─────────────────────────────────────────────────
+  - repo: https://github.com/Riverside-Healthcare/djLint
+    rev: v1.36.4
+    hooks:
+      - id: djlint-golang
+        files: ^step-ui-go/templates/.*\.html$
