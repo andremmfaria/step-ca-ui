@@ -27,6 +27,7 @@ func clientIP(r *http.Request) string {
 	return host
 }
 
+// LoginGet renders the login page, showing a blocked notice if the IP is rate-limited.
 func (h *Handler) LoginGet(w http.ResponseWriter, r *http.Request) {
 	ip := clientIP(r)
 	data := h.base(w, r, "")
@@ -42,6 +43,7 @@ func (h *Handler) LoginGet(w http.ResponseWriter, r *http.Request) {
 	h.render(w, "login", data)
 }
 
+// LoginPost handles credential submission and initiates the login flow.
 func (h *Handler) LoginPost(w http.ResponseWriter, r *http.Request) {
 	ip := clientIP(r)
 
@@ -198,6 +200,7 @@ func (h *Handler) completeLogin(w http.ResponseWriter, r *http.Request, user *mo
 	_ = appdb.LogAuth(h.db, user.Username, r.RemoteAddr, true, reason)
 }
 
+// Logout clears the session and redirects to the login page.
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	si := h.sessionInfo(r)
 	if si.UserID != 0 {

@@ -18,7 +18,7 @@ import (
 
 // Liveness is GET /health — unconditional 200 when the process is serving.
 // No DB, no CA. Called by NLB/ECS/Docker probes.
-func (h *Handler) Liveness(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) Liveness(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(`{"status":"ok"}`))
@@ -103,6 +103,7 @@ func (h *Handler) checkCAReachability(ctx context.Context) string {
 	return fmt.Sprintf("http-%d", resp.StatusCode)
 }
 
+// HealthCheck is a single named readiness/health probe result.
 type HealthCheck struct {
 	Name     string
 	Status   string
@@ -110,12 +111,14 @@ type HealthCheck struct {
 	Critical bool
 }
 
+// HealthSummary aggregates OK, warning, and error counts across all health checks.
 type HealthSummary struct {
 	OK       int
 	Warnings int
 	Errors   int
 }
 
+// SystemInfo holds build and runtime metadata shown on the health/preflight page.
 type SystemInfo struct {
 	Version       string
 	BuildDate     string
@@ -156,20 +159,21 @@ func (h *Handler) systemInfo() SystemInfo {
 
 func (h *Handler) preflight(ctx context.Context) ([]HealthCheck, HealthSummary) {
 	var checks []HealthCheck
-	add := func(name, status, detail string, critical bool) {
-		checks = append(checks, HealthCheck{Name: name, Status: status, Detail: detail, Critical: critical})
+	// addCritical appends a critical health-check result (all checks here are critical).
+	addCritical := func(name, status, detail string) {
+		checks = append(checks, HealthCheck{Name: name, Status: status, Detail: detail, Critical: true})
 	}
 
 	if err := h.db.PingContext(ctx); err != nil {
-		add("PostgreSQL", "err", err.Error(), true)
+		addCritical("PostgreSQL", "err", err.Error())
 	} else {
-		add("PostgreSQL", "ok", "database connection is alive", true)
+		addCritical("PostgreSQL", "ok", "database connection is alive")
 	}
 
 	if out, err := runStep(ctx, h.cfg, execRunner, []string{"ca", "health"}, nil, nil); err != nil {
-		add("Step-CA API", "err", cleanCheckOutput(out, err), true)
+		addCritical("Step-CA API", "err", cleanCheckOutput(out, err))
 	} else {
-		add("Step-CA API", "ok", "CA health endpoint is reachable", true)
+		addCritical("Step-CA API", "ok", "CA health endpoint is reachable")
 	}
 
 	h.checkFile(&checks, "Root CA certificate", h.cfg.RootCert, true)
@@ -189,9 +193,9 @@ func (h *Handler) preflight(ctx context.Context) ([]HealthCheck, HealthSummary) 
 	h.checkDisk(&checks, filepath.Dir(h.cfg.PasswordFile))
 
 	if h.cfg.SessionSecure {
-		add("Session cookie", "ok", "SESSION_SECURE=true", true)
+		addCritical("Session cookie", "ok", "SESSION_SECURE=true")
 	} else {
-		add("Session cookie", "warn", "SESSION_SECURE=false; use only for local HTTP development", true)
+		addCritical("Session cookie", "warn", "SESSION_SECURE=false; use only for local HTTP development")
 	}
 
 	summary := summarizeHealth(checks)
@@ -255,6 +259,7 @@ func (h *Handler) checkDir(checks *[]HealthCheck, name, path string, critical bo
 
 func (h *Handler) checkCAConfig(checks *[]HealthCheck) {
 	caConfig := filepath.Join(filepath.Dir(filepath.Dir(h.cfg.RootCert)), "config", "ca.json")
+	//nolint:gosec // G304: caConfig is derived from cfg.RootCert (config value), not user input
 	raw, err := os.ReadFile(caConfig)
 	if err != nil {
 		*checks = append(*checks, HealthCheck{Name: "CA config", Status: "warn", Detail: caConfig + " is not readable: " + err.Error(), Critical: false})
@@ -331,6 +336,7 @@ func (h *Handler) checkCAChain(checks *[]HealthCheck) {
 }
 
 func readPEMCert(path string) (*x509.Certificate, error) {
+	//nolint:gosec // G304: path is always a config-derived certificate file path (RootCert, intermediate)
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("%s is not readable: %w", path, err)
@@ -368,6 +374,7 @@ func (h *Handler) checkProvisionerPasswordSync(checks *[]HealthCheck) {
 }
 
 func readSecretLine(path string) (string, error) {
+	//nolint:gosec // G304: path is always cfg.PasswordFile — a config-derived path, not user input
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return "", fmt.Errorf("%s is not readable: %w", path, err)
@@ -408,7 +415,7 @@ func claimString(claims map[string]interface{}, key string) string {
 	}
 }
 
-func (h *Handler) checkDurationClaim(checks *[]HealthCheck, name, value string, min time.Duration, critical bool) {
+func (h *Handler) checkDurationClaim(checks *[]HealthCheck, name, value string, minDur time.Duration, critical bool) {
 	if value == "" {
 		*checks = append(*checks, HealthCheck{Name: name, Status: "warn", Detail: "claim is not set", Critical: critical})
 		return
@@ -418,8 +425,8 @@ func (h *Handler) checkDurationClaim(checks *[]HealthCheck, name, value string, 
 		*checks = append(*checks, HealthCheck{Name: name, Status: "warn", Detail: value + " is not parseable: " + err.Error(), Critical: critical})
 		return
 	}
-	if d < min {
-		*checks = append(*checks, HealthCheck{Name: name, Status: "warn", Detail: fmt.Sprintf("%s is below expected %s", value, min), Critical: critical})
+	if d < minDur {
+		*checks = append(*checks, HealthCheck{Name: name, Status: "warn", Detail: fmt.Sprintf("%s is below expected %s", value, minDur), Critical: critical})
 		return
 	}
 	*checks = append(*checks, HealthCheck{Name: name, Status: "ok", Detail: value, Critical: critical})
@@ -472,6 +479,7 @@ func summarizeHealth(checks []HealthCheck) HealthSummary {
 func runCheck(ctx context.Context, timeout time.Duration, name string, args ...string) ([]byte, error) {
 	cctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
+	//nolint:gosec // G204: callers pass fixed binary names ("df"); not user-controlled
 	cmd := exec.CommandContext(cctx, name, args...)
 	out, err := cmd.CombinedOutput()
 	if cctx.Err() == context.DeadlineExceeded {

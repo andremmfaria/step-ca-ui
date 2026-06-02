@@ -9,6 +9,7 @@ import (
 
 const pageSize = 30
 
+// History renders the certificate action history page with optional action filters.
 func (h *Handler) History(w http.ResponseWriter, r *http.Request) {
 	// Multi-select: берём все значения ?action=... из URL
 	actions := r.URL.Query()["action"]

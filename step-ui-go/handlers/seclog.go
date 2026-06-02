@@ -7,6 +7,7 @@ import (
 	appdb "step-ui/db"
 )
 
+// SecurityLog renders the authentication and security event log page.
 func (h *Handler) SecurityLog(w http.ResponseWriter, r *http.Request) {
 	search := r.URL.Query().Get("q")
 	filter := r.URL.Query().Get("filter")

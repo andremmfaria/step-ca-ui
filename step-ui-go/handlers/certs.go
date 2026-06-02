@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -16,6 +17,7 @@ import (
 	appdb "step-ui/db"
 )
 
+// Home renders the application home/landing page.
 func (h *Handler) Home(w http.ResponseWriter, r *http.Request) {
 	// Статус CA: проверяем через step ca health
 	caOnline := true
@@ -37,7 +39,7 @@ func (h *Handler) Home(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var leCount int
-	_ = h.db.QueryRow("SELECT COUNT(*) FROM le_certificates WHERE status='active'").Scan(&leCount)
+	_ = h.db.QueryRowContext(r.Context(), "SELECT COUNT(*) FROM le_certificates WHERE status='active'").Scan(&leCount)
 
 	data := h.base(w, r, "home")
 	data["CAOnline"] = caOnline
@@ -49,33 +51,37 @@ func (h *Handler) Home(w http.ResponseWriter, r *http.Request) {
 	h.render(w, "home", data)
 }
 
+// Dashboard renders the certificates activity dashboard.
 func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 	certs, _ := appdb.GetCerts(h.db, "active")
 	total := len(certs)
 	okC, warnC, expC := 0, 0, 0
 	for _, c := range certs {
 		d := daysLeftVal(c.ExpiresAt)
-		if d <= 0 {
+		switch {
+		case d <= 0:
 			expC++
-		} else if d <= 30 {
+		case d <= 30:
 			warnC++
-		} else {
+		default:
 			okC++
 		}
 	}
 
+	ctx := r.Context()
+
 	// ── Активность CA за периоды ──
 	act := map[string]map[string]int{
-		"24h": dashCountActions(h.db, 24*time.Hour),
-		"7d":  dashCountActions(h.db, 7*24*time.Hour),
-		"30d": dashCountActions(h.db, 30*24*time.Hour),
+		"24h": dashCountActions(ctx, h.db, 24*time.Hour),
+		"7d":  dashCountActions(ctx, h.db, 7*24*time.Hour),
+		"30d": dashCountActions(ctx, h.db, 30*24*time.Hour),
 	}
 
 	// ── Общая статистика ──
 	var allCerts, leCerts, usersCount int
-	_ = h.db.QueryRow("SELECT COUNT(*) FROM certificates").Scan(&allCerts)
-	_ = h.db.QueryRow("SELECT COUNT(*) FROM le_certificates").Scan(&leCerts)
-	_ = h.db.QueryRow("SELECT COUNT(*) FROM users WHERE is_active = true").Scan(&usersCount)
+	_ = h.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM certificates").Scan(&allCerts)
+	_ = h.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM le_certificates").Scan(&leCerts)
+	_ = h.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM users WHERE is_active = true").Scan(&usersCount)
 
 	// ── Аптайм сервера ──
 	uptime := time.Since(StartedAt)
@@ -98,10 +104,11 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 	h.render(w, "dashboard", data)
 }
 
-// ─── helper: считает действия по типам за последний период ──────────────────
-func dashCountActions(db *sql.DB, since time.Duration) map[string]int {
+// dashCountActions counts cert_history actions grouped by type for the given time window.
+func dashCountActions(ctx context.Context, db *sql.DB, since time.Duration) map[string]int {
 	result := map[string]int{"issue": 0, "renew": 0, "revoke": 0, "import": 0, "total": 0}
-	rows, err := db.Query(
+	rows, err := db.QueryContext(
+		ctx,
 		`SELECT action, COUNT(*) FROM cert_history WHERE created_at >= $1 GROUP BY action`,
 		time.Now().Add(-since),
 	)
@@ -136,6 +143,7 @@ func fmtUptime(d time.Duration) string {
 	return fmt.Sprintf("%dм", mins)
 }
 
+// Certificates renders the certificate list page.
 func (h *Handler) Certificates(w http.ResponseWriter, r *http.Request) {
 	certs, _ := appdb.GetCerts(h.db, "")
 	data := h.base(w, r, "certs")
@@ -143,10 +151,12 @@ func (h *Handler) Certificates(w http.ResponseWriter, r *http.Request) {
 	h.render(w, "certificates", data)
 }
 
+// IssueGet renders the certificate issuance form.
 func (h *Handler) IssueGet(w http.ResponseWriter, r *http.Request) {
 	h.render(w, "issue", h.base(w, r, "issue"))
 }
 
+// IssuePost handles the certificate issuance form submission.
 func (h *Handler) IssuePost(w http.ResponseWriter, r *http.Request) {
 	if !h.requireCSRF(w, r, "/issue") {
 		return
@@ -204,6 +214,7 @@ func (h *Handler) IssuePost(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/issue", http.StatusFound)
 }
 
+// Renew handles a certificate renewal POST request.
 func (h *Handler) Renew(w http.ResponseWriter, r *http.Request) {
 	if !h.requireCSRF(w, r, "/certificates") {
 		return
@@ -244,6 +255,7 @@ func (h *Handler) Renew(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/certificates", http.StatusFound)
 }
 
+// Revoke handles a certificate revocation POST request.
 func (h *Handler) Revoke(w http.ResponseWriter, r *http.Request) {
 	if !h.requireCSRF(w, r, "/certificates") {
 		return
@@ -266,16 +278,20 @@ func (h *Handler) Revoke(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/certificates", http.StatusFound)
 }
 
+// DownloadCA serves the root CA certificate for download.
 func (h *Handler) DownloadCA(w http.ResponseWriter, r *http.Request) {
 	h.serveCAFile(w, r, h.cfg.RootCert, "home-ca-root.crt")
 }
 
+// DownloadIntermediateCA serves the intermediate CA certificate for download.
 func (h *Handler) DownloadIntermediateCA(w http.ResponseWriter, r *http.Request) {
 	h.serveCAFile(w, r, h.intermediateCertPath(), "home-ca-intermediate.crt")
 }
 
+// DownloadFullChain serves the full certificate chain (intermediate + root) for download.
 func (h *Handler) DownloadFullChain(w http.ResponseWriter, r *http.Request) {
 	intermediatePath := h.intermediateCertPath()
+	//nolint:gosec // G304: intermediateCertPath() returns a fixed path under the step-ca volume
 	intermediate, err := os.ReadFile(intermediatePath)
 	if err != nil {
 		http.NotFound(w, r)
@@ -313,6 +329,7 @@ func (h *Handler) serveCAFile(w http.ResponseWriter, r *http.Request, path, file
 	http.ServeFile(w, r, path)
 }
 
+// DownloadCert serves the certificate file for a managed certificate.
 func (h *Handler) DownloadCert(w http.ResponseWriter, r *http.Request) {
 	c, ok := h.certFromURL(w, r)
 	if !ok {
@@ -330,6 +347,7 @@ func (h *Handler) DownloadCert(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, c.CertPath)
 }
 
+// DownloadKey serves the private key file for a managed certificate.
 func (h *Handler) DownloadKey(w http.ResponseWriter, r *http.Request) {
 	c, ok := h.certFromURL(w, r)
 	if !ok {
@@ -347,6 +365,7 @@ func (h *Handler) DownloadKey(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, c.KeyPath)
 }
 
+// ImportGet renders the certificate import page.
 func (h *Handler) ImportGet(w http.ResponseWriter, r *http.Request) {
 	data := h.base(w, r, "import")
 	data["Unregistered"] = scanExistingCerts(h.cfg.CertsDir, h.db)
@@ -354,6 +373,7 @@ func (h *Handler) ImportGet(w http.ResponseWriter, r *http.Request) {
 	h.render(w, "import", data)
 }
 
+// ImportPost handles certificate import (file upload or manual path entry).
 func (h *Handler) ImportPost(w http.ResponseWriter, r *http.Request) {
 	if !h.requireCSRF(w, r, "/import") {
 		return
@@ -372,6 +392,7 @@ func (h *Handler) ImportPost(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) importUpload(w http.ResponseWriter, r *http.Request, si *models.SessionInfo) {
+	//nolint:gosec // G120: 10 MiB bound is explicit; ParseMultipartForm enforces it
 	_ = r.ParseMultipartForm(10 << 20)
 	name := trimStr(r.FormValue("name"))
 	domain := trimStr(r.FormValue("domain"))
@@ -502,7 +523,8 @@ func (h *Handler) importManual(w http.ResponseWriter, r *http.Request, si *model
 	http.Redirect(w, r, "/import?tab=manual", http.StatusFound)
 }
 
-func (h *Handler) APIStatus(w http.ResponseWriter, r *http.Request) {
+// APIStatus returns a JSON summary of active/expiring certificates.
+func (h *Handler) APIStatus(w http.ResponseWriter, _ *http.Request) {
 	certs, _ := appdb.GetCerts(h.db, "active")
 	type exp struct {
 		Name   string `json:"name"`

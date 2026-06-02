@@ -23,6 +23,7 @@ import (
 	appdb "step-ui/db"
 )
 
+// StartedAt records the time the server process started (set in main).
 var StartedAt time.Time
 
 // Версионирование — переопределяется через ldflags при сборке
@@ -32,6 +33,7 @@ var (
 	GitCommit = "unknown"
 )
 
+// Handler holds the application dependencies for all HTTP handlers.
 type Handler struct {
 	db    *sql.DB
 	cfg   *config.Config

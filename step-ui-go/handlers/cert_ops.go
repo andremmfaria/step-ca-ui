@@ -42,7 +42,7 @@ func (h *Handler) certFromURL(w http.ResponseWriter, r *http.Request) (*models.C
 // A missing cert returns (nil, true) — callers redirect to /le.
 func (h *Handler) leCertFromURL(w http.ResponseWriter, r *http.Request) (*models.LECertificate, bool) {
 	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
-	c, err := appdb.GetLECert(h.db, id)
+	c, err := appdb.GetLECert(r.Context(), h.db, id)
 	if err != nil {
 		slog.Error("leCertFromURL: DB error", "id", id, "err", err)
 		http.Error(w, "Database error", http.StatusInternalServerError)
@@ -51,6 +51,7 @@ func (h *Handler) leCertFromURL(w http.ResponseWriter, r *http.Request) (*models
 	return c, true
 }
 
+// IssuePolicy holds the resolved certificate template and duration for issuance.
 type IssuePolicy struct {
 	Template string
 	Duration string
@@ -135,6 +136,7 @@ func revokeStep(ctx context.Context, certPath, keyPath string, cfg *config.Confi
 }
 
 func parseCertDates(certPath string) (issued, expires *time.Time, serial string, err error) {
+	//nolint:gosec // G304: certPath is the stored DB path for a managed certificate — containedPath-checked on import
 	data, err := os.ReadFile(certPath)
 	if err != nil {
 		return issued, expires, serial, err
@@ -157,6 +159,7 @@ func parseCertDates(certPath string) (issued, expires *time.Time, serial string,
 }
 
 func getCertKeyType(certPath string) string {
+	//nolint:gosec // G304: certPath is the stored DB path for a managed certificate — containedPath-checked on import
 	data, err := os.ReadFile(certPath)
 	if err != nil {
 		return ""
@@ -211,6 +214,7 @@ func scanExistingCerts(certsDir string, d *sql.DB) []map[string]string {
 }
 
 func saveUploadedFile(file multipart.File, dst string) error {
+	//nolint:gosec // G304: dst is constructed from containedPath(cfg.UploadDir, safeName(name))
 	f, err := os.Create(dst)
 	if err != nil {
 		return err

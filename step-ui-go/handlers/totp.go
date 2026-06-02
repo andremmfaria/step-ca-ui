@@ -22,6 +22,7 @@ const (
 	totpPendingTTL = 5 * time.Minute
 )
 
+// Profile2FAGet renders the 2FA settings page for the current user.
 func (h *Handler) Profile2FAGet(w http.ResponseWriter, r *http.Request) {
 	si := h.sessionInfo(r)
 	u, _ := appdb.GetUserByID(h.db, si.UserID)
@@ -30,6 +31,7 @@ func (h *Handler) Profile2FAGet(w http.ResponseWriter, r *http.Request) {
 	h.render(w, "profile_2fa", data)
 }
 
+// Profile2FAStart initiates TOTP enrolment by generating a new secret.
 func (h *Handler) Profile2FAStart(w http.ResponseWriter, r *http.Request) {
 	if !h.requireCSRF(w, r, "/profile/2fa") {
 		return
@@ -62,6 +64,7 @@ func (h *Handler) Profile2FAStart(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/profile/2fa", http.StatusFound)
 }
 
+// Profile2FAQR serves the TOTP QR code PNG for the pending enrolment.
 func (h *Handler) Profile2FAQR(w http.ResponseWriter, r *http.Request) {
 	si := h.sessionInfo(r)
 	u, _ := appdb.GetUserByID(h.db, si.UserID)
@@ -87,6 +90,7 @@ func (h *Handler) Profile2FAQR(w http.ResponseWriter, r *http.Request) {
 	_ = png.Encode(w, img)
 }
 
+// Profile2FAConfirm verifies the first TOTP code and enables 2FA for the account.
 func (h *Handler) Profile2FAConfirm(w http.ResponseWriter, r *http.Request) {
 	if !h.requireCSRF(w, r, "/profile/2fa") {
 		return
@@ -128,6 +132,7 @@ func (h *Handler) Profile2FAConfirm(w http.ResponseWriter, r *http.Request) {
 	h.render(w, "profile_2fa", data)
 }
 
+// Profile2FADisable disables TOTP 2FA for the current user after password confirmation.
 func (h *Handler) Profile2FADisable(w http.ResponseWriter, r *http.Request) {
 	if !h.requireCSRF(w, r, "/profile/2fa") {
 		return

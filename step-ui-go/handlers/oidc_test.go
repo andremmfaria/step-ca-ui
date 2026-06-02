@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"database/sql"
@@ -43,7 +44,7 @@ func newFakeProvider(t *testing.T) *fakeProvider {
 	fp.server = httptest.NewServer(mux)
 	issuer := fp.server.URL
 
-	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"issuer":                                issuer,
@@ -56,7 +57,7 @@ func newFakeProvider(t *testing.T) *fakeProvider {
 		})
 	})
 
-	mux.HandleFunc("/keys", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/keys", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		jwk := gojose.JSONWebKey{
 			Key:       &fp.privKey.PublicKey,
@@ -68,7 +69,7 @@ func newFakeProvider(t *testing.T) *fakeProvider {
 	})
 
 	// /token will be replaced per-test; default returns empty id_token
-	mux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/token", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"access_token": "fake-access-token",
@@ -131,7 +132,7 @@ func newTestHandlerOIDC(t *testing.T, cfg *config.Config, store *sessions.Cookie
 }
 
 func testConfig(issuer string) *config.Config {
-	return &config.Config{
+	return &config.Config{ //nolint:gosec // G101: test-only credentials, not real secrets
 		SecretKey:         "a-long-test-secret-key-32charsXX",
 		OIDCEnabled:       true,
 		OIDCIssuerURL:     issuer,
@@ -170,7 +171,7 @@ func discoverProvider(t *testing.T, issuer string) *gooidc.Provider {
 // apply to the next request.
 func injectSession(t *testing.T, store *sessions.CookieStore, values map[interface{}]interface{}) []*http.Cookie {
 	t.Helper()
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/", nil)
 	rr := httptest.NewRecorder()
 	sess, _ := store.New(req, "step-ui")
 	for k, v := range values {
@@ -199,7 +200,7 @@ func TestOIDCCallback_StateMismatch(t *testing.T) {
 		"oidc_verifier": "some-verifier",
 	})
 
-	req := httptest.NewRequest("GET", "/auth/oidc/callback?state=WRONG-STATE&code=testcode", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/auth/oidc/callback?state=WRONG-STATE&code=testcode", nil)
 	for _, c := range cookies {
 		req.AddCookie(c)
 	}
@@ -358,7 +359,7 @@ func TestOIDCCallback_ValidStateThenDBError(t *testing.T) {
 		"oidc_verifier": verifier,
 	})
 
-	req := httptest.NewRequest("GET", fmt.Sprintf("/auth/oidc/callback?state=%s&code=testcode", state), nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", fmt.Sprintf("/auth/oidc/callback?state=%s&code=testcode", state), nil)
 	for _, c := range cookies {
 		req.AddCookie(c)
 	}
@@ -393,7 +394,7 @@ func TestVerifyPasswordRejectsOIDCSentinel(t *testing.T) {
 // oidcSentinelNotVerifiable returns true when the sentinel is structurally
 // rejected by security.VerifyPassword (not bcrypt, not legacy-SHA256).
 func oidcSentinelNotVerifiable(hash string) bool {
-	import_security_pkg := func(pw, h string) bool {
+	importSecurityPkg := func(_ string, h string) bool {
 		// Inline the same logic as security.VerifyPassword to avoid circular import.
 		// bcrypt hashes start with $2a$, $2b$, or $2y$.
 		if len(h) > 4 && (h[:4] == "$2a$" || h[:4] == "$2b$" || h[:4] == "$2y$") {
@@ -415,5 +416,5 @@ func oidcSentinelNotVerifiable(hash string) bool {
 		// sentinel "oidc:jumpcloud" matches neither → VerifyPassword returns false
 		return true
 	}
-	return import_security_pkg("anything", hash)
+	return importSecurityPkg("anything", hash)
 }

@@ -252,7 +252,7 @@ func TestIssueCert_UnknownProvider(t *testing.T) {
 		Provider: "unknown-provider-xyz",
 		Staging:  true,
 	}
-	_, err := IssueCert(cfg)
+	_, err := IssueCert(&cfg)
 	if err == nil {
 		t.Error("expected error for unknown provider")
 	}

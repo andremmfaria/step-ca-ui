@@ -28,13 +28,14 @@ type notificationPayload struct {
 	Meta      map[string]string `json:"meta,omitempty"`
 }
 
+// AdminNotificationsGet renders the notification settings and log page.
 func (h *Handler) AdminNotificationsGet(w http.ResponseWriter, r *http.Request) {
-	settings, err := appdb.GetNotificationSettings(h.db)
+	settings, err := appdb.GetNotificationSettings(r.Context(), h.db)
 	if err != nil {
 		h.flash(w, r, "err", "Не удалось загрузить настройки уведомлений: "+err.Error())
 		settings = &models.NotificationSettings{NotifyExpiry: true, ExpiryDays: 30, NotifyFailures: true, NotifyAuthBurst: true}
 	}
-	logs, _ := appdb.GetNotificationLogs(h.db, 25)
+	logs, _ := appdb.GetNotificationLogs(r.Context(), h.db, 25)
 
 	data := h.base(w, r, "admin_notifications")
 	data["Settings"] = settings
@@ -42,6 +43,7 @@ func (h *Handler) AdminNotificationsGet(w http.ResponseWriter, r *http.Request) 
 	h.render(w, "admin_notifications", data)
 }
 
+// AdminNotificationsPost handles saving notification settings.
 func (h *Handler) AdminNotificationsPost(w http.ResponseWriter, r *http.Request) {
 	if !h.requireCSRF(w, r, "/admin/notifications") {
 		return
@@ -68,7 +70,7 @@ func (h *Handler) AdminNotificationsPost(w http.ResponseWriter, r *http.Request)
 			return
 		}
 	}
-	if err := appdb.SaveNotificationSettings(h.db, settings); err != nil {
+	if err := appdb.SaveNotificationSettings(r.Context(), h.db, settings); err != nil {
 		h.flash(w, r, "err", "Не удалось сохранить настройки: "+err.Error())
 	} else {
 		h.flash(w, r, "ok", "Настройки уведомлений сохранены")
@@ -76,11 +78,12 @@ func (h *Handler) AdminNotificationsPost(w http.ResponseWriter, r *http.Request)
 	http.Redirect(w, r, "/admin/notifications", http.StatusSeeOther)
 }
 
+// AdminNotificationsTest sends a test webhook notification.
 func (h *Handler) AdminNotificationsTest(w http.ResponseWriter, r *http.Request) {
 	if !h.requireCSRF(w, r, "/admin/notifications") {
 		return
 	}
-	settings, err := appdb.GetNotificationSettings(h.db)
+	settings, err := appdb.GetNotificationSettings(r.Context(), h.db)
 	if err != nil {
 		h.flash(w, r, "err", "Не удалось загрузить настройки: "+err.Error())
 		http.Redirect(w, r, "/admin/notifications", http.StatusSeeOther)
@@ -113,7 +116,7 @@ func (h *Handler) notifyAsync(eventKey, eventType, severity, title, message stri
 }
 
 func (h *Handler) sendNotification(ctx context.Context, eventKey, eventType, severity, title, message string, meta map[string]string) error {
-	settings, err := appdb.GetNotificationSettings(h.db)
+	settings, err := appdb.GetNotificationSettings(ctx, h.db)
 	if err != nil {
 		return err
 	}
@@ -123,7 +126,7 @@ func (h *Handler) sendNotification(ctx context.Context, eventKey, eventType, sev
 	if !notificationAllowed(settings, eventType) {
 		return nil
 	}
-	if eventKey != "" && appdb.NotificationEventExists(h.db, eventKey) {
+	if eventKey != "" && appdb.NotificationEventExists(ctx, h.db, eventKey) {
 		return nil
 	}
 
@@ -161,7 +164,7 @@ func (h *Handler) sendNotification(ctx context.Context, eventKey, eventType, sev
 	if err != nil {
 		logEntry.Success = false
 		logEntry.Error = err.Error()
-		_ = appdb.AddNotificationLog(h.db, logEntry)
+		_ = appdb.AddNotificationLog(ctx, h.db, logEntry)
 		return err
 	}
 	defer func() { _ = resp.Body.Close() }()
@@ -169,11 +172,11 @@ func (h *Handler) sendNotification(ctx context.Context, eventKey, eventType, sev
 		err = fmt.Errorf("webhook returned HTTP %d", resp.StatusCode)
 		logEntry.Success = false
 		logEntry.Error = err.Error()
-		_ = appdb.AddNotificationLog(h.db, logEntry)
+		_ = appdb.AddNotificationLog(ctx, h.db, logEntry)
 		return err
 	}
 	logEntry.Success = true
-	_ = appdb.AddNotificationLog(h.db, logEntry)
+	_ = appdb.AddNotificationLog(ctx, h.db, logEntry)
 	return nil
 }
 
@@ -190,6 +193,8 @@ func notificationAllowed(settings *models.NotificationSettings, eventType string
 	}
 }
 
+// StartNotificationWorker starts a background goroutine that checks for expiring
+// certificates once daily and emits webhook notifications.
 func (h *Handler) StartNotificationWorker() {
 	safeGo("notification-worker", func() {
 		h.checkExpiringCertificates(context.Background())
@@ -202,7 +207,7 @@ func (h *Handler) StartNotificationWorker() {
 }
 
 func (h *Handler) checkExpiringCertificates(ctx context.Context) {
-	settings, err := appdb.GetNotificationSettings(h.db)
+	settings, err := appdb.GetNotificationSettings(ctx, h.db)
 	if err != nil || !settings.NotifyExpiry || settings.ExpiryDays <= 0 {
 		return
 	}

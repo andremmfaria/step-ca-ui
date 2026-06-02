@@ -1,3 +1,4 @@
+// Package main is the entry point for the Step-CA UI web application.
 package main
 
 import (
@@ -134,17 +135,22 @@ func main() {
 	if err != nil {
 		log.Fatalf("Cannot connect to database: %v", err)
 	}
-	defer func() { _ = conn.Close() }()
-
+	// Run schema migrations before registering the close defer; log.Fatalf
+	// calls os.Exit which skips defers, so we keep the conn available and
+	// only register the defer after the startup sequence completes.
 	if err := appdb.InitSchema(conn); err != nil {
+		_ = conn.Close()
 		log.Fatalf("Cannot init DB schema: %v", err)
 	}
 	if err := appdb.InitLESchema(conn); err != nil {
+		_ = conn.Close()
 		log.Fatalf("Cannot init LE schema: %v", err)
 	}
 	if err := appdb.InitNotificationSchema(conn); err != nil {
+		_ = conn.Close()
 		log.Fatalf("Cannot init notification schema: %v", err)
 	}
+	defer func() { _ = conn.Close() }()
 
 	// ─── Sessions ────────────────────────────────────────────────────────────
 	hashKey := sha256.Sum256([]byte(cfg.SecretKey))
@@ -282,9 +288,10 @@ func main() {
 	// Use the embedded FS sub-tree for static files so the binary is self-contained
 	// and does not depend on the working directory.  staticHandlerFromFS enforces
 	// MIME types and path-traversal protection on top of the embed.FS boundary.
-	staticFS, err := fs.Sub(embeddedAssets, "static")
-	if err != nil {
-		log.Fatalf("cannot create static sub-FS: %v", err)
+	staticFS, fsErr := fs.Sub(embeddedAssets, "static")
+	if fsErr != nil {
+		// conn.Close() defer will run before this panic.
+		panic("cannot create static sub-FS: " + fsErr.Error())
 	}
 	r.Handle("/static/*", http.StripPrefix("/static/", staticHandlerFromFS(staticFS)))
 	// ─── Start server ─────────────────────────────────────────────────────────
@@ -338,7 +345,11 @@ func main() {
 	select {
 	case err := <-srvErr:
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Fatalf("server error: %v", err)
+			// Use slog+os.Exit so defers (stop/conn.Close) can run before exit.
+			slog.Error("server error", "err", err)
+			stop()
+			_ = conn.Close()
+			os.Exit(1) //nolint:gocritic // exitAfterDefer: stop() called explicitly above
 		}
 	case <-ctx.Done():
 		stop()

@@ -62,10 +62,7 @@ formatters:
       module-path: step-ui
 
 issues:
-  # Ratchet baseline advanced in PR-23.  The previous frozen SHA (a3ba460) had
-  # the full legacy backlog; this SHA freezes the post-PR-23 residual (82 issues:
-  # 50 revive exported-comment, 13 gosec pre-existing, 12 noctx pre-existing,
-  # 6 gocritic style, 1 unparam).  Each future PR must clean up its own diff;
-  # the residual backlog is tracked for Wave 4.
-  new-from-rev: a119977
-  # Caps removed — the ratchet baseline handles scope.
+  # Ratchet baseline removed: all 82 residual findings (revive, gosec, noctx,
+  # gocritic, unparam) cleared in W4-3.  Full-repo lint is now enforced on
+  # every diff — no new-from-rev baseline.
+  # Caps removed — no baseline needed.

@@ -1,11 +1,13 @@
 package db
 
 import (
+	"context"
 	"database/sql"
 
 	"step-ui/models"
 )
 
+// InitNotificationSchema creates the notification settings and log tables if absent.
 func InitNotificationSchema(d *sql.DB) error {
 	schema := `
 	CREATE TABLE IF NOT EXISTS notification_settings (
@@ -34,13 +36,14 @@ func InitNotificationSchema(d *sql.DB) error {
 
 	INSERT INTO notification_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
 	`
-	_, err := d.Exec(schema)
+	_, err := d.ExecContext(context.Background(), schema)
 	return err
 }
 
-func GetNotificationSettings(d *sql.DB) (*models.NotificationSettings, error) {
+// GetNotificationSettings returns the singleton notification settings row.
+func GetNotificationSettings(ctx context.Context, d *sql.DB) (*models.NotificationSettings, error) {
 	s := &models.NotificationSettings{}
-	err := d.QueryRow(`SELECT id,webhook_enabled,COALESCE(webhook_url,''),notify_expiry,
+	err := d.QueryRowContext(ctx, `SELECT id,webhook_enabled,COALESCE(webhook_url,''),notify_expiry,
 		COALESCE(expiry_days,30),notify_failures,notify_auth_burst,updated_at
 		FROM notification_settings WHERE id=1`).
 		Scan(&s.ID, &s.WebhookEnabled, &s.WebhookURL, &s.NotifyExpiry,
@@ -60,8 +63,9 @@ func GetNotificationSettings(d *sql.DB) (*models.NotificationSettings, error) {
 	return s, err
 }
 
-func SaveNotificationSettings(d *sql.DB, s *models.NotificationSettings) error {
-	_, err := d.Exec(`INSERT INTO notification_settings
+// SaveNotificationSettings upserts the notification settings.
+func SaveNotificationSettings(ctx context.Context, d *sql.DB, s *models.NotificationSettings) error {
+	_, err := d.ExecContext(ctx, `INSERT INTO notification_settings
 		(id,webhook_enabled,webhook_url,notify_expiry,expiry_days,notify_failures,notify_auth_burst,updated_at)
 		VALUES (1,$1,$2,$3,$4,$5,$6,NOW())
 		ON CONFLICT (id) DO UPDATE SET
@@ -76,8 +80,9 @@ func SaveNotificationSettings(d *sql.DB, s *models.NotificationSettings) error {
 	return err
 }
 
-func AddNotificationLog(d *sql.DB, l *models.NotificationLog) error {
-	_, err := d.Exec(`INSERT INTO notification_log
+// AddNotificationLog inserts a notification log entry (deduplicates by event_key).
+func AddNotificationLog(ctx context.Context, d *sql.DB, l *models.NotificationLog) error {
+	_, err := d.ExecContext(ctx, `INSERT INTO notification_log
 		(event_key,event_type,severity,title,message,success,error)
 		VALUES (NULLIF($1,''),$2,$3,$4,$5,$6,$7)
 		ON CONFLICT (event_key) DO NOTHING`,
@@ -85,17 +90,19 @@ func AddNotificationLog(d *sql.DB, l *models.NotificationLog) error {
 	return err
 }
 
-func NotificationEventExists(d *sql.DB, eventKey string) bool {
+// NotificationEventExists returns true when a log entry with the given event key already exists.
+func NotificationEventExists(ctx context.Context, d *sql.DB, eventKey string) bool {
 	if eventKey == "" {
 		return false
 	}
 	var exists bool
-	_ = d.QueryRow(`SELECT EXISTS(SELECT 1 FROM notification_log WHERE event_key=$1)`, eventKey).Scan(&exists)
+	_ = d.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM notification_log WHERE event_key=$1)`, eventKey).Scan(&exists)
 	return exists
 }
 
-func GetNotificationLogs(d *sql.DB, limit int) ([]*models.NotificationLog, error) {
-	rows, err := d.Query(`SELECT id,COALESCE(event_key,''),COALESCE(event_type,''),COALESCE(severity,''),
+// GetNotificationLogs returns up to limit notification log entries ordered by creation time.
+func GetNotificationLogs(ctx context.Context, d *sql.DB, limit int) ([]*models.NotificationLog, error) {
+	rows, err := d.QueryContext(ctx, `SELECT id,COALESCE(event_key,''),COALESCE(event_type,''),COALESCE(severity,''),
 		COALESCE(title,''),COALESCE(message,''),success,COALESCE(error,''),created_at
 		FROM notification_log ORDER BY created_at DESC LIMIT $1`, limit)
 	if err != nil {

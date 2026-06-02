@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"time"
@@ -27,7 +28,10 @@ func (h *Handler) StartRenewer() {
 }
 
 func (h *Handler) runRenewal() {
-	certs, err := appdb.GetLECertsForRenewal(h.db)
+	// Background context: this runs outside any HTTP request lifetime.
+	ctx := context.Background()
+
+	certs, err := appdb.GetLECertsForRenewal(ctx, h.db)
 	if err != nil {
 		slog.Error("LE renewal check failed", "err", err)
 		return
@@ -38,7 +42,7 @@ func (h *Handler) runRenewal() {
 	}
 	slog.Info("LE renewal: certificates to renew", "count", len(certs))
 
-	settings, err := appdb.GetLESettings(h.db)
+	settings, err := appdb.GetLESettings(ctx, h.db)
 	if err != nil {
 		slog.Error("LE renewal: cannot load settings", "err", err)
 		return
@@ -46,7 +50,7 @@ func (h *Handler) runRenewal() {
 
 	for _, cert := range certs {
 		slog.Info("LE renewing certificate", "domain", cert.Domain)
-		appdb.AddLELog(h.db, cert.Domain, "renew", "Начало автоматического обновления")
+		appdb.AddLELog(ctx, h.db, cert.Domain, "renew", "Начало автоматического обновления")
 
 		email := cert.Email
 		if email == "" {
@@ -57,7 +61,7 @@ func (h *Handler) runRenewal() {
 			provider = settings.Provider
 		}
 
-		result, err := le.IssueCert(le.LEConfig{
+		result, err := le.IssueCert(&le.LEConfig{
 			Email:     email,
 			Domain:    cert.Domain,
 			Provider:  provider,
@@ -68,10 +72,10 @@ func (h *Handler) runRenewal() {
 			R53Region: settings.R53Region,
 		})
 		if err != nil {
-			if dbErr := appdb.UpdateLECertStatus(h.db, cert.ID, "error", err.Error()); dbErr != nil {
+			if dbErr := appdb.UpdateLECertStatus(ctx, h.db, cert.ID, "error", err.Error()); dbErr != nil {
 				slog.Error("LE renewal: failed to update cert status", "domain", cert.Domain, "err", dbErr)
 			}
-			appdb.AddLELog(h.db, cert.Domain, "error", fmt.Sprintf("Ошибка обновления: %v", err))
+			appdb.AddLELog(ctx, h.db, cert.Domain, "error", fmt.Sprintf("Ошибка обновления: %v", err))
 			slog.Error("LE renewal failed", "domain", cert.Domain, "err", err)
 			// Emit a notification so the failure appears in history like the manual path.
 			h.notifyAsync(
@@ -82,10 +86,10 @@ func (h *Handler) runRenewal() {
 			)
 			continue
 		}
-		if dbErr := appdb.UpdateLECertPaths(h.db, cert.ID, result.CertPath, result.KeyPath, result.IssuedAt, result.ExpiresAt); dbErr != nil {
+		if dbErr := appdb.UpdateLECertPaths(ctx, h.db, cert.ID, result.CertPath, result.KeyPath, result.IssuedAt, result.ExpiresAt); dbErr != nil {
 			slog.Error("LE renewal: failed to update cert paths", "domain", cert.Domain, "err", dbErr)
 		}
-		appdb.AddLELog(h.db, cert.Domain, "renew", "Сертификат успешно обновлён")
+		appdb.AddLELog(ctx, h.db, cert.Domain, "renew", "Сертификат успешно обновлён")
 		slog.Info("LE certificate renewed successfully", "domain", cert.Domain)
 	}
 }

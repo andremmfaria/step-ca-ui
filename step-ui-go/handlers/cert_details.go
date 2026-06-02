@@ -5,7 +5,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/rsa"
-	"crypto/sha1"
+	"crypto/sha1" //nolint:gosec // G505: sha1 used only for x.509 display fingerprints, not security
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/hex"
@@ -25,6 +25,7 @@ import (
 	appdb "step-ui/db"
 )
 
+// CertDetail holds parsed certificate metadata for the detail view.
 type CertDetail struct {
 	ID              int
 	Name            string
@@ -49,12 +50,14 @@ type CertDetail struct {
 	ExtKeyUsage     []string
 }
 
+// CertValidation is a single named validation check result shown in the details view.
 type CertValidation struct {
 	Name   string
 	Status string
 	Detail string
 }
 
+// CertificateDetails renders the certificate detail and validation page.
 func (h *Handler) CertificateDetails(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
 	c, _ := appdb.GetCert(h.db, id)
@@ -85,13 +88,14 @@ func (h *Handler) buildCertDetail(c *models.Certificate) (*CertDetail, []CertVal
 	add("Certificate file", "ok", c.CertPath)
 
 	now := time.Now()
-	if now.Before(cert.NotBefore) {
+	switch {
+	case now.Before(cert.NotBefore):
 		add("Validity window", "warn", "certificate is not valid yet")
-	} else if now.After(cert.NotAfter) {
+	case now.After(cert.NotAfter):
 		add("Validity window", "err", "certificate is expired")
-	} else if cert.NotAfter.Sub(now) <= 30*24*time.Hour {
+	case cert.NotAfter.Sub(now) <= 30*24*time.Hour:
 		add("Validity window", "warn", fmt.Sprintf("expires in %d days", int(time.Until(cert.NotAfter).Hours()/24)))
-	} else {
+	default:
 		add("Validity window", "ok", fmt.Sprintf("valid until %s", cert.NotAfter.Format("2006-01-02 15:04")))
 	}
 
@@ -162,6 +166,7 @@ func validateNameMatch(cert *x509.Certificate, name string) error {
 }
 
 func validateKeyPair(cert *x509.Certificate, keyPath string) error {
+	//nolint:gosec // G304: keyPath is the stored DB path for a managed certificate — containedPath-checked on import
 	raw, err := os.ReadFile(keyPath)
 	if err != nil {
 		return fmt.Errorf("%s is not readable: %w", keyPath, err)
@@ -251,6 +256,7 @@ func certFingerprints(cert *x509.Certificate) (string, string) {
 }
 
 func x509SHA1(raw []byte) [20]byte {
+	//nolint:gosec // G401: sha1 is used for certificate display fingerprints (informational, not security)
 	return sha1.Sum(raw)
 }
 

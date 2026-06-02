@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"html/template"
 	"net/http"
@@ -30,7 +31,7 @@ func newMinimalHandler(cfg *config.Config) *Handler {
 func TestLiveness(t *testing.T) {
 	h := newMinimalHandler(&config.Config{})
 
-	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/health", nil)
 	rr := httptest.NewRecorder()
 	h.Liveness(rr, req)
 
@@ -58,7 +59,7 @@ func TestReadiness_NilDB(t *testing.T) {
 		RootCert: "",
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/ready", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/ready", nil)
 	rr := httptest.NewRecorder()
 	h.Readiness(rr, req)
 
@@ -84,7 +85,7 @@ func TestReadiness_CAUnreachable(t *testing.T) {
 		RootCert: "",
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/ready", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/ready", nil)
 	rr := httptest.NewRecorder()
 	h.Readiness(rr, req)
 
@@ -121,7 +122,7 @@ func TestReadiness_CAOk(t *testing.T) {
 	// The test validates that the CA field is populated with a non-"unreachable" value
 	// even if TLS verification fails (may get "unreachable" with unknown cert).
 	// What matters: no panic, JSON valid, db field correctly set to "unavailable".
-	req := httptest.NewRequest(http.MethodGet, "/ready", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/ready", nil)
 	rr := httptest.NewRecorder()
 	h.Readiness(rr, req)
 
@@ -140,7 +141,7 @@ func TestLiveness_NoDependencies(t *testing.T) {
 	h := newMinimalHandler(&config.Config{})
 
 	for i := 0; i < 3; i++ {
-		req := httptest.NewRequest(http.MethodGet, "/health", nil)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/health", nil)
 		rr := httptest.NewRecorder()
 		h.Liveness(rr, req)
 		if rr.Code != http.StatusOK {

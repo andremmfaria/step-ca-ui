@@ -80,11 +80,14 @@ func (h *Handler) AdminUsersTempGet(w http.ResponseWriter, r *http.Request) {
 			}
 			// Удалим cookie сразу после показа
 			http.SetCookie(w, &http.Cookie{
-				Name:    "new_temp_cred",
-				Value:   "",
-				Path:    "/",
-				Expires: time.Unix(0, 0),
-				MaxAge:  -1,
+				Name:     "new_temp_cred",
+				Value:    "",
+				Path:     "/",
+				Expires:  time.Unix(0, 0),
+				MaxAge:   -1,
+				HttpOnly: true,
+				SameSite: http.SameSiteLaxMode,
+				Secure:   true,
 			})
 		}
 	}
@@ -159,9 +162,11 @@ func (h *Handler) AdminUsersTempPost(w http.ResponseWriter, r *http.Request) {
 		MaxAge:   120, // 2 минуты
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
+		Secure:   true,
 	})
 
 	h.flash(w, r, "ok", "Временный пользователь создан")
+	//nolint:gosec // G710: id is the DB-generated primary key (int), not user input
 	http.Redirect(w, r, fmt.Sprintf("/admin/users-temp?new_id=%d", id), http.StatusSeeOther)
 }
 

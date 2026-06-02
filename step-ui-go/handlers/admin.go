@@ -1,3 +1,4 @@
+// Package handlers implements the HTTP handler layer for the Step-CA UI.
 package handlers
 
 import (
@@ -28,35 +29,36 @@ type AdminLogin struct {
 
 // AdminGet — обзорная страница админа.
 func (h *Handler) AdminGet(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	var s AdminStats
 
-	_ = h.db.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&s.TotalUsers)
-	_ = h.db.QueryRow(`SELECT COUNT(*) FROM users WHERE is_active = true`).Scan(&s.ActiveUsers)
-	_ = h.db.QueryRow(`SELECT COUNT(*) FROM users WHERE is_active = false`).Scan(&s.BlockedUsers)
-	_ = h.db.QueryRow(`SELECT COUNT(*) FROM users WHERE role = 'admin'`).Scan(&s.AdminsCount)
-	_ = h.db.QueryRow(`SELECT COUNT(*) FROM users WHERE role = 'manager'`).Scan(&s.ManagersCount)
-	_ = h.db.QueryRow(`SELECT COUNT(*) FROM users WHERE role = 'viewer'`).Scan(&s.ViewersCount)
+	_ = h.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM users`).Scan(&s.TotalUsers)
+	_ = h.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM users WHERE is_active = true`).Scan(&s.ActiveUsers)
+	_ = h.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM users WHERE is_active = false`).Scan(&s.BlockedUsers)
+	_ = h.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM users WHERE role = 'admin'`).Scan(&s.AdminsCount)
+	_ = h.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM users WHERE role = 'manager'`).Scan(&s.ManagersCount)
+	_ = h.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM users WHERE role = 'viewer'`).Scan(&s.ViewersCount)
 
-	_ = h.db.QueryRow(`
+	_ = h.db.QueryRowContext(ctx, `
 		SELECT COUNT(*) FROM certificates
 		WHERE status = 'active'
 		  AND (expires_at IS NULL OR expires_at > NOW())
 	`).Scan(&s.ActiveCerts)
-	_ = h.db.QueryRow(`SELECT COUNT(*) FROM le_certificates`).Scan(&s.LeCerts)
+	_ = h.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM le_certificates`).Scan(&s.LeCerts)
 
-	_ = h.db.QueryRow(`
+	_ = h.db.QueryRowContext(ctx, `
 		SELECT COUNT(*) FROM auth_log
 		WHERE success = true
 		  AND created_at > NOW() - INTERVAL '24 hours'
 	`).Scan(&s.LoginsToday)
-	_ = h.db.QueryRow(`
+	_ = h.db.QueryRowContext(ctx, `
 		SELECT COUNT(*) FROM auth_log
 		WHERE success = false
 		  AND created_at > NOW() - INTERVAL '24 hours'
 	`).Scan(&s.FailedLogins)
 
 	var recent []AdminLogin
-	rows, err := h.db.Query(`
+	rows, err := h.db.QueryContext(ctx, `
 		SELECT COALESCE(username, '—') AS username,
 		       COALESCE(ip, '—')       AS ip,
 		       created_at

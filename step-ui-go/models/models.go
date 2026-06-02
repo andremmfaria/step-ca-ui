@@ -1,7 +1,9 @@
+// Package models defines the data types used across the Step-CA UI application.
 package models
 
 import "time"
 
+// User represents an application user account.
 type User struct {
 	ID                int
 	Username          string
@@ -19,6 +21,7 @@ type User struct {
 	TOTPPendingSecret string
 }
 
+// AuthLog is a single authentication event record.
 type AuthLog struct {
 	ID        int
 	Username  string
@@ -28,6 +31,7 @@ type AuthLog struct {
 	CreatedAt time.Time
 }
 
+// Certificate represents a step-ca issued certificate stored in the database.
 type Certificate struct {
 	ID        int
 	Name      string
@@ -45,6 +49,7 @@ type Certificate struct {
 	IssueDuration string
 }
 
+// CertHistory records a certificate lifecycle action (issue, renew, revoke, import).
 type CertHistory struct {
 	ID        int
 	Action    string
@@ -56,11 +61,13 @@ type CertHistory struct {
 	CreatedAt time.Time
 }
 
+// FlashMsg is a one-shot UI notification stored in the session.
 type FlashMsg struct {
 	Type string // "ok" or "err"
 	Text string
 }
 
+// SessionInfo holds the authenticated user data stored in the session cookie.
 type SessionInfo struct {
 	UserID   int
 	Username string
@@ -68,6 +75,7 @@ type SessionInfo struct {
 	Theme    string
 }
 
+// NotificationSettings holds the webhook notification configuration.
 type NotificationSettings struct {
 	ID              int
 	WebhookEnabled  bool
@@ -79,6 +87,7 @@ type NotificationSettings struct {
 	UpdatedAt       *time.Time
 }
 
+// NotificationLog records a sent (or attempted) webhook notification.
 type NotificationLog struct {
 	ID        int
 	EventKey  string

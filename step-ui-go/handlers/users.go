@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"step-ui/security"
@@ -12,6 +13,7 @@ import (
 	appdb "step-ui/db"
 )
 
+// Users renders the admin user management list page.
 func (h *Handler) Users(w http.ResponseWriter, r *http.Request) {
 	users, _ := appdb.GetAllUsers(h.db)
 	since := time.Now().Add(-24 * time.Hour)
@@ -25,6 +27,7 @@ func (h *Handler) Users(w http.ResponseWriter, r *http.Request) {
 	h.render(w, "admin_users", data)
 }
 
+// UsersPost handles user creation, role update, block/unblock, and password reset actions.
 func (h *Handler) UsersPost(w http.ResponseWriter, r *http.Request) {
 	if !h.requireCSRF(w, r, "/admin/users") {
 		return
@@ -109,12 +112,15 @@ func (h *Handler) UsersPost(w http.ResponseWriter, r *http.Request) {
 		h.flash(w, r, "ok", "Пароль сброшен")
 	}
 	returnTo := r.FormValue("return_to")
-	if returnTo == "" {
+	// Restrict to relative paths to prevent open-redirect via user-supplied return_to.
+	if returnTo == "" || !strings.HasPrefix(returnTo, "/") || strings.HasPrefix(returnTo, "//") {
 		returnTo = "/admin/users"
 	}
+	//nolint:gosec // G710: returnTo is validated above to be a relative path (starts with / but not //)
 	http.Redirect(w, r, returnTo, http.StatusFound)
 }
 
+// UserProfile renders the admin view of a specific user's profile and auth log.
 func (h *Handler) UserProfile(w http.ResponseWriter, r *http.Request) {
 	uid, _ := strconv.Atoi(chi.URLParam(r, "id"))
 	u, _ := appdb.GetUserByID(h.db, uid)
@@ -147,6 +153,7 @@ func (h *Handler) UserProfile(w http.ResponseWriter, r *http.Request) {
 	h.render(w, "admin_user_profile", data)
 }
 
+// ProfileGet renders the current user's own profile page.
 func (h *Handler) ProfileGet(w http.ResponseWriter, r *http.Request) {
 	si := h.sessionInfo(r)
 	u, _ := appdb.GetUserByID(h.db, si.UserID)
@@ -155,6 +162,7 @@ func (h *Handler) ProfileGet(w http.ResponseWriter, r *http.Request) {
 	h.render(w, "profile", data)
 }
 
+// ProfilePost handles the current user's profile update (theme, display name, password).
 func (h *Handler) ProfilePost(w http.ResponseWriter, r *http.Request) {
 	if !h.requireCSRF(w, r, "/profile") {
 		return

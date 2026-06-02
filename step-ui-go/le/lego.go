@@ -31,7 +31,9 @@ import (
 // (~seconds) so queueing is acceptable.
 var issueMu sync.Mutex
 
+// LE path and URL constants.
 const (
+	// LEDirectory is the root directory for ACME certificate storage.
 	LEDirectory    = "/opt/step-ui/le-certs"
 	LEAccountFile  = "/opt/step-ui/le-certs/account.json"
 	LEKeyFile      = "/opt/step-ui/le-certs/account.key"
@@ -39,18 +41,27 @@ const (
 	LEStagingCA    = "https://acme-staging-v02.api.letsencrypt.org/directory"
 )
 
-// LEUser реализует интерфейс registration.User
+// LEUser implements the registration.User interface for the ACME account.
+//
+//nolint:revive // LE prefix is intentional: these names were stable before the package prefix convention was adopted
 type LEUser struct {
 	Email        string
 	Registration *registration.Resource
 	key          crypto.PrivateKey
 }
 
-func (u *LEUser) GetEmail() string                        { return u.Email }
-func (u *LEUser) GetRegistration() *registration.Resource { return u.Registration }
-func (u *LEUser) GetPrivateKey() crypto.PrivateKey        { return u.key }
+// GetEmail returns the ACME account email address.
+func (u *LEUser) GetEmail() string { return u.Email }
 
-// LEConfig конфигурация для выпуска
+// GetRegistration returns the ACME registration resource.
+func (u *LEUser) GetRegistration() *registration.Resource { return u.Registration }
+
+// GetPrivateKey returns the ACME account private key.
+func (u *LEUser) GetPrivateKey() crypto.PrivateKey { return u.key }
+
+// LEConfig holds the configuration for a single ACME certificate issuance.
+//
+//nolint:revive // LE prefix is intentional: these names were stable before the package prefix convention was adopted
 type LEConfig struct {
 	Email     string
 	Domain    string
@@ -63,7 +74,9 @@ type LEConfig struct {
 	Staging   bool
 }
 
-// LEResult результат выпуска
+// LEResult holds the file paths and timestamps of an issued ACME certificate.
+//
+//nolint:revive // LE prefix is intentional: these names were stable before the package prefix convention was adopted
 type LEResult struct {
 	CertPath  string
 	KeyPath   string
@@ -74,7 +87,10 @@ type LEResult struct {
 // IssueCert выпускает сертификат Let's Encrypt.
 // It is safe to call concurrently; a package-level mutex serializes access to
 // shared state (account key file, registration file, and the ACME client).
-func IssueCert(cfg LEConfig) (*LEResult, error) {
+// IssueCert issues or renews a Let's Encrypt certificate for the domain in cfg.
+// It is safe to call concurrently; a package-level mutex serializes access to
+// shared state (account key file, registration file, and the ACME client).
+func IssueCert(cfg *LEConfig) (*LEResult, error) {
 	issueMu.Lock()
 	defer issueMu.Unlock()
 
@@ -195,6 +211,7 @@ func parseCertDates(certPEM []byte) (issued, expires *time.Time) {
 }
 
 func loadOrCreateKey(path string) (crypto.PrivateKey, error) {
+	//nolint:gosec // G304: path is LEKeyFile constant or derived from the LE data directory
 	if data, err := os.ReadFile(path); err == nil {
 		block, _ := pem.Decode(data)
 		if block != nil {
@@ -227,6 +244,7 @@ func saveRegistration(path string, reg *registration.Resource) {
 }
 
 func loadRegistration(path string) (*registration.Resource, error) {
+	//nolint:gosec // G304: path is LEAccountFile constant or derived from the LE data directory
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err

@@ -42,10 +42,12 @@ type backupComponent struct {
 	Detail string `json:"detail,omitempty"`
 }
 
+// AdminBackupGet renders the backup download page.
 func (h *Handler) AdminBackupGet(w http.ResponseWriter, r *http.Request) {
 	h.render(w, "admin_backup", h.base(w, r, "admin_backup"))
 }
 
+// AdminBackupDownload builds a backup bundle and streams it as a .tgz download.
 func (h *Handler) AdminBackupDownload(w http.ResponseWriter, r *http.Request) {
 	if !h.requireCSRF(w, r, "/admin/backup") {
 		return
@@ -124,7 +126,7 @@ func (h *Handler) buildBackupBundle(ctx context.Context) (string, string, error)
 	}
 
 	manifestPath := filepath.Join(tmp, "manifest.json")
-	if err := writeManifest(manifestPath, manifest); err != nil {
+	if err := writeManifest(manifestPath, &manifest); err != nil {
 		return "", "", err
 	}
 
@@ -177,6 +179,7 @@ func (h *Handler) writePGDump(ctx context.Context, path string) error {
 	defer cancel()
 
 	args := []string{"-h", info.host, "-p", info.port, "-U", info.user, "-d", info.db, "--no-owner", "--no-privileges"}
+	//nolint:gosec // G204: pg_dump is a known binary; args are DB connection params from config, not user input
 	cmd := exec.CommandContext(timeoutCtx, "pg_dump", args...)
 	// Pass PGPASSFILE rather than PGPASSWORD to keep the password off /proc.
 	env := make([]string, 0, len(os.Environ())+1)
@@ -187,6 +190,7 @@ func (h *Handler) writePGDump(ctx context.Context, path string) error {
 	}
 	env = append(env, "PGPASSFILE="+pgpassPath)
 	cmd.Env = env
+	//nolint:gosec // G304: path is constructed from a validated admin-specified backup directory
 	out, err := os.Create(path)
 	if err != nil {
 		return err
@@ -242,7 +246,8 @@ func parsePostgresURL(raw string) (postgresInfo, error) {
 	return postgresInfo{host: host, port: port, user: user, password: password, db: db}, nil
 }
 
-func writeManifest(path string, manifest backupManifest) error {
+func writeManifest(path string, manifest *backupManifest) error {
+	//nolint:gosec // G304: path is within the validated backup tmp directory
 	f, err := os.Create(path)
 	if err != nil {
 		return err
@@ -254,6 +259,7 @@ func writeManifest(path string, manifest backupManifest) error {
 }
 
 func fileStatSHA256(path string) (int64, string, error) {
+	//nolint:gosec // G304: path comes from config-dir file listing (admin-controlled)
 	f, err := os.Open(path)
 	if err != nil {
 		return 0, "", err
@@ -276,6 +282,7 @@ func writeDirTGZ(source, target string) error {
 		return fmt.Errorf("%s is not a directory", source)
 	}
 
+	//nolint:gosec // G304: target is the output bundle path constructed from a validated temp directory
 	out, err := os.Create(target)
 	if err != nil {
 		return err
@@ -316,6 +323,7 @@ func writeDirTGZ(source, target string) error {
 		if d.IsDir() {
 			return nil
 		}
+		//nolint:gosec // G304: path comes from filepath.WalkDir of validated source directory
 		f, err := os.Open(path)
 		if err != nil {
 			return err
@@ -330,6 +338,7 @@ func writeDirTGZ(source, target string) error {
 }
 
 func writeBundleTGZ(target string, files []string) error {
+	//nolint:gosec // G304: target is the output path constructed from a validated temp directory
 	out, err := os.Create(target)
 	if err != nil {
 		return err
@@ -353,6 +362,7 @@ func writeBundleTGZ(target string, files []string) error {
 		if err := tw.WriteHeader(hdr); err != nil {
 			return err
 		}
+		//nolint:gosec // G304: path comes from a caller-supplied file list validated before this call
 		f, err := os.Open(path)
 		if err != nil {
 			return err

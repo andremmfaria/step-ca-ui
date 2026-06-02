@@ -1,3 +1,5 @@
+// Package security provides password hashing, token generation, and
+// per-IP rate limiting for login attempt protection.
 package security
 
 import (
@@ -14,6 +16,7 @@ import (
 
 // ─── Password ─────────────────────────────────────────────────────────────────
 
+// HashPassword hashes pw with bcrypt at the default cost and panics on failure.
 func HashPassword(pw string) string {
 	hash, err := bcrypt.GenerateFromPassword([]byte(pw), bcrypt.DefaultCost)
 	if err != nil {
@@ -35,6 +38,7 @@ func isLegacySHA256Hash(hash string) bool {
 	return err == nil
 }
 
+// VerifyPassword returns true when pw matches the stored hash (bcrypt or legacy SHA-256).
 func VerifyPassword(pw, hash string) bool {
 	if strings.HasPrefix(hash, "$2a$") || strings.HasPrefix(hash, "$2b$") || strings.HasPrefix(hash, "$2y$") {
 		return bcrypt.CompareHashAndPassword([]byte(hash), []byte(pw)) == nil
@@ -46,6 +50,9 @@ func VerifyPassword(pw, hash string) bool {
 	return false
 }
 
+// NeedsPasswordRehash returns true when the stored hash uses the legacy SHA-256
+// scheme or a bcrypt cost below the current default, indicating it should be
+// upgraded on the next successful login.
 func NeedsPasswordRehash(hash string) bool {
 	if isLegacySHA256Hash(hash) {
 		return true
@@ -54,6 +61,8 @@ func NeedsPasswordRehash(hash string) bool {
 	return err != nil || cost < bcrypt.DefaultCost
 }
 
+// ValidatePassword returns (true, "") when pw satisfies the policy (8–72 chars,
+// at least one digit, letter and special character), or (false, reason) otherwise.
 func ValidatePassword(pw string) (bool, string) {
 	if len(pw) < 8 {
 		return false, "Минимум 8 символов"
@@ -63,11 +72,12 @@ func ValidatePassword(pw string) (bool, string) {
 	}
 	hasDigit, hasLetter, hasSpecial := false, false, false
 	for _, c := range pw {
-		if c >= '0' && c <= '9' {
+		switch {
+		case c >= '0' && c <= '9':
 			hasDigit = true
-		} else if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') {
+		case (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'):
 			hasLetter = true
-		} else if strings.ContainsRune(`+!@#$%^&*()_-=[]{}|;:,.<>?`, c) {
+		case strings.ContainsRune(`+!@#$%^&*()_-=[]{}|;:,.<>?`, c):
 			hasSpecial = true
 		}
 	}
@@ -85,6 +95,7 @@ func ValidatePassword(pw string) (bool, string) {
 
 // ─── CSRF token ───────────────────────────────────────────────────────────────
 
+// GenerateToken returns a 32-byte cryptographically random hex token.
 func GenerateToken() string {
 	b := make([]byte, 32)
 	rand.Read(b)
@@ -93,12 +104,16 @@ func GenerateToken() string {
 
 // ─── Rate Limiting ────────────────────────────────────────────────────────────
 
+// Rate-limiter thresholds and windows.
 const (
+	// LimitCount is the maximum number of login attempts within LimitWindow
+	// before the IP is considered blocked.
 	LimitCount  = 5
 	LimitWindow = 5 * time.Minute
 	BlockTime   = 15 * time.Minute
 )
 
+// RateLimiter tracks per-IP login attempt counts with a sliding time window.
 type RateLimiter struct {
 	mu       sync.Mutex
 	attempts map[string][]time.Time
@@ -124,6 +139,7 @@ func (r *RateLimiter) clean(ip string) {
 	r.attempts[ip] = v
 }
 
+// IsBlocked returns true when ip has reached the LimitCount threshold within LimitWindow.
 func (r *RateLimiter) IsBlocked(ip string) bool {
 	if ip == "" {
 		return false
@@ -134,6 +150,7 @@ func (r *RateLimiter) IsBlocked(ip string) bool {
 	return len(r.attempts[ip]) >= LimitCount
 }
 
+// Register records one login attempt from ip.
 func (r *RateLimiter) Register(ip string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -141,12 +158,14 @@ func (r *RateLimiter) Register(ip string) {
 	r.attempts[ip] = append(r.attempts[ip], time.Now())
 }
 
+// Clear removes all recorded attempts for ip (called on successful login).
 func (r *RateLimiter) Clear(ip string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	delete(r.attempts, ip)
 }
 
+// Left returns the number of remaining attempts before ip is blocked.
 func (r *RateLimiter) Left(ip string) int {
 	r.mu.Lock()
 	defer r.mu.Unlock()

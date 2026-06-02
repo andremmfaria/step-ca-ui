@@ -1,3 +1,5 @@
+// Package middleware provides HTTP middleware for security headers, session
+// authentication, and role-based access control.
 package middleware
 
 import (
