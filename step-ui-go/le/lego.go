@@ -162,10 +162,10 @@ func IssueCert(cfg LEConfig) (*LEResult, error) {
 	certPath := filepath.Join(certDir, "certificate.crt")
 	keyPath := filepath.Join(certDir, "private.key")
 
-	if err := os.WriteFile(certPath, certs.Certificate, 0644); err != nil {
+	if err := os.WriteFile(certPath, certs.Certificate, 0o644); err != nil { //nolint:gosec // G306: certificates are world-readable by design
 		return nil, err
 	}
-	if err := os.WriteFile(keyPath, certs.PrivateKey, 0600); err != nil {
+	if err := os.WriteFile(keyPath, certs.PrivateKey, 0o600); err != nil {
 		return nil, err
 	}
 
@@ -207,10 +207,10 @@ func loadOrCreateKey(path string) (crypto.PrivateKey, error) {
 		return nil, err
 	}
 	data, _ := x509.MarshalECPrivateKey(key)
-	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return nil, fmt.Errorf("creating key directory: %w", err)
 	}
-	if err := os.WriteFile(path, pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: data}), 0600); err != nil {
+	if err := os.WriteFile(path, pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: data}), 0o600); err != nil {
 		return nil, fmt.Errorf("saving account key: %w", err)
 	}
 	return key, nil
@@ -223,7 +223,7 @@ type savedRegistration struct {
 func saveRegistration(path string, reg *registration.Resource) {
 	data, _ := json.Marshal(&savedRegistration{Body: reg})
 	// best-effort: failure to save registration does not abort the certificate issuance
-	_ = os.WriteFile(path, data, 0600)
+	_ = os.WriteFile(path, data, 0o600)
 }
 
 func loadRegistration(path string) (*registration.Resource, error) {
