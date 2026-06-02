@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/go-acme/lego/v4/certcrypto"
@@ -20,6 +21,15 @@ import (
 	"github.com/go-acme/lego/v4/providers/dns/cloudflare"
 	"github.com/go-acme/lego/v4/registration"
 )
+
+// issueMu serializes all IssueCert calls.  Concurrent issuance races on:
+//   - loadOrCreateKey / saveRegistration (shared account key file);
+//   - os.Setenv (process-global environment, fixed below by using Config.AuthToken);
+//   - the ACME client state machine itself.
+//
+// A single-writer mutex is the simplest correct fix; ACME issuance is slow
+// (~seconds) so queueing is acceptable.
+var issueMu sync.Mutex
 
 const (
 	LEDirectory    = "/opt/step-ui/le-certs"
@@ -61,13 +71,18 @@ type LEResult struct {
 	ExpiresAt *time.Time
 }
 
-// IssueCert выпускает сертификат Let's Encrypt
+// IssueCert выпускает сертификат Let's Encrypt.
+// It is safe to call concurrently; a package-level mutex serializes access to
+// shared state (account key file, registration file, and the ACME client).
 func IssueCert(cfg LEConfig) (*LEResult, error) {
-	if err := os.MkdirAll(filepath.Join(LEDirectory, cfg.Domain), 0700); err != nil {
+	issueMu.Lock()
+	defer issueMu.Unlock()
+
+	if err := os.MkdirAll(filepath.Join(LEDirectory, cfg.Domain), 0o700); err != nil {
 		return nil, fmt.Errorf("creating cert directory: %w", err)
 	}
 
-	// Загружаем или создаём ключ аккаунта
+	// Загружаем или создаём ключ аккаунта (protected by issueMu)
 	privateKey, err := loadOrCreateKey(LEKeyFile)
 	if err != nil {
 		return nil, fmt.Errorf("ключ аккаунта: %w", err)
@@ -75,7 +90,7 @@ func IssueCert(cfg LEConfig) (*LEResult, error) {
 
 	user := &LEUser{Email: cfg.Email, key: privateKey}
 
-	// Загружаем регистрацию если есть
+	// Загружаем регистрацию если есть (protected by issueMu)
 	if reg, err := loadRegistration(LEAccountFile); err == nil {
 		user.Registration = reg
 	}
@@ -106,11 +121,12 @@ func IssueCert(cfg LEConfig) (*LEResult, error) {
 		if cfg.CFToken == "" {
 			return nil, fmt.Errorf("Cloudflare API token не задан")
 		}
-		if err := os.Setenv("CF_DNS_API_TOKEN", cfg.CFToken); err != nil {
-			return nil, fmt.Errorf("setting CF_DNS_API_TOKEN: %w", err)
-		}
-		provider := cloudflare.NewDefaultConfig()
-		cp, err := cloudflare.NewDNSProviderConfig(provider)
+		// Pass the token via Config.AuthToken instead of os.Setenv to avoid
+		// the process-global environment mutation that races under concurrent
+		// issuance (H-lego-race).
+		cfCfg := cloudflare.NewDefaultConfig()
+		cfCfg.AuthToken = cfg.CFToken
+		cp, err := cloudflare.NewDNSProviderConfig(cfCfg)
 		if err != nil {
 			return nil, fmt.Errorf("cloudflare provider: %w", err)
 		}
