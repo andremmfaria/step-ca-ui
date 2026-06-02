@@ -13,11 +13,11 @@ import (
 	"step-ui/security"
 )
 
-// AdminUsersTempGet — страница списка временных пользователей.
+// AdminUsersTempGet — temporary user list page.
 func (h *Handler) AdminUsersTempGet(w http.ResponseWriter, r *http.Request) {
 	users, _ := appdb.ListTempUsers(h.db)
 
-	// Формируем view-model: предрассчитанный статус и отформатированные даты
+	// Build view-model: pre-computed status and formatted dates
 	type tempUserVM struct {
 		ID        int
 		Username  string
@@ -65,11 +65,11 @@ func (h *Handler) AdminUsersTempGet(w http.ResponseWriter, r *http.Request) {
 	data["Users"] = vms
 	data["Now"] = time.Now()
 
-	// Одноразовый показ свежесгенерированных credentials — через flash в сессии
+	// One-time display of freshly generated credentials via session flash
 	if fl := r.URL.Query().Get("new_id"); fl != "" {
-		// Пароль подтягиваем из cookie-заглушки (мы положили туда в POST)
+		// Pull the password from the short-lived cookie set in POST
 		if c, err := r.Cookie("new_temp_cred"); err == nil {
-			// формат: "username|password"
+			// format: "username|password"
 			val := c.Value
 			for i := 0; i < len(val); i++ {
 				if val[i] == '|' {
@@ -78,7 +78,7 @@ func (h *Handler) AdminUsersTempGet(w http.ResponseWriter, r *http.Request) {
 					break
 				}
 			}
-			// Удалим cookie сразу после показа
+			// Clear the cookie immediately after display
 			http.SetCookie(w, &http.Cookie{
 				Name:     "new_temp_cred",
 				Value:    "",
@@ -94,7 +94,7 @@ func (h *Handler) AdminUsersTempGet(w http.ResponseWriter, r *http.Request) {
 	h.render(w, "admin_users_temp", data)
 }
 
-// AdminUsersTempPost — создание временного пользователя.
+// AdminUsersTempPost — creates a temporary user.
 func (h *Handler) AdminUsersTempPost(w http.ResponseWriter, r *http.Request) {
 	if !h.requireCSRF(w, r, "/admin/users-temp") {
 		return
@@ -109,14 +109,14 @@ func (h *Handler) AdminUsersTempPost(w http.ResponseWriter, r *http.Request) {
 	}
 	note := r.FormValue("note")
 
-	// Срок действия: либо custom_datetime (формат "2006-01-02 15:04"),
-	// либо preset ("30m"|"1h"|"4h"|"24h"|"7d"|"30d").
+	// Expiry: either custom_datetime (format "2006-01-02 15:04")
+	// or a preset ("30m"|"1h"|"4h"|"24h"|"7d"|"30d").
 	var expiresAt time.Time
 	if custom := strings.TrimSpace(r.FormValue("custom_datetime")); custom != "" {
 		if t, err := time.ParseInLocation("2006-01-02 15:04", custom, time.Local); err == nil {
 			expiresAt = t
 		} else {
-			h.flash(w, r, "err", "Неверный формат даты/времени")
+			h.flash(w, r, "err", "Invalid date/time format")
 			http.Redirect(w, r, "/admin/users-temp", http.StatusSeeOther)
 			return
 		}
@@ -124,7 +124,7 @@ func (h *Handler) AdminUsersTempPost(w http.ResponseWriter, r *http.Request) {
 	if expiresAt.IsZero() {
 		preset := r.FormValue("preset")
 		if preset == "" {
-			// Совместимость со старой формой
+			// Backward compatibility with the old form
 			if hrs, _ := strconv.Atoi(r.FormValue("preset_hours")); hrs > 0 {
 				preset = fmt.Sprintf("%dh", hrs)
 			}
@@ -137,42 +137,42 @@ func (h *Handler) AdminUsersTempPost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !expiresAt.After(time.Now().Add(1 * time.Minute)) {
-		h.flash(w, r, "err", "Срок действия должен быть в будущем (хотя бы через минуту)")
+		h.flash(w, r, "err", "Expiry must be in the future (at least one minute from now)")
 		http.Redirect(w, r, "/admin/users-temp", http.StatusSeeOther)
 		return
 	}
 
-	// Генерация логина и пароля
+	// Generate username and password
 	username := generateTempUsername()
 	password := generateTempPassword(16)
 
 	hash := security.HashPassword(password)
 	id, err := appdb.CreateTempUser(h.db, username, hash, role, expiresAt, note)
 	if err != nil {
-		h.flash(w, r, "err", "Не удалось создать пользователя: "+err.Error())
+		h.flash(w, r, "err", "Failed to create user: "+err.Error())
 		http.Redirect(w, r, "/admin/users-temp", http.StatusSeeOther)
 		return
 	}
 
-	// Кладём свежие credentials в короткоживущий cookie — чтобы GET показал их 1 раз
+	// Store fresh credentials in a short-lived cookie so the GET can display them once
 	http.SetCookie(w, &http.Cookie{
 		Name:     "new_temp_cred",
 		Value:    username + "|" + password,
 		Path:     "/",
-		MaxAge:   120, // 2 минуты
+		MaxAge:   120, // 2 minutes
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 		Secure:   true,
 	})
 
-	h.flash(w, r, "ok", "Временный пользователь создан")
+	h.flash(w, r, "ok", "Temporary user created")
 	//nolint:gosec // G710: id is the DB-generated primary key (int), not user input
 	http.Redirect(w, r, fmt.Sprintf("/admin/users-temp?new_id=%d", id), http.StatusSeeOther)
 }
 
 // generateTempUsername → "guest-ab12cd"
 func generateTempUsername() string {
-	const alphabet = "abcdefghijkmnopqrstuvwxyz23456789" // без 0,1,l,o
+	const alphabet = "abcdefghijkmnopqrstuvwxyz23456789" // excluding 0,1,l,o
 	b := make([]byte, 6)
 	for i := range b {
 		n, _ := rand.Int(rand.Reader, big.NewInt(int64(len(alphabet))))
@@ -181,7 +181,7 @@ func generateTempUsername() string {
 	return "guest-" + string(b)
 }
 
-// generateTempPassword — безопасный пароль длины n, исключая похожие символы
+// generateTempPassword — cryptographically secure password of length n, excluding ambiguous characters
 func generateTempPassword(n int) string {
 	const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%&*+-=?"
 	b := make([]byte, n)
@@ -192,8 +192,8 @@ func generateTempPassword(n int) string {
 	return string(b)
 }
 
-// presetToDuration — маппинг строки пресета в Duration.
-// Поддерживает: 30m, 1h, 4h, 24h, 7d, 30d
+// presetToDuration maps a preset string to a Duration.
+// Supports: 30m, 1h, 4h, 24h, 7d, 30d
 func presetToDuration(p string) time.Duration {
 	switch p {
 	case "30m":

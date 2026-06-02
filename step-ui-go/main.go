@@ -97,9 +97,9 @@ func staticHandlerFromFS(fsys fs.FS) http.Handler {
 }
 
 func init() {
-	// Принудительно регистрируем корректные MIME-типы для статики.
-	// http.ServeContent использует mime.TypeByExtension() и перезаписывает
-	// любой ранее установленный Content-Type, поэтому только этот способ работает.
+	// Forcibly register correct MIME types for static assets.
+	// http.ServeContent uses mime.TypeByExtension() and overwrites any
+	// previously set Content-Type, so this is the only reliable approach.
 	_ = mime.AddExtensionType(".css", "text/css; charset=utf-8")
 	_ = mime.AddExtensionType(".js", "application/javascript; charset=utf-8")
 	_ = mime.AddExtensionType(".mjs", "application/javascript; charset=utf-8")
@@ -115,7 +115,7 @@ func init() {
 
 func main() {
 	handlers.StartedAt = time.Now()
-	// Регистрируем типы для gob (gorilla/sessions)
+	// Register types for gob (gorilla/sessions)
 	gob.Register(int(0))
 	gob.Register(int64(0))
 	gob.Register("")
@@ -185,7 +185,7 @@ func main() {
 	}
 	r.Use(mw.SecurityHeaders(cfg.EnableHSTS))
 
-	// Публичные маршруты
+	// Public routes
 	r.Get("/health", h.Liveness)
 	r.Get("/ready", h.Readiness)
 	r.Get("/login", h.LoginGet)
@@ -196,7 +196,7 @@ func main() {
 		r.Get("/auth/oidc/callback", h.OIDCCallback)
 	}
 
-	// Авторизованные маршруты
+	// Authenticated routes
 	r.Group(func(r chi.Router) {
 		r.Use(mw.RequireLogin(store))
 
@@ -204,13 +204,13 @@ func main() {
 		r.Get("/dashboard", h.Dashboard)
 		r.Get("/api/status", h.APIStatus)
 
-		// Сертификаты (viewer+)
+		// Certificates (viewer+)
 		r.Get("/certificates", h.Certificates)
 		r.Get("/certificates/{id}", h.CertificateDetails)
 		r.Get("/history", h.History)
 		r.Get("/provisioners", h.Provisioners)
 
-		// Скачать CA cert (admin)
+		// Download CA cert (admin)
 		r.Group(func(r chi.Router) {
 			r.Use(mw.RequireRole("admin", store))
 			r.Get("/download/ca", h.DownloadCA)
@@ -218,7 +218,7 @@ func main() {
 			r.Get("/download/full-chain", h.DownloadFullChain)
 		})
 
-		// Операции с сертификатами (manager+)
+		// Certificate operations (manager+)
 		r.Group(func(r chi.Router) {
 			r.Use(mw.RequireRole("manager", store))
 			r.Get("/issue", h.IssueGet)
@@ -230,16 +230,16 @@ func main() {
 			r.Get("/download/key/{id}", h.DownloadKey)
 		})
 
-		// Отзыв (admin)
+		// Revocation (admin)
 		r.Group(func(r chi.Router) {
 			r.Use(mw.RequireRole("admin", store))
 			r.Post("/revoke/{id}", h.Revoke)
 		})
 
-		// Управление пользователями (admin)
+		// User management (admin)
 		r.Group(func(r chi.Router) {
 			r.Use(mw.RequireRole("admin", store))
-			// Админ-пространство
+			// Admin namespace
 			r.Get("/admin", h.AdminGet)
 			r.Get("/admin/users", h.Users)
 			r.Post("/admin/users", h.UsersPost)
@@ -274,7 +274,7 @@ func main() {
 			r.Get("/le/logs", h.LELogs)
 		})
 
-		// Профиль (любой авторизованный)
+		// Profile (any authenticated user)
 		r.Get("/profile", h.ProfileGet)
 		r.Post("/profile", h.ProfilePost)
 		r.Get("/profile/2fa", h.Profile2FAGet)

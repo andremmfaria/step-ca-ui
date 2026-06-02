@@ -1,7 +1,7 @@
 {{define "content"}}
 <div class="admin-page-header">
-    <h1 class="admin-page-title">О системе</h1>
-    <p class="admin-page-subtitle">Версия, окружение и preflight-проверки production readiness</p>
+    <h1 class="admin-page-title">About</h1>
+    <p class="admin-page-subtitle">Version, environment, and preflight production-readiness checks</p>
 </div>
 <div class="admin-stats mb-14">
     <div class="admin-stat ok">
@@ -23,20 +23,20 @@
 </div>
 <div class="card">
     <div class="card-header">
-        <strong>Система</strong>
+        <strong>System</strong>
     </div>
     <div class="card-body">
         <table class="tbl admin-kv-table">
             <tbody>
                 <tr>
                     <td>
-                        <strong>Продукт</strong>
+                        <strong>Product</strong>
                     </td>
                     <td>Step-CA UI</td>
                 </tr>
                 <tr>
                     <td>
-                        <strong>Версия</strong>
+                        <strong>Version</strong>
                     </td>
                     <td>
                         <code>{{.System.Version}}</code>
@@ -44,7 +44,7 @@
                 </tr>
                 <tr>
                     <td>
-                        <strong>Билд</strong>
+                        <strong>Build</strong>
                     </td>
                     <td>
                         <code>{{.System.BuildDate}}</code> · <code>{{.System.GitCommit}}</code>
@@ -52,19 +52,19 @@
                 </tr>
                 <tr>
                     <td>
-                        <strong>Аптайм</strong>
+                        <strong>Uptime</strong>
                     </td>
                     <td>{{.System.Uptime}}</td>
                 </tr>
                 <tr>
                     <td>
-                        <strong>Запущен</strong>
+                        <strong>Started</strong>
                     </td>
                     <td>{{fmtLog .System.StartedAt}}</td>
                 </tr>
                 <tr>
                     <td>
-                        <strong>Репозиторий</strong>
+                        <strong>Repository</strong>
                     </td>
                     <td>
                         <a href="https://github.com/UncleFi1/step-ca-ui"
@@ -78,7 +78,7 @@
 </div>
 <div class="card">
     <div class="card-header">
-        <strong>Конфигурация</strong>
+        <strong>Configuration</strong>
     </div>
     <div class="card-body">
         <table class="tbl admin-kv-table">
@@ -173,9 +173,9 @@
                 </colgroup>
                 <thead>
                     <tr>
-                        <th>Проверка</th>
-                        <th>Статус</th>
-                        <th>Детали</th>
+                        <th>Check</th>
+                        <th>Status</th>
+                        <th>Details</th>
                     </tr>
                 </thead>
                 <tbody>

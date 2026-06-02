@@ -196,7 +196,7 @@ func scanExistingCerts(certsDir string, d *sql.DB) []map[string]string {
 			if _, e := os.Stat(keyPath); e != nil {
 				keyPath = ""
 			}
-			// Проверяем не в базе ли уже
+			// Check whether already in the database
 			_, _, serial, e := parseCertDates(path)
 			if e != nil || serial == "" {
 				return nil

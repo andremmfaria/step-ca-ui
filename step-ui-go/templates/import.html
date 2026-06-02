@@ -2,22 +2,22 @@
 <div class="page-header">
     <div>
         <div class="breadcrumb">certificates &middot; import</div>
-        <h1>Импорт сертификатов</h1>
+        <h1>Import Certificates</h1>
     </div>
 </div>
 <div class="tabs">
     <a href="/import?tab=upload"
-       class="tab {{if or (eq .ActiveTab "upload") (eq .ActiveTab "")}}active{{end}}">Загрузить файл</a>
+       class="tab {{if or (eq .ActiveTab "upload") (eq .ActiveTab "")}}active{{end}}">Upload File</a>
     <a href="/import?tab=scan"
-       class="tab {{if eq .ActiveTab "scan"}}active{{end}}">Сканировать сервер</a>
+       class="tab {{if eq .ActiveTab "scan"}}active{{end}}">Scan Server</a>
     <a href="/import?tab=manual"
-       class="tab {{if eq .ActiveTab "manual"}}active{{end}}">Вручную</a>
+       class="tab {{if eq .ActiveTab "manual"}}active{{end}}">Manual</a>
 </div>
 {{if or (eq .ActiveTab "upload") (eq .ActiveTab "")}}
 <!-- ═══ UPLOAD ═══ -->
 <div class="card card-mw-720">
     <div class="card-header">
-        <h3>Загрузить с компьютера</h3>
+        <h3>Upload from Computer</h3>
     </div>
     <div class="card-body">
         <form method="POST"
@@ -28,7 +28,7 @@
             <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
             <div class="form-row">
                 <div>
-                    <label>Название</label>
+                    <label>Name</label>
                     <input type="text"
                            name="name"
                            id="certName"
@@ -37,7 +37,7 @@
                            autocomplete="off">
                 </div>
                 <div>
-                    <label>Домен</label>
+                    <label>Domain</label>
                     <input type="text"
                            name="domain"
                            id="certDomain"
@@ -46,9 +46,9 @@
                            autocomplete="off">
                 </div>
             </div>
-            <!-- Drop-зона для .crt -->
+            <!-- Drop zone for .crt -->
             <div class="form-full">
-                <label>Файл сертификата (.crt)</label>
+                <label>Certificate file (.crt)</label>
                 <div class="drop-zone" id="dropCrt" data-accept=".crt,.pem">
                     <div class="drop-empty">
                         <div class="drop-cloud">
@@ -64,9 +64,9 @@
                                 <path d="M24 22v12M19 27l5-5 5 5" />
                             </svg>
                         </div>
-                        <div class="drop-title">Перетащите .crt сюда</div>
+                        <div class="drop-title">Drop .crt here</div>
                         <div class="drop-hint">
-                            или <span class="drop-pick">нажмите для выбора</span>
+                            or <span class="drop-pick">click to select</span>
                         </div>
                         <div class="drop-accept">.crt &middot; .pem</div>
                     </div>
@@ -89,16 +89,16 @@
                                 <div class="file-name"></div>
                                 <div class="file-size"></div>
                             </div>
-                            <button type="button" class="file-remove" title="Убрать">&times;</button>
+                            <button type="button" class="file-remove" title="Remove">&times;</button>
                         </div>
                     </div>
                     <input type="file" name="cert_file" accept=".crt,.pem" required hidden>
                 </div>
             </div>
-            <!-- Drop-зона для .key -->
+            <!-- Drop zone for .key -->
             <div class="form-full">
                 <label>
-                    Файл ключа (.key) <span class="muted-fw400-ttnone">— опционально</span>
+                    Key file (.key) <span class="muted-fw400-ttnone">— optional</span>
                 </label>
                 <div class="drop-zone" id="dropKey" data-accept=".key,.pem">
                     <div class="drop-empty">
@@ -115,9 +115,9 @@
                                 <path d="M24 24h18M36 24v6M42 24v4" />
                             </svg>
                         </div>
-                        <div class="drop-title">Перетащите .key сюда</div>
+                        <div class="drop-title">Drop .key here</div>
                         <div class="drop-hint">
-                            или <span class="drop-pick">нажмите для выбора</span>
+                            or <span class="drop-pick">click to select</span>
                         </div>
                         <div class="drop-accept">.key &middot; .pem</div>
                     </div>
@@ -140,13 +140,13 @@
                                 <div class="file-name"></div>
                                 <div class="file-size"></div>
                             </div>
-                            <button type="button" class="file-remove" title="Убрать">&times;</button>
+                            <button type="button" class="file-remove" title="Remove">&times;</button>
                         </div>
                     </div>
                     <input type="file" name="key_file" accept=".key,.pem" hidden>
                 </div>
             </div>
-            <button type="submit" class="btn pad-10-24-fw6">Загрузить</button>
+            <button type="submit" class="btn pad-10-24-fw6">Upload</button>
         </form>
     </div>
 </div>
@@ -155,16 +155,16 @@
 <!-- ═══ SCAN ═══ -->
 <div class="card card-mw-560">
     <div class="card-header">
-        <h3>Сканировать сервер</h3>
+        <h3>Scan Server</h3>
     </div>
     <div class="card-body">
         <p class="muted-fs12-mb16">
-            Найдено незарегистрированных: <strong class="text-text">{{len .Unregistered}}</strong>
+            Unregistered certificates found: <strong class="text-text">{{len .Unregistered}}</strong>
         </p>
         <form method="POST" action="/import">
             <input type="hidden" name="action" value="scan">
             <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-            <button type="submit" class="btn">Сканировать и импортировать</button>
+            <button type="submit" class="btn">Scan and Import</button>
         </form>
     </div>
 </div>
@@ -173,7 +173,7 @@
 <!-- ═══ MANUAL ═══ -->
 <div class="card card-mw-720">
     <div class="card-header">
-        <h3>Указать путь вручную</h3>
+        <h3>Specify Path Manually</h3>
     </div>
     <div class="card-body">
         <form method="POST" action="/import">
@@ -181,7 +181,7 @@
             <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
             <div class="form-row">
                 <div>
-                    <label>Название</label>
+                    <label>Name</label>
                     <input type="text"
                            name="name"
                            id="manName"
@@ -190,7 +190,7 @@
                            autocomplete="off">
                 </div>
                 <div>
-                    <label>Домен</label>
+                    <label>Domain</label>
                     <input type="text"
                            name="domain"
                            placeholder="example.com"
@@ -199,7 +199,7 @@
                 </div>
             </div>
             <div class="form-full">
-                <label>Путь к .crt</label>
+                <label>Path to .crt</label>
                 <div class="path-input-wrap">
                     <span class="path-prefix">/</span>
                     <input type="text"
@@ -209,11 +209,11 @@
                            required
                            autocomplete="off">
                 </div>
-                <div class="input-hint">Абсолютный путь до файла на сервере</div>
+                <div class="input-hint">Absolute path to the file on the server</div>
             </div>
             <div class="form-full">
                 <label>
-                    Путь к .key <span class="muted-fw400-ttnone">— опционально</span>
+                    Path to .key <span class="muted-fw400-ttnone">— optional</span>
                 </label>
                 <div class="path-input-wrap">
                     <span class="path-prefix">/</span>
@@ -223,9 +223,9 @@
                            placeholder="opt/step-ui/certs/my-cert/private.key"
                            autocomplete="off">
                 </div>
-                <div class="input-hint">Если ключ хранится отдельно</div>
+                <div class="input-hint">If the key is stored separately</div>
             </div>
-            <button type="submit" class="btn pad-10-24-fw6">Импортировать</button>
+            <button type="submit" class="btn pad-10-24-fw6">Import</button>
         </form>
     </div>
 </div>

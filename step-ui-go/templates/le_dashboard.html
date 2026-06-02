@@ -7,25 +7,25 @@
 </div>
 <div class="stats-grid">
     <div class="stat-card">
-        <div class="stat-label">Всего сертификатов</div>
+        <div class="stat-label">Total Certificates</div>
         <div class="stat-value">{{.LETotal}}</div>
     </div>
     <div class="stat-card">
-        <div class="stat-label">Активных</div>
+        <div class="stat-label">Active</div>
         <div class="stat-value ok">{{.LEActive}}</div>
     </div>
     <div class="stat-card">
-        <div class="stat-label">Истекают (30д)</div>
+        <div class="stat-label">Expiring (30d)</div>
         <div class="stat-value warn">{{.LEExpiring}}</div>
     </div>
     <div class="stat-card">
-        <div class="stat-label">Просроченных</div>
+        <div class="stat-label">Expired</div>
         <div class="stat-value danger">{{.LEExpired}}</div>
     </div>
 </div>
 <div class="card">
     <div class="card-header">
-        <h3>Сертификаты Let's Encrypt</h3>
+        <h3>Let's Encrypt Certificates</h3>
     </div>
     <div class="tbl-wrap">
         <table class="tbl">
@@ -41,14 +41,14 @@
             </colgroup>
             <thead>
                 <tr>
-                    <th>Домен</th>
+                    <th>Domain</th>
                     <th>Email</th>
-                    <th>Провайдер</th>
-                    <th>Выдан</th>
-                    <th>Истекает</th>
-                    <th>Статус</th>
-                    <th>Авто</th>
-                    <th>Действия</th>
+                    <th>Provider</th>
+                    <th>Issued</th>
+                    <th>Expires</th>
+                    <th>Status</th>
+                    <th>Auto</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -64,9 +64,9 @@
                     <td class="text-muted">{{fmtTime .IssuedAt}}</td>
                     <td>{{fmtTime .ExpiresAt}}</td>
                     <td>
-                        {{if eq .Status "active"}}<span class="badge ok">активен</span>
-                        {{else if eq .Status "pending"}}<span class="badge blue">выпускается</span>
-                        {{else if eq .Status "error"}}<span class="badge danger" title="{{.LastError}}">ошибка</span>
+                        {{if eq .Status "active"}}<span class="badge ok">active</span>
+                        {{else if eq .Status "pending"}}<span class="badge blue">issuing</span>
+                        {{else if eq .Status "error"}}<span class="badge danger" title="{{.LastError}}">error</span>
                         {{else}}<span class="badge gray">{{.Status}}</span>{{end}}
                     </td>
                     <td>
@@ -74,8 +74,8 @@
                             <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
                         <button type="submit"
                                 class="btn btn-sm {{if .AutoRenew}}btn-success{{else}}btn-ghost{{end}}"
-                                title="{{if .AutoRenew}}Авто-обновление включено{{else}}Авто-обновление выключено{{end}}">
-                        {{if .AutoRenew}}Авто&nbsp;вкл{{else}}Выкл{{end}}
+                                title="{{if .AutoRenew}}Auto-renewal enabled{{else}}Auto-renewal disabled{{end}}">
+                        {{if .AutoRenew}}Auto&nbsp;on{{else}}Off{{end}}
                         </button>
                     </form>
                 </td>
@@ -87,28 +87,28 @@
                     <form method="POST"
                           action="/le/{{.ID}}/renew"
                           class="d-inline"
-                          data-confirm="Перевыпустить сертификат для {{.Domain}}?"
-                          data-confirm-btn="Перевыпустить"
+                          data-confirm="Renew certificate for {{.Domain}}?"
+                          data-confirm-btn="Renew"
                           data-confirm-class="warning"
-                          data-confirm-title="Обновление LE сертификата">
+                          data-confirm-title="Renew LE Certificate">
                         <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
-                        <button type="submit" class="btn btn-warn btn-sm" title="Перевыпустить">&#x21BA;</button>
+                        <button type="submit" class="btn btn-warn btn-sm" title="Renew">&#x21BA;</button>
                     </form>
                     <form method="POST"
                           action="/le/{{.ID}}/delete"
                           class="d-inline"
-                          data-confirm="Удалить сертификат для {{.Domain}}? Файлы останутся на диске."
-                          data-confirm-btn="Удалить"
-                          data-confirm-title="Удаление LE сертификата">
+                          data-confirm="Delete certificate for {{.Domain}}? Files will remain on disk."
+                          data-confirm-btn="Delete"
+                          data-confirm-title="Delete LE Certificate">
                         <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
-                        <button type="submit" class="btn btn-danger btn-sm" title="Удалить">&times;</button>
+                        <button type="submit" class="btn btn-danger btn-sm" title="Delete">&times;</button>
                     </form>
                 </td>
             </tr>
         {{else}}
             <tr>
                 <td colspan="8" class="muted-center-p32">
-                    Нет сертификатов. <a href="/le/issue" class="link-accent">Выпустить первый</a>
+                    No certificates. <a href="/le/issue" class="link-accent">Issue the first one</a>
                 </td>
             </tr>
             {{end}}
@@ -119,18 +119,18 @@
 {{if .LELogs}}
 <div class="card">
     <div class="card-header">
-        <h3>Последние события</h3>
+        <h3>Recent Events</h3>
         <a href="/le/logs"
-           class="card-header-link">Все логи &rarr;</a>
+           class="card-header-link">All logs &rarr;</a>
     </div>
     <div class="tbl-overflow">
         <table>
             <thead>
                 <tr>
-                    <th>Время</th>
-                    <th>Домен</th>
-                    <th>Событие</th>
-                    <th>Сообщение</th>
+                    <th>Time</th>
+                    <th>Domain</th>
+                    <th>Event</th>
+                    <th>Message</th>
                 </tr>
             </thead>
             <tbody>

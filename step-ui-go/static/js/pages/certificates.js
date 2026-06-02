@@ -46,8 +46,8 @@
       if (visible) { shown++; }
     });
     counter.textContent = (shown === total)
-      ? ('Всего: ' + total)
-      : ('Найдено: ' + shown + ' из ' + total);
+      ? ('Total: ' + total)
+      : ('Found: ' + shown + ' of ' + total);
   }
 
   fSearch.addEventListener('input', applyFilters);
@@ -70,12 +70,12 @@ function certFormConfirm(formCls, isRevoke) {
   document.querySelectorAll('.' + formCls).forEach(function (form) {
     form.addEventListener('submit', function (e) {
       e.preventDefault();
-      var name = form.getAttribute('data-name') || 'сертификат';
+      var name = form.getAttribute('data-name') || 'certificate';
       var msg = isRevoke
-        ? 'ОТОЗВАТЬ "' + name + '"? Действие необратимо.'
-        : 'Перевыпустить сертификат "' + name + '"? Файл будет заменён.';
-      var btn = isRevoke ? 'Отозвать' : 'Перевыпустить';
-      var title = isRevoke ? 'Отзыв сертификата' : 'Перевыпуск';
+        ? 'REVOKE "' + name + '"? This action cannot be undone.'
+        : 'Renew certificate "' + name + '"? The file will be replaced.';
+      var btn = isRevoke ? 'Revoke' : 'Renew';
+      var title = isRevoke ? 'Revoke certificate' : 'Renew certificate';
       var confirmClass = isRevoke ? 'danger' : 'warning';
       var proxy = document.createElement('form');
       proxy.setAttribute('data-confirm', msg);

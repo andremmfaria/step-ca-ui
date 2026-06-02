@@ -1,51 +1,51 @@
 {{define "content"}}
 <div class="admin-page-header">
-    <h1 class="admin-page-title">Панель управления</h1>
-    <p class="admin-page-subtitle">Сводка по пользователям, сертификатам и безопасности</p>
+    <h1 class="admin-page-title">Dashboard</h1>
+    <p class="admin-page-subtitle">Overview of users, certificates, and security</p>
 </div>
 <div class="card">
     <div class="card-header">
-        <strong>Пользователи</strong>
-        <a href="/admin/users" class="btn btn-ghost btn-ml-auto"Управление →</a>
+        <strong>Users</strong>
+        <a href="/admin/users" class="btn btn-ghost btn-ml-auto"Manage →</a>
     </div>
     <div class="card-body">
         <div class="admin-stats">
             <div class="admin-stat">
                 <div class="admin-stat-value">{{.Stats.TotalUsers}}</div>
-                <div class="admin-stat-label">Всего</div>
+                <div class="admin-stat-label">Total</div>
             </div>
             <div class="admin-stat ok">
                 <div class="admin-stat-value">{{.Stats.ActiveUsers}}</div>
-                <div class="admin-stat-label">Активных</div>
+                <div class="admin-stat-label">Active</div>
             </div>
             <div class="admin-stat warn">
                 <div class="admin-stat-value">{{.Stats.BlockedUsers}}</div>
-                <div class="admin-stat-label">Заблокированных</div>
+                <div class="admin-stat-label">Blocked</div>
             </div>
             <div class="admin-stat">
                 <div class="admin-stat-value">{{.Stats.AdminsCount}}</div>
-                <div class="admin-stat-label">Администраторы</div>
+                <div class="admin-stat-label">Admins</div>
             </div>
             <div class="admin-stat">
                 <div class="admin-stat-value">{{.Stats.ManagersCount}}</div>
-                <div class="admin-stat-label">Менеджеры</div>
+                <div class="admin-stat-label">Managers</div>
             </div>
             <div class="admin-stat">
                 <div class="admin-stat-value">{{.Stats.ViewersCount}}</div>
-                <div class="admin-stat-label">Наблюдатели</div>
+                <div class="admin-stat-label">Viewers</div>
             </div>
         </div>
     </div>
 </div>
 <div class="card">
     <div class="card-header">
-        <strong>Сертификаты</strong>
+        <strong>Certificates</strong>
     </div>
     <div class="card-body">
         <div class="admin-stats">
             <div class="admin-stat ok">
                 <div class="admin-stat-value">{{.Stats.ActiveCerts}}</div>
-                <div class="admin-stat-label">Активных локальных</div>
+                <div class="admin-stat-label">Active (local)</div>
             </div>
             <div class="admin-stat">
                 <div class="admin-stat-value">{{.Stats.LeCerts}}</div>
@@ -56,21 +56,21 @@
 </div>
 <div class="card">
     <div class="card-header">
-        <strong>Безопасность</strong>
-        <a href="/admin/security" class="btn btn-ghost btn-ml-auto"Журнал →</a>
+        <strong>Security</strong>
+        <a href="/admin/security" class="btn btn-ghost btn-ml-auto"Log →</a>
     </div>
     <div class="card-body">
         <div class="admin-stats">
             <div class="admin-stat ok">
                 <div class="admin-stat-value">{{.Stats.LoginsToday}}</div>
-                <div class="admin-stat-label">Входов за 24ч</div>
+                <div class="admin-stat-label">Logins (24h)</div>
             </div>
             <div class="admin-stat {{if gt .Stats.FailedLogins 0}}warn{{end}}">
                 <div class="admin-stat-value">{{.Stats.FailedLogins}}</div>
-                <div class="admin-stat-label">Неудачных за 24ч</div>
+                <div class="admin-stat-label">Failed (24h)</div>
             </div>
         </div>
-        <h3 class="section-h3-sec">Последние успешные входы</h3>
+        <h3 class="section-h3-sec">Recent Successful Logins</h3>
         {{if .RecentLogins}}
         <div class="table-wrap">
             <div class="tbl-wrap">
@@ -82,9 +82,9 @@
                     </colgroup>
                     <thead>
                         <tr>
-                            <th>Пользователь</th>
+                            <th>User</th>
                             <th>IP</th>
-                            <th>Время</th>
+                            <th>Time</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -102,7 +102,7 @@
             </div>
         </div>
     {{else}}
-        <p class="muted">Нет записей о недавних входах.</p>
+        <p class="muted">No recent login records.</p>
         {{end}}
     </div>
 </div>

@@ -1,44 +1,44 @@
 {{define "content"}}
 <div class="page-header">
     <div>
-        <div class="breadcrumb">пользователи</div>
-        <h1>Все пользователи</h1>
+        <div class="breadcrumb">users</div>
+        <h1>All Users</h1>
     </div>
 </div>
-<!-- Панель фильтров -->
+<!-- Filter panel -->
 <div class="card card-mb-12">
     <div class="card-body grid-users-filter">
         <div>
-            <label>Поиск по логину</label>
+            <label>Search by username</label>
             <input type="text" id="uf-search" placeholder="admin" autocomplete="off">
         </div>
         <div>
-            <label>Роль</label>
+            <label>Role</label>
             <select id="uf-role">
-                <option value="">Все</option>
+                <option value="">All</option>
                 <option value="admin">admin</option>
                 <option value="manager">manager</option>
                 <option value="viewer">viewer</option>
             </select>
         </div>
         <div>
-            <label>Статус</label>
+            <label>Status</label>
             <select id="uf-status">
-                <option value="">Все</option>
-                <option value="active">Активные</option>
-                <option value="blocked">Заблокированные</option>
+                <option value="">All</option>
+                <option value="active">Active</option>
+                <option value="blocked">Blocked</option>
             </select>
         </div>
         <div class="row-end-gap8">
             <span id="uf-counter"
-                  class="muted-fs11 nowrap">Всего: 0</span>
-            <button type="button" id="uf-reset" class="btn btn-ghost btn-sm">Сбросить</button>
+                  class="muted-fs11 nowrap">Total: 0</span>
+            <button type="button" id="uf-reset" class="btn btn-ghost btn-sm">Reset</button>
         </div>
     </div>
 </div>
 <div class="card card-mb-16">
     <div class="card-header">
-        <h3>Список пользователей</h3>
+        <h3>User List</h3>
     </div>
     <div class="tbl-wrap">
         <table class="tbl min-w700" id="usersTable">
@@ -54,14 +54,14 @@
             </colgroup>
             <thead>
                 <tr>
-                    <th>Логин</th>
-                    <th>Роль</th>
-                    <th>Статус</th>
-                    <th>Последний вход</th>
-                    <th>Последний IP</th>
-                    <th>Ошибок 24ч</th>
-                    <th>Создан</th>
-                    <th>Действия</th>
+                    <th>Username</th>
+                    <th>Role</th>
+                    <th>Status</th>
+                    <th>Last Login</th>
+                    <th>Last IP</th>
+                    <th>Errors (24h)</th>
+                    <th>Created</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -71,11 +71,11 @@
                 data-status="{{if .IsActive}}active{{else}}blocked{{end}}">
                 <td>
                     {{if ne .ID $.Session.UserID}}
-                    <a href="/admin/users/{{.ID}}" class="user-link" title="Открыть профиль">
+                    <a href="/admin/users/{{.ID}}" class="user-link" title="Open profile">
                         <strong>{{.Username}}</strong>
                     </a>
                 {{else}}
-                    <strong>{{.Username}}</strong> <span class="muted-fs10">(Вы)</span>
+                    <strong>{{.Username}}</strong> <span class="muted-fs10">(You)</span>
                     {{end}}
                 </td>
                 <td>
@@ -84,7 +84,7 @@
                     {{else}}<span class="badge gray">viewer</span>{{end}}
                 </td>
                 <td>
-                    {{if .IsActive}}<span class="badge ok">активен</span>{{else}}<span class="badge danger">заблокирован</span>{{end}}
+                    {{if .IsActive}}<span class="badge ok">active</span>{{else}}<span class="badge danger">blocked</span>{{end}}
                 </td>
                 <td class="text-muted">{{fmtTime .LastLogin}}</td>
                 <td class="text-muted">{{if .LastIP}}{{deref .LastIP}}{{else}}&mdash;{{end}}</td>
@@ -97,29 +97,29 @@
                 <form method="POST"
                       action="/admin/users"
                       class="d-inline"
-                      data-confirm="{{if .IsActive}}Заблокировать{{else}}Разблокировать{{end}} пользователя {{.Username}}?"
-                      data-confirm-btn="{{if .IsActive}}Заблокировать{{else}}Разблокировать{{end}}"
+                      data-confirm="{{if .IsActive}}Block{{else}}Unblock{{end}} user {{.Username}}?"
+                      data-confirm-btn="{{if .IsActive}}Block{{else}}Unblock{{end}}"
                       data-confirm-class="warning"
-                      data-confirm-title="Изменение статуса">
+                      data-confirm-title="Change Status">
                     <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
                     <input type="hidden" name="action" value="toggle_active">
                     <input type="hidden" name="uid" value="{{.ID}}">
                 <button type="submit"
                         class="btn btn-sm {{if .IsActive}}btn-warn{{else}}btn-success{{end}}"
-                        title="{{if .IsActive}}Заблокировать{{else}}Разблокировать{{end}}">
-                {{if .IsActive}}Заблок.{{else}}Разблок.{{end}}
+                        title="{{if .IsActive}}Block{{else}}Unblock{{end}}">
+                {{if .IsActive}}Block{{else}}Unblock{{end}}
                 </button>
             </form>
             <form method="POST"
                   action="/admin/users"
                   class="d-inline"
-                  data-confirm="Удалить пользователя {{.Username}}? Действие необратимо."
-                  data-confirm-btn="Удалить"
-                  data-confirm-title="Удаление пользователя">
+                  data-confirm="Delete user {{.Username}}? This action cannot be undone."
+                  data-confirm-btn="Delete"
+                  data-confirm-title="Delete User">
                 <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
                 <input type="hidden" name="action" value="delete">
                 <input type="hidden" name="uid" value="{{.ID}}">
-                <button type="submit" class="btn btn-danger btn-sm" title="Удалить">Удалить</button>
+                <button type="submit" class="btn btn-danger btn-sm" title="Delete">Delete</button>
             </form>
             {{end}}
         </td>
@@ -131,7 +131,7 @@
 </div>
 <div class="card card-mw-560">
     <div class="card-header">
-        <h3>Добавить пользователя</h3>
+        <h3>Add User</h3>
     </div>
     <div class="card-body">
         <form method="POST" action="/admin/users">
@@ -139,7 +139,7 @@
             <input type="hidden" name="action" value="create">
             <div class="form-row">
                 <div>
-                    <label>Логин</label>
+                    <label>Username</label>
                     <input type="text"
                            name="username"
                            placeholder="user1"
@@ -147,22 +147,22 @@
                            autocomplete="off">
                 </div>
                 <div>
-                    <label>Пароль</label>
+                    <label>Password</label>
                     <input type="password"
                            name="password"
-                           placeholder="Мин. 8 симв. + цифра + спецсимвол"
+                           placeholder="Min. 8 chars + digit + special character"
                            required>
                 </div>
             </div>
             <div class="form-full">
-                <label>Роль</label>
+                <label>Role</label>
                 <select name="role">
-                    <option value="viewer">viewer &mdash; только просмотр</option>
-                    <option value="manager">manager &mdash; управление сертификатами</option>
-                    <option value="admin">admin &mdash; полный доступ</option>
+                    <option value="viewer">viewer &mdash; read-only</option>
+                    <option value="manager">manager &mdash; manage certificates</option>
+                    <option value="admin">admin &mdash; full access</option>
                 </select>
             </div>
-            <button type="submit" class="btn pad-8-18-fw6">Создать пользователя</button>
+            <button type="submit" class="btn pad-8-18-fw6">Create User</button>
         </form>
     </div>
 </div><script src="/static/js/pages/users.js"></script>

@@ -1,27 +1,27 @@
 {{define "content"}}
 <div class="page-header">
     <div>
-        <div class="breadcrumb">пользователи &middot; профиль</div>
+        <div class="breadcrumb">users &middot; profile</div>
         <h1 class="d-flex align-center gap-10">
-            <a href="/admin/users" class="back-link" title="Назад к пользователям">&larr;</a>
+            <a href="/admin/users" class="back-link" title="Back to users">&larr;</a>
             <span>{{.U.Username}}</span>
-            {{if .U.IsActive}}<span class="badge ok fs-11">активен</span>
-            {{else}}<span class="badge danger fs-11">заблокирован</span>{{end}}
+            {{if .U.IsActive}}<span class="badge ok fs-11">active</span>
+            {{else}}<span class="badge danger fs-11">blocked</span>{{end}}
         </h1>
     </div>
 </div>
 <div class="grid-user-profile">
     <div class="card">
         <div class="card-header">
-            <h3>Информация</h3>
+            <h3>Information</h3>
         </div>
         <div class="card-body">
             <div class="info-row">
-                <div class="info-key">Логин</div>
+                <div class="info-key">Username</div>
                 <div class="info-val">{{.U.Username}}</div>
             </div>
             <div class="info-row">
-                <div class="info-key">Роль</div>
+                <div class="info-key">Role</div>
                 <div class="info-val">
                     {{if eq .U.Role "admin"}}<span class="badge purple">admin</span>
                     {{else if eq .U.Role "manager"}}<span class="badge blue">manager</span>
@@ -29,30 +29,30 @@
                 </div>
             </div>
             <div class="info-row">
-                <div class="info-key">Создан</div>
+                <div class="info-key">Created</div>
                 <div class="info-val">{{fmtTime .U.CreatedAt}}</div>
             </div>
             <div class="info-row">
-                <div class="info-key">Последний вход</div>
+                <div class="info-key">Last Login</div>
                 <div class="info-val">{{fmtTime .U.LastLogin}}</div>
             </div>
             <div class="info-row">
-                <div class="info-key">Последний IP</div>
+                <div class="info-key">Last IP</div>
                 <div class="info-val">{{if .U.LastIP}}{{deref .U.LastIP}}{{else}}&mdash;{{end}}</div>
             </div>
             <div class="info-row">
-                <div class="info-key">Успешных входов</div>
+                <div class="info-key">Successful Logins</div>
                 <div class="info-val text-green">{{.TotalOK}}</div>
             </div>
             <div class="info-row">
-                <div class="info-key">Неудачных попыток</div>
+                <div class="info-key">Failed Attempts</div>
                 <div class="info-val text-danger">{{.TotalFail}}</div>
             </div>
             <div class="info-row">
-                <div class="info-key">IP блокировка</div>
+                <div class="info-key">IP Block</div>
                 <div class="info-val">
-                    {{if .IPBlocked}}<span class="badge danger">заблокирован</span>
-                    {{else}}<span class="badge ok">не заблокирован</span>{{end}}
+                    {{if .IPBlocked}}<span class="badge danger">blocked</span>
+                    {{else}}<span class="badge ok">not blocked</span>{{end}}
                 </div>
             </div>
         </div>
@@ -60,7 +60,7 @@
     <div class="col-gap14">
         <div class="card">
             <div class="card-header">
-                <h3>Сменить роль</h3>
+                <h3>Change Role</h3>
             </div>
             <div class="card-body">
                 <form method="POST" action="/admin/users">
@@ -78,13 +78,13 @@
                             </option>
                         </select>
                     </div>
-                    <button type="submit" class="btn btn-sm">Сохранить роль</button>
+                    <button type="submit" class="btn btn-sm">Save Role</button>
                 </form>
             </div>
         </div>
         <div class="card">
             <div class="card-header">
-                <h3>Сбросить пароль</h3>
+                <h3>Reset Password</h3>
             </div>
             <div class="card-body">
                 <form method="POST" action="/admin/users">
@@ -93,19 +93,19 @@
                     <input type="hidden" name="action" value="reset_password">
                     <input type="hidden" name="uid" value="{{.U.ID}}">
                     <div class="form-full">
-                        <label>Новый пароль</label>
+                        <label>New Password</label>
                         <input type="password"
                                name="new_password"
-                               placeholder="Мин. 8 симв. + цифра + спецсимвол"
+                               placeholder="Min. 8 chars + digit + special character"
                                required>
                     </div>
-                    <button type="submit" class="btn btn-warn btn-sm">Сбросить пароль</button>
+                    <button type="submit" class="btn btn-warn btn-sm">Reset Password</button>
                 </form>
             </div>
         </div>
         <div class="card">
             <div class="card-header">
-                <h3>Управление доступом</h3>
+                <h3>Access Management</h3>
             </div>
             <div class="card-body row-gap8-wrap">
                 {{if .IPBlocked}}
@@ -117,34 +117,34 @@
                     {{if .U.LastIP}}
                     <input type="hidden" name="target_ip" value="{{deref .U.LastIP}}">
                     {{end}}
-                    <button type="submit" class="btn btn-success btn-sm">Разблокировать IP</button>
+                    <button type="submit" class="btn btn-success btn-sm">Unblock IP</button>
                 </form>
                 {{end}}
             <form method="POST"
                   action="/admin/users"
-                  data-confirm="{{if .U.IsActive}}Заблокировать{{else}}Разблокировать{{end}} аккаунт {{.U.Username}}?"
-                  data-confirm-btn="{{if .U.IsActive}}Заблокировать{{else}}Разблокировать{{end}}"
+                  data-confirm="{{if .U.IsActive}}Block{{else}}Unblock{{end}} account {{.U.Username}}?"
+                  data-confirm-btn="{{if .U.IsActive}}Block{{else}}Unblock{{end}}"
                   data-confirm-class="warning"
-                  data-confirm-title="{{if .U.IsActive}}Блокировка{{else}}Разблокировка{{end}} аккаунта">
+                  data-confirm-title="{{if .U.IsActive}}Block{{else}}Unblock{{end}} Account">
                 <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
                 <input type="hidden" name="return_to" value="/admin/users/{{.U.ID}}">
                 <input type="hidden" name="action" value="toggle_active">
                 <input type="hidden" name="uid" value="{{.U.ID}}">
             <button type="submit"
                     class="btn btn-sm {{if .U.IsActive}}btn-warn{{else}}btn-success{{end}}">
-            {{if .U.IsActive}}Заблокировать{{else}}Разблокировать{{end}}
+            {{if .U.IsActive}}Block{{else}}Unblock{{end}}
             </button>
         </form>
         <form method="POST"
               action="/admin/users"
-              data-confirm="Удалить пользователя {{.U.Username}}? Действие необратимо."
-              data-confirm-btn="Удалить"
-              data-confirm-title="Удаление пользователя">
+              data-confirm="Delete user {{.U.Username}}? This action cannot be undone."
+              data-confirm-btn="Delete"
+              data-confirm-title="Delete User">
             <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
             <input type="hidden" name="return_to" value="/admin/users">
             <input type="hidden" name="action" value="delete">
             <input type="hidden" name="uid" value="{{.U.ID}}">
-            <button type="submit" class="btn btn-danger btn-sm">Удалить пользователя</button>
+            <button type="submit" class="btn btn-danger btn-sm">Delete User</button>
         </form>
     </div>
 </div>
@@ -152,9 +152,9 @@
 </div>
 <div class="card">
     <div class="card-header">
-        <h3>История входов (последние 50)</h3>
+        <h3>Login History (last 50)</h3>
         <div>
-            <span class="badge ok">{{.TotalOK}} успешных</span> &nbsp; <span class="badge danger">{{.TotalFail}} неудачных</span>
+            <span class="badge ok">{{.TotalOK}} successful</span> &nbsp; <span class="badge danger">{{.TotalFail}} failed</span>
         </div>
     </div>
     <div class="tbl-wrap">
@@ -167,10 +167,10 @@
             </colgroup>
             <thead>
                 <tr>
-                    <th>Время</th>
-                    <th>IP адрес</th>
-                    <th>Событие</th>
-                    <th>Детали</th>
+                    <th>Time</th>
+                    <th>IP Address</th>
+                    <th>Event</th>
+                    <th>Details</th>
                 </tr>
             </thead>
             <tbody>
@@ -181,14 +181,14 @@
                         <code>{{.IP}}</code>
                     </td>
                     <td>
-                        {{if .Success}}<span class="badge ok">Вход</span>
-                        {{else}}<span class="badge danger">Отказ</span>{{end}}
+                        {{if .Success}}<span class="badge ok">Login</span>
+                        {{else}}<span class="badge danger">Denied</span>{{end}}
                     </td>
                     <td class="text-muted">{{.Reason}}</td>
                 </tr>
             {{else}}
                 <tr>
-                    <td colspan="4" class="muted-center-p24">Нет записей</td>
+                    <td colspan="4" class="muted-center-p24">No records</td>
                 </tr>
                 {{end}}
             </tbody>

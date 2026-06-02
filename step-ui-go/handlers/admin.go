@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// AdminStats — сводные счётчики для /admin.
+// AdminStats — aggregate counters for /admin.
 type AdminStats struct {
 	TotalUsers    int
 	ActiveUsers   int
@@ -20,14 +20,14 @@ type AdminStats struct {
 	LeCerts       int
 }
 
-// AdminLogin — строка последних входов.
+// AdminLogin — a row of recent login events.
 type AdminLogin struct {
 	Username  string
 	IP        string
 	CreatedAt time.Time
 }
 
-// AdminGet — обзорная страница админа.
+// AdminGet — admin overview page.
 func (h *Handler) AdminGet(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var s AdminStats
@@ -83,17 +83,17 @@ func (h *Handler) AdminGet(w http.ResponseWriter, r *http.Request) {
 	h.render(w, "admin", data)
 }
 
-// AdminActivityGet — заглушка.
+// AdminActivityGet — stub.
 func (h *Handler) AdminActivityGet(w http.ResponseWriter, r *http.Request) {
 	h.render(w, "admin_activity", h.base(w, r, "admin_activity"))
 }
 
-// AdminConsoleGet — заглушка (2FA).
+// AdminConsoleGet — stub (2FA).
 func (h *Handler) AdminConsoleGet(w http.ResponseWriter, r *http.Request) {
 	h.render(w, "admin_console", h.base(w, r, "admin_console"))
 }
 
-// AdminAboutGet — о системе.
+// AdminAboutGet — system information page.
 func (h *Handler) AdminAboutGet(w http.ResponseWriter, r *http.Request) {
 	data := h.base(w, r, "admin_about")
 	checks, summary := h.preflight(r.Context())

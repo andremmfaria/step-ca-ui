@@ -71,7 +71,7 @@ func GetAllUsers(d *sql.DB) ([]*models.User, error) {
 	return users, nil
 }
 
-// CreateUser inserts a new active user with the given role.
+// CreateUser persists a new active user account.
 func CreateUser(d *sql.DB, username, passwordHash, role string) error {
 	_, err := d.Exec(`INSERT INTO users (username,password_hash,role,is_active) VALUES ($1,$2,$3,true)`, //nolint:noctx // pre-existing signature
 		username, passwordHash, role)
@@ -262,7 +262,7 @@ func UpsertOIDCUser(d *sql.DB, username, displayName, role string, syncRole bool
 
 // ─── Temporary users ──────────────────────────────────────────────────────────
 
-// TempUserRow — строка временного пользователя для списка
+// TempUserRow — a row representing a temporary user for list views
 type TempUserRow struct {
 	ID        int
 	Username  string
@@ -273,7 +273,7 @@ type TempUserRow struct {
 	Note      string
 }
 
-// CreateTempUser creates a temporary user that auto-expires at the given time.
+// CreateTempUser persists a temporary user that expires at expiresAt.
 func CreateTempUser(db *sql.DB, username, passwordHash, role string, expiresAt time.Time, note string) (int, error) {
 	var id int
 	err := db.QueryRow( //nolint:noctx // pre-existing signature
@@ -286,7 +286,7 @@ func CreateTempUser(db *sql.DB, username, passwordHash, role string, expiresAt t
 	return id, err
 }
 
-// ListTempUsers возвращает список временных пользователей (все, и активные, и истёкшие)
+// ListTempUsers returns all temporary users (both active and expired)
 func ListTempUsers(db *sql.DB) ([]TempUserRow, error) {
 	rows, err := db.Query( //nolint:noctx // pre-existing signature
 		` 
@@ -311,8 +311,7 @@ func ListTempUsers(db *sql.DB) ([]TempUserRow, error) {
 	return out, nil
 }
 
-// ExpireOverdueTempUsers помечает is_active=false для истёкших аккаунтов.
-// Возвращает количество заблокированных.
+// ExpireOverdueTempUsers sets is_active=false for accounts past their expiry.
 func ExpireOverdueTempUsers(db *sql.DB) (int, error) {
 	res, err := db.Exec( //nolint:noctx // pre-existing signature; context adoption tracked in P3-8
 		`UPDATE users

@@ -4,10 +4,10 @@
  */
 (function () {
   var DURATIONS = {
-    '720h': { label: '1 месяц', days: 30 },
-    '4380h': { label: '6 месяцев', days: 182 },
-    '8760h': { label: '1 год', days: 365 },
-    '87600h': { label: '10 лет', days: 3650 }
+    '720h': { label: '1 month', days: 30 },
+    '4380h': { label: '6 months', days: 182 },
+    '8760h': { label: '1 year', days: 365 },
+    '87600h': { label: '10 years', days: 3650 }
   };
   var KEYTYPE_LABEL = {
     'EC:P-256': 'EC P-256',

@@ -2,38 +2,38 @@
 <div class="page-header">
     <div>
         <div class="breadcrumb">certificates</div>
-        <h1>Все сертификаты</h1>
+        <h1>All Certificates</h1>
     </div>
 </div>
-<!-- Панель фильтров -->
+<!-- Filter panel -->
 <div class="card cert-filter-card">
     <div class="card-body cert-filter-grid">
         <div>
-            <label>Поиск по имени или домену</label>
+            <label>Search by name or domain</label>
             <input type="text"
                    id="f-search"
                    placeholder="start.example.com"
                    autocomplete="off">
         </div>
         <div>
-            <label>Статус</label>
+            <label>Status</label>
             <select id="f-status">
-                <option value="">Все</option>
-                <option value="active">Активные</option>
-                <option value="expired">Истекли</option>
-                <option value="revoked">Отозваны</option>
+                <option value="">All</option>
+                <option value="active">Active</option>
+                <option value="expired">Expired</option>
+                <option value="revoked">Revoked</option>
             </select>
         </div>
         <div>
-            <label>Тип ключа</label>
+            <label>Key Type</label>
             <select id="f-type">
-                <option value="">Все</option>
+                <option value="">All</option>
             </select>
         </div>
         <div class="row-end-gap8">
             <span id="f-counter"
-                  class="muted-fs11 nowrap">Всего: 0</span>
-            <button type="button" id="f-reset" class="btn btn-ghost btn-sm">Сбросить</button>
+                  class="muted-fs11 nowrap">Total: 0</span>
+            <button type="button" id="f-reset" class="btn btn-ghost btn-sm">Reset</button>
         </div>
     </div>
 </div>
@@ -52,14 +52,14 @@
             </colgroup>
             <thead>
                 <tr>
-                    <th>Имя</th>
-                    <th>Домен</th>
-                    <th>Выдан</th>
-                    <th>Истекает</th>
-                    <th>Статус</th>
-                    <th>Тип</th>
-                    <th>Серийный</th>
-                    <th>Действия</th>
+                    <th>Name</th>
+                    <th>Domain</th>
+                    <th>Issued</th>
+                    <th>Expires</th>
+                    <th>Status</th>
+                    <th>Type</th>
+                    <th>Serial</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -68,26 +68,26 @@
                     data-domain="{{.Domain}}"
                     data-status="{{.Status}}"
                     data-type="{{.KeyType}}">
-                    <td class="cert-name-cell" data-label="Имя">
+                    <td class="cert-name-cell" data-label="Name">
                         <a href="/certificates/{{.ID}}"><strong>{{.Name}}</strong></a>
                     </td>
-                    <td class="cert-domain-cell" data-label="Домен">
+                    <td class="cert-domain-cell" data-label="Domain">
                         <code>{{.Domain}}</code>
                     </td>
-                    <td class="text-muted" data-label="Выдан">{{fmtTime .IssuedAt}}</td>
-                    <td data-label="Истекает">{{fmtTime .ExpiresAt}}</td>
-                    <td data-label="Статус">
+                    <td class="text-muted" data-label="Issued">{{fmtTime .IssuedAt}}</td>
+                    <td data-label="Expires">{{fmtTime .ExpiresAt}}</td>
+                    <td data-label="Status">
                         <span class="badge {{if eq .Status "active"}}{{badgeClass .ExpiresAt}}{{else}}danger{{end}}">{{.Status}}</span>
                     </td>
-                    <td data-label="Тип">
+                    <td data-label="Type">
                         <span class="badge gray">{{.KeyType}}</span>
                     </td>
-                    <td class="cert-serial-cell" data-label="Серийный">
+                    <td class="cert-serial-cell" data-label="Serial">
                         <code title="{{.Serial}}">{{.Serial}}</code>
                     </td>
-                    <td class="cert-actions-cell" data-label="Действия">
+                    <td class="cert-actions-cell" data-label="Actions">
                         <div class="cert-actions">
-                            <a href="/certificates/{{.ID}}" class="btn btn-ghost btn-sm">Детали</a>
+                            <a href="/certificates/{{.ID}}" class="btn btn-ghost btn-sm">Details</a>
                             {{if hasRole $.Session.Role "manager"}}
                             <form method="POST"
                                   action="/renew/{{.ID}}"
@@ -96,8 +96,8 @@
                                 <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
                                 <button type="submit"
                                         class="btn btn-warn btn-sm"
-                                        title="Перевыпустить"
-                                        aria-label="Перевыпустить сертификат">&#x21BA;</button>
+                                        title="Renew"
+                                        aria-label="Renew certificate">&#x21BA;</button>
                             </form>
                             <a href="/download/cert/{{.ID}}" class="btn btn-ghost btn-sm">CRT</a>
                             {{if .KeyPath}}<a href="/download/key/{{.ID}}" class="btn btn-ghost btn-sm">KEY</a>{{end}}
@@ -108,7 +108,7 @@
                                   class="inline-form confirm-revoke-form"
                                   data-name="{{.Name}}">
                                 <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
-                                <button type="submit" class="btn btn-danger btn-sm">Отозвать</button>
+                                <button type="submit" class="btn btn-danger btn-sm">Revoke</button>
                             </form>
                             {{end}}{{end}}
                         </div>
@@ -116,7 +116,7 @@
                 </tr>
             {{else}}
                 <tr id="emptyRow">
-                    <td colspan="8" class="muted-center-p24">Нет сертификатов</td>
+                    <td colspan="8" class="muted-center-p24">No certificates</td>
                 </tr>
                 {{end}}
             </tbody>

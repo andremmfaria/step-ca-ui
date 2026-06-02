@@ -7,23 +7,23 @@
 </div>
 {{end}}
 <div class="page-header">
-    <h1 class="m-0-0-4-h3">Временные пользователи</h1>
-    <p class="muted m-0">Краткосрочные аккаунты для подрядчиков и гостей</p>
+    <h1 class="m-0-0-4-h3">Temporary Users</h1>
+    <p class="muted m-0">Short-lived accounts for contractors and guests</p>
 </div>
 {{if .NewUsername}}
 <div class="card card-border-green-mt18">
     <div class="card-header">
-        <strong class="cred-strong-green">Аккаунт создан — передайте эти данные пользователю</strong>
+        <strong class="cred-strong-green">Account created — share these credentials with the user</strong>
     </div>
     <div class="card-body">
         <p class="muted mb-12">
-            Это единственный раз, когда отображается пароль. Сохраните или передайте его сейчас.
+            This is the only time the password will be shown. Save or share it now.
         </p>
         <table class="tbl mb-12">
             <tbody>
                 <tr>
                     <td class="col-w140">
-                        <strong>Логин</strong>
+                        <strong>Username</strong>
                     </td>
                     <td>
                         <code class="fs-14">{{.NewUsername}}</code>
@@ -31,7 +31,7 @@
                 </tr>
                 <tr>
                     <td>
-                        <strong>Пароль</strong>
+                        <strong>Password</strong>
                     </td>
                     <td>
                         <code id="newpwd" class="fs-14 sel-all">{{.NewPassword}}</code>
@@ -40,15 +40,15 @@
             </tbody>
         </table>
         <details>
-            <summary class="muted cursor-pointer fs-12">Готовая строка для передачи</summary>
+            <summary class="muted cursor-pointer fs-12">Ready-to-share credential line</summary>
             <div class="cred-copy-row">
                 <button type="button"
                         class="btn btn-sm btn-ghost"
-                        data-action="copy-share-line">📋 Скопировать строку</button>
+                        data-action="copy-share-line">📋 Copy line</button>
             </div>
             <div class="cred-share-box"
                  id="credShareLine">
-                Логин: <b>{{.NewUsername}}</b> · Пароль: <b>{{.NewPassword}}</b> · URL: <code>{{.LoginURL}}</code>
+                Username: <b>{{.NewUsername}}</b> · Password: <b>{{.NewPassword}}</b> · URL: <code>{{.LoginURL}}</code>
             </div>
         </details>
     </div>
@@ -56,55 +56,55 @@
 {{end}}
 <div class="card card-mt-18">
     <div class="card-header">
-        <strong>Создать временного пользователя</strong>
+        <strong>Create Temporary User</strong>
     </div>
     <div class="card-body">
         <form method="post" action="/admin/users-temp">
             <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
             <div class="grid-2col-gap14 mb-14">
                 <div>
-                    <label>Роль</label>
+                    <label>Role</label>
                     <select name="role">
-                        <option value="viewer" selected>viewer — только просмотр</option>
-                        <option value="manager">manager — может выпускать сертификаты</option>
-                        <option value="admin">admin — полный доступ</option>
+                        <option value="viewer" selected>viewer — read-only</option>
+                        <option value="manager">manager — can issue certificates</option>
+                        <option value="admin">admin — full access</option>
                     </select>
                 </div>
                 <div>
-                    <label>Срок действия — пресет</label>
+                    <label>Expiry — preset</label>
                     <select name="preset">
-                        <option value="30m">30 минут</option>
-                        <option value="1h">1 час</option>
-                        <option value="4h">4 часа</option>
-                        <option value="24h" selected>1 день</option>
-                        <option value="7d">7 дней</option>
-                        <option value="30d">30 дней</option>
+                        <option value="30m">30 minutes</option>
+                        <option value="1h">1 hour</option>
+                        <option value="4h">4 hours</option>
+                        <option value="24h" selected>1 day</option>
+                        <option value="7d">7 days</option>
+                        <option value="30d">30 days</option>
                     </select>
                 </div>
             </div>
             <div class="mb-14">
-                <label>Или точная дата и время (переопределяет пресет)</label>
+                <label>Or exact date and time (overrides preset)</label>
                 <div class="dp-wrap"
                      data-datepicker
                      data-name="custom_datetime"
                      data-min="now"
-                     data-placeholder="Выберите дату и время"></div>
+                     data-placeholder="Select date and time"></div>
             </div>
             <div class="mb-14">
-                <label>Заметка (для чего/кому)</label>
+                <label>Note (purpose / recipient)</label>
                 <input type="text"
                        name="note"
-                       placeholder="напр. Иванов И. — аудит 19 апреля"
+                       placeholder="e.g. J. Smith — audit April 19"
                        maxlength="200">
             </div>
-            <button type="submit" class="btn btn-primary">Создать</button>
+            <button type="submit" class="btn btn-primary">Create</button>
         </form>
     </div>
 </div>
 <div class="card card-mt-18">
     <div class="card-header">
-        <strong>Список временных пользователей</strong>
-        <span class="muted muted-fs11-ml-auto">Всего: {{len .Users}}</span>
+        <strong>Temporary User List</strong>
+        <span class="muted muted-fs11-ml-auto">Total: {{len .Users}}</span>
     </div>
     <div class="card-body">
         {{if .Users}}
@@ -120,12 +120,12 @@
                 </colgroup>
                 <thead>
                     <tr>
-                        <th>Логин</th>
-                        <th>Роль</th>
-                        <th>Статус</th>
-                        <th>Создан</th>
-                        <th>Истекает</th>
-                        <th>Заметка</th>
+                        <th>Username</th>
+                        <th>Role</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                        <th>Expires</th>
+                        <th>Note</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -137,11 +137,11 @@
                         <td>{{.Role}}</td>
                         <td>
                             {{if eq .Status "active"}}
-                            <span class="badge ok">активен</span>
+                            <span class="badge ok">active</span>
                             {{else if eq .Status "expired"}}
-                            <span class="badge danger">истёк</span>
+                            <span class="badge danger">expired</span>
                         {{else}}
-                            <span class="badge">заблок.</span>
+                            <span class="badge">blocked</span>
                             {{end}}
                         </td>
                         <td>{{.CreatedAt}}</td>
@@ -155,7 +155,7 @@
             </table>
         </div>
     {{else}}
-        <p class="muted m-0">Ещё не создано ни одного временного пользователя.</p>
+        <p class="muted m-0">No temporary users have been created yet.</p>
         {{end}}
     </div>
 </div>

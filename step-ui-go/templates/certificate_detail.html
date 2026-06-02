@@ -5,7 +5,7 @@
         <h1>{{.Cert.Name}}</h1>
     </div>
     <div class="row-gap8-center">
-        <a href="/certificates" class="btn btn-ghost">← Назад</a>
+        <a href="/certificates" class="btn btn-ghost">← Back</a>
         <a href="/download/cert/{{.Cert.ID}}" class="btn btn-ghost">CRT</a>
         {{if .Cert.KeyPath}}<a href="/download/key/{{.Cert.ID}}" class="btn btn-ghost">KEY</a>{{end}}
     </div>
@@ -13,19 +13,19 @@
 {{if .Detail}}
 <div class="grid-4col-minmax-gap12">
     <div class="stat-card">
-        <div class="stat-label">Статус</div>
+        <div class="stat-label">Status</div>
     <div class="stat-value {{if eq .Cert.Status "active"}}ok{{else}}danger{{end}}">{{.Cert.Status}}</div>
 </div>
 <div class="stat-card">
-    <div class="stat-label">Осталось дней</div>
+    <div class="stat-label">Days Remaining</div>
     <div class="stat-value {{badgeClass .Cert.ExpiresAt}}">{{.Detail.DaysLeft}}</div>
 </div>
 <div class="stat-card">
-    <div class="stat-label">Ключ</div>
+    <div class="stat-label">Key</div>
     <div class="stat-value fs-18">{{.Detail.PublicKey}}</div>
 </div>
 <div class="stat-card">
-    <div class="stat-label">Домен</div>
+    <div class="stat-label">Domain</div>
     <div class="stat-value fs-18 ow-anywhere">{{.Cert.Domain}}</div>
 </div>
 </div>
@@ -39,9 +39,9 @@
             <table class="tbl">
                 <thead>
                     <tr>
-                        <th>Проверка</th>
-                        <th>Статус</th>
-                        <th>Детали</th>
+                        <th>Check</th>
+                        <th>Status</th>
+                        <th>Details</th>
                     </tr>
                 </thead>
                 <tbody>

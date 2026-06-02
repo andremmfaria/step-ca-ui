@@ -1,8 +1,8 @@
 /*
- * components.css — переиспользуемые компоненты
+ * components.css — reusable UI components
  *
- * Сюда едут: .card, .btn, .tbl, формы, .theme-select (селектор темы),
- * .breadcrumb, .info-row, .badge, бейджи
+ * Covers: .card, .btn, .tbl, forms, .theme-select (theme selector),
+ * .breadcrumb, .info-row, .badge, badges
  */
 
 /* ──── extracted from base.html ──── */

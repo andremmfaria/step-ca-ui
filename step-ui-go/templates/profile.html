@@ -2,38 +2,38 @@
 <div class="page-header">
     <div>
         <div class="breadcrumb">account &middot; profile</div>
-        <h1>Мой профиль</h1>
+        <h1>My Profile</h1>
     </div>
 </div>
 <div class="grid-profile">
-    <!-- ═ Информация о пользователе ═ -->
+    <!-- ═ User information ═ -->
     <div data-profile-left-col="1"
          class="col-gap14">
         <div class="card card-mb-0">
             <div class="card-header">
-                <h3>Обо мне</h3>
+                <h3>About Me</h3>
             </div>
             <div class="card-body">
                 <div class="info-row">
-                    <div class="info-key">Логин</div>
+                    <div class="info-key">Username</div>
                     <div class="info-val">
                         <strong>{{.U.Username}}</strong>
                     </div>
                 </div>
                 <div class="info-row">
-                    <div class="info-key">Имя</div>
+                    <div class="info-key">Display Name</div>
                     <div class="info-val">
-                        {{if .U.DisplayName}}{{.U.DisplayName}}{{else}}<span class="text-muted">не указано</span>{{end}}
+                        {{if .U.DisplayName}}{{.U.DisplayName}}{{else}}<span class="text-muted">not set</span>{{end}}
                     </div>
                 </div>
                 <div class="info-row">
                     <div class="info-key">Email</div>
                     <div class="info-val">
-                        {{if .U.Email}}<code>{{.U.Email}}</code>{{else}}<span class="text-muted">не указан</span>{{end}}
+                        {{if .U.Email}}<code>{{.U.Email}}</code>{{else}}<span class="text-muted">not set</span>{{end}}
                     </div>
                 </div>
                 <div class="info-row">
-                    <div class="info-key">Роль</div>
+                    <div class="info-key">Role</div>
                     <div class="info-val">
                         {{if eq .U.Role "admin"}}<span class="badge purple">admin</span>
                         {{else if eq .U.Role "manager"}}<span class="badge blue">manager</span>
@@ -42,30 +42,30 @@
                     </div>
                 </div>
                 <div class="info-row">
-                    <div class="info-key">Статус</div>
+                    <div class="info-key">Status</div>
                     <div class="info-val">
-                        {{if .U.IsActive}}<span class="badge ok">активен</span>
-                        {{else}}<span class="badge danger">заблокирован</span>
+                        {{if .U.IsActive}}<span class="badge ok">active</span>
+                        {{else}}<span class="badge danger">blocked</span>
                         {{end}}
                     </div>
                 </div>
                 <div class="info-row">
                     <div class="info-key">2FA</div>
                     <div class="info-val">
-                        {{if .U.TOTPEnabled}}<span class="badge ok">включена</span>
-                        {{else}}<span class="badge warn">выключена</span>{{end}}
+                        {{if .U.TOTPEnabled}}<span class="badge ok">enabled</span>
+                        {{else}}<span class="badge warn">disabled</span>{{end}}
                     </div>
                 </div>
                 <div class="info-row">
-                    <div class="info-key">Аккаунт создан</div>
+                    <div class="info-key">Account Created</div>
                     <div class="info-val">{{fmtTime .U.CreatedAt}}</div>
                 </div>
                 <div class="info-row">
-                    <div class="info-key">Последний вход</div>
+                    <div class="info-key">Last Login</div>
                     <div class="info-val text-muted">{{fmtTime .U.LastLogin}}</div>
                 </div>
                 <div class="info-row">
-                    <div class="info-key">Последний IP</div>
+                    <div class="info-key">Last IP</div>
                     <div class="info-val text-muted">{{if .U.LastIP}}{{deref .U.LastIP}}{{else}}&mdash;{{end}}</div>
                 </div>
             </div>
@@ -73,7 +73,7 @@
         {{if eq .U.Role "admin"}}
         <div class="card card-mb-0 card-border-amber">
             <div class="card-header">
-                <h3 class="m-0">Администрирование</h3>
+                <h3 class="m-0">Administration</h3>
             </div>
             <div class="card-body col-gap12">
                 <div class="row-gap12-center">
@@ -90,56 +90,56 @@
                         </svg>
                     </div>
                     <div class="flex1-min0">
-                        <div class="fw700-lh12">Админ-панель</div>
-                        <div class="muted muted-fs12-mt2">Доступно только администраторам</div>
+                        <div class="fw700-lh12">Admin Panel</div>
+                        <div class="muted muted-fs12-mt2">Available to administrators only</div>
                     </div>
                 </div>
                 <a href="/admin"
-                   class="btn btn-primary btn-amber">Войти →</a>
+                   class="btn btn-primary btn-amber">Enter →</a>
             </div>
         </div>
         {{end}}
         <div class="card card-mb-0">
             <div class="card-header">
-                <h3 class="m-0">Двухфакторная защита</h3>
+                <h3 class="m-0">Two-Factor Authentication</h3>
             </div>
             <div class="card-body align-between">
                 <div>
-                    <div class="fw-700">{{if .U.TOTPEnabled}}2FA включена{{else}}2FA не включена{{end}}</div>
-                    <div class="muted muted-fs12-mt2">TOTP через authenticator app и recovery-коды</div>
+                    <div class="fw-700">{{if .U.TOTPEnabled}}2FA enabled{{else}}2FA not enabled{{end}}</div>
+                    <div class="muted muted-fs12-mt2">TOTP via authenticator app and recovery codes</div>
                 </div>
-                <a href="/profile/2fa" class="btn btn-ghost">Настроить</a>
+                <a href="/profile/2fa" class="btn btn-ghost">Configure</a>
             </div>
         </div>
     </div>
-    <!-- ═ Редактирование + пароль ═ -->
+    <!-- ═ Edit + password ═ -->
     <div class="col-gap14">
-        <!-- ── Редактировать профиль ── -->
+        <!-- ── Edit profile ── -->
         <div class="card card-mb-0">
             <div class="card-header">
-                <h3>Редактировать профиль</h3>
+                <h3>Edit Profile</h3>
             </div>
             <div class="card-body">
                 <form method="POST" action="/profile">
                     <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
                     <input type="hidden" name="action" value="update_info">
                     <div class="form-full">
-                        <label>Логин</label>
+                        <label>Username</label>
                         <input type="text"
                                name="username"
                                value="{{.U.Username}}"
                                required
                                autocomplete="off">
-                        <div class="muted-fs7-mt4">Используется для входа в систему</div>
+                        <div class="muted-fs7-mt4">Used to sign in</div>
                     </div>
                     <div class="form-full">
-                        <label>Имя</label>
+                        <label>Display Name</label>
                         <input type="text"
                                name="display_name"
                                value="{{.U.DisplayName}}"
-                               placeholder="Иван Петров"
+                               placeholder="John Smith"
                                autocomplete="off">
-                        <div class="muted-fs7-mt4">Отображается в интерфейсе</div>
+                        <div class="muted-fs7-mt4">Shown in the interface</div>
                     </div>
                     <div class="form-full">
                         <label>Email</label>
@@ -148,23 +148,23 @@
                                value="{{.U.Email}}"
                                placeholder="user@example.com"
                                autocomplete="off">
-                        <div class="muted-fs7-mt4">Для уведомлений и восстановления доступа</div>
+                        <div class="muted-fs7-mt4">For notifications and account recovery</div>
                     </div>
-                    <button type="submit" class="btn pad-8-18-fw6">Сохранить изменения</button>
+                    <button type="submit" class="btn pad-8-18-fw6">Save Changes</button>
                 </form>
             </div>
         </div>
-        <!-- ── Сменить пароль ── -->
+        <!-- ── Change password ── -->
         <div class="card card-mb-0">
             <div class="card-header">
-                <h3>Сменить пароль</h3>
+                <h3>Change Password</h3>
             </div>
             <div class="card-body">
                 <form method="POST" action="/profile">
                     <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
                     <input type="hidden" name="action" value="change_password">
                     <div class="form-full">
-                        <label>Текущий пароль</label>
+                        <label>Current Password</label>
                         <input type="password"
                                name="current_password"
                                required
@@ -172,15 +172,15 @@
                     </div>
                     <div class="form-row">
                         <div>
-                            <label>Новый пароль</label>
+                            <label>New Password</label>
                             <input type="password"
                                    name="new_password"
-                                   placeholder="Мин. 8 симв. + цифра + спецсимвол"
+                                   placeholder="Min. 8 chars + digit + special character"
                                    required
                                    autocomplete="new-password">
                         </div>
                         <div>
-                            <label>Подтвердить</label>
+                            <label>Confirm</label>
                             <input type="password"
                                    name="confirm_password"
                                    required
@@ -188,20 +188,20 @@
                         </div>
                     </div>
                     <button type="submit"
-                            class="btn btn-warn pad-8-18-fw6">Сохранить пароль</button>
+                            class="btn btn-warn pad-8-18-fw6">Save Password</button>
                 </form>
             </div>
         </div>
-        <!-- ── Внешний вид ── -->
+        <!-- ── Appearance ── -->
         <div class="card card-mb-0-ov">
             <div class="card-header">
-                <h3>Внешний вид</h3>
+                <h3>Appearance</h3>
             </div>
             <div class="card-body">
                 <form method="POST" action="/profile" id="themeForm">
                     <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
                     <input type="hidden" name="action" value="theme">
-                    <label>Тема оформления</label>
+                    <label>Color Theme</label>
                     {{$cur := .U.Theme}}
                     <div class="theme-select" id="themeSelect">
                         <div class="ts-box" id="tsBox">
@@ -209,11 +209,11 @@
                                 <span></span><span></span>
                             </div>
                             <div class="ts-label" id="tsLabel">
-                                {{if eq $cur "dark"}}Тёмная
-                                {{else if eq $cur "light"}}Светлая
-                                {{else if eq $cur "blue"}}Синяя
-                                {{else if eq $cur "auto"}}Авто (системная)
-                            {{else}}Тёмная{{end}}
+                                {{if eq $cur "dark"}}Dark
+                                {{else if eq $cur "light"}}Light
+                                {{else if eq $cur "blue"}}Blue
+                                {{else if eq $cur "auto"}}Auto (system)
+                            {{else}}Dark{{end}}
                             </div>
                             <span class="ts-arrow"></span>
                         </div>
@@ -223,8 +223,8 @@
                                     <span></span><span></span>
                                 </div>
                                 <div>
-                                    <div class="ts-opt-name">Тёмная</div>
-                                    <div class="ts-opt-sub">Классическая, по умолчанию</div>
+                                    <div class="ts-opt-name">Dark</div>
+                                    <div class="ts-opt-sub">Classic, default</div>
                                 </div>
                             </div>
                             <div class="ts-opt {{if eq $cur "light"}}selected{{end}}" data-val="light">
@@ -232,8 +232,8 @@
                                     <span></span><span></span>
                                 </div>
                                 <div>
-                                    <div class="ts-opt-name">Светлая</div>
-                                    <div class="ts-opt-sub">Для дневной работы</div>
+                                    <div class="ts-opt-name">Light</div>
+                                    <div class="ts-opt-sub">For daytime use</div>
                                 </div>
                             </div>
                             <div class="ts-opt {{if eq $cur "blue"}}selected{{end}}"  data-val="blue">
@@ -241,8 +241,8 @@
                                     <span></span><span></span>
                                 </div>
                                 <div>
-                                    <div class="ts-opt-name">Синяя</div>
-                                    <div class="ts-opt-sub">Морская ночь</div>
+                                    <div class="ts-opt-name">Blue</div>
+                                    <div class="ts-opt-sub">Ocean night</div>
                                 </div>
                             </div>
                             <div class="ts-opt {{if eq $cur "auto"}}selected{{end}}"  data-val="auto">
@@ -250,15 +250,15 @@
                                     <span></span><span></span>
                                 </div>
                                 <div>
-                                    <div class="ts-opt-name">Авто</div>
-                                    <div class="ts-opt-sub">Следит за системной темой</div>
+                                    <div class="ts-opt-name">Auto</div>
+                                    <div class="ts-opt-sub">Follows system theme</div>
                                 </div>
                             </div>
                         </div>
                     </div>
                     <input type="hidden" name="theme" id="themeInput" value="{{$cur}}">
                     <button type="submit"
-                            class="btn pad-mt14-8-18-fw6">Сохранить тему</button>
+                            class="btn pad-mt14-8-18-fw6">Save Theme</button>
                 </form>
             </div>
         </div>

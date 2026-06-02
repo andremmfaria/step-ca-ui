@@ -2,48 +2,48 @@
 <div class="page-header">
     <div>
         <div class="breadcrumb">dashboard</div>
-        <h1>Приветствуем, {{.Session.Username}}</h1>
+        <h1>Welcome, {{.Session.Username}}</h1>
     </div>
 </div>
-<!-- Основные счётчики по активным сертификатам -->
+<!-- Active certificate counters -->
 <div class="stats-grid">
     <div class="stat-card">
-        <div class="stat-label">Активные сертификаты</div>
+        <div class="stat-label">Active Certificates</div>
         <div class="stat-value">{{.Total}}</div>
     </div>
     <div class="stat-card">
-        <div class="stat-label">Здоровых</div>
+        <div class="stat-label">Healthy</div>
         <div class="stat-value ok">{{.OkC}}</div>
     </div>
     <div class="stat-card">
-        <div class="stat-label">Истекают (30д)</div>
+        <div class="stat-label">Expiring (30d)</div>
         <div class="stat-value warn">{{.WarnC}}</div>
     </div>
     <div class="stat-card">
-        <div class="stat-label">Просроченных</div>
+        <div class="stat-label">Expired</div>
         <div class="stat-value danger">{{.ExpC}}</div>
     </div>
 </div>
-<!-- Статистика сервера и активность CA — две карточки рядом -->
+<!-- Server stats and CA activity — two side-by-side cards -->
 <div class="grid-dash-server">
-    <!-- Сервер -->
+    <!-- Server -->
     <div class="card card-mb-0">
         <div class="card-header">
-            <h3>Сервер</h3>
+            <h3>Server</h3>
         </div>
         <div class="card-body">
             <div class="info-row">
-                <div class="info-key">Аптайм</div>
+                <div class="info-key">Uptime</div>
                 <div class="info-val">
                     <strong>{{.Uptime}}</strong>
                 </div>
             </div>
             <div class="info-row">
-                <div class="info-key">Запущен</div>
+                <div class="info-key">Started</div>
                 <div class="info-val text-muted">{{.StartedAt}}</div>
             </div>
             <div class="info-row">
-                <div class="info-key">Всего certs</div>
+                <div class="info-key">Total certs</div>
                 <div class="info-val">{{.AllCerts}}</div>
             </div>
             <div class="info-row">
@@ -51,15 +51,15 @@
                 <div class="info-val">{{.LECerts}}</div>
             </div>
             <div class="info-row">
-                <div class="info-key">Пользователи</div>
+                <div class="info-key">Users</div>
                 <div class="info-val">{{.UsersCount}}</div>
             </div>
         </div>
     </div>
-    <!-- Активность CA -->
+    <!-- CA Activity -->
     <div class="card card-mb-0">
         <div class="card-header">
-            <h3>Активность центра сертификации</h3>
+            <h3>CA Activity</h3>
         </div>
         <div class="card-body p-0">
             <div class="tbl-wrap">
@@ -74,19 +74,19 @@
                     </colgroup>
                     <thead>
                         <tr>
-                            <th class="col-w110">Период</th>
-                            <th>Выпуск</th>
-                            <th>Перевыпуск</th>
-                            <th>Отзыв</th>
-                            <th>Импорт</th>
-                            <th>Всего</th>
+                            <th class="col-w110">Period</th>
+                            <th>Issue</th>
+                            <th>Renew</th>
+                            <th>Revoke</th>
+                            <th>Import</th>
+                            <th>Total</th>
                         </tr>
                     </thead>
                     <tbody>
                         {{with index .Activity "24h"}}
                         <tr>
                             <td>
-                                <strong>24 часа</strong>
+                                <strong>24 hours</strong>
                             </td>
                             <td>
                                 <span class="badge ok">{{index . "issue"}}</span>
@@ -108,7 +108,7 @@
                         {{with index .Activity "7d"}}
                         <tr>
                             <td>
-                                <strong>7 дней</strong>
+                                <strong>7 days</strong>
                             </td>
                             <td>
                                 <span class="badge ok">{{index . "issue"}}</span>
@@ -130,7 +130,7 @@
                         {{with index .Activity "30d"}}
                         <tr>
                             <td>
-                                <strong>30 дней</strong>
+                                <strong>30 days</strong>
                             </td>
                             <td>
                                 <span class="badge ok">{{index . "issue"}}</span>
@@ -155,52 +155,52 @@
         </div>
     </div>
 </div>
-<!-- О системе -->
+<!-- About -->
 <div class="card">
     <div class="card-header">
-        <h3>О системе</h3>
+        <h3>About</h3>
     </div>
     <div class="card-body grid-auto180-gap16">
         <div>
-            <div class="stat-sublabel">Версия ядра</div>
+            <div class="stat-sublabel">Version</div>
             <div class="stat-val-18">v{{.Version}}</div>
         </div>
         <div>
-            <div class="stat-sublabel">Версия билда</div>
+            <div class="stat-sublabel">Build</div>
             <div class="fs14-fw600">
                 <code class="fs-12">{{.GitCommit}}</code>
             </div>
-            <div class="muted-fs11-mt2">собран: {{.BuildDate}}</div>
+            <div class="muted-fs11-mt2">built: {{.BuildDate}}</div>
         </div>
         <div>
-            <div class="stat-sublabel">Обновления</div>
+            <div class="stat-sublabel">Updates</div>
             <div class="fs14-fw600">
-                <span class="badge ok">Актуально</span>
+                <span class="badge ok">Up to date</span>
             </div>
             <div class="muted-fs11-mt4">
                 <a href="https://github.com/UncleFi1/step-ca-ui/releases"
                    target="_blank"
                    rel="noopener"
-                   class="link-accent">Список релизов &rarr;</a>
+                   class="link-accent">Release notes &rarr;</a>
             </div>
         </div>
     </div>
 </div>
-<!-- Сертификаты (только активные, по сроку) -->
+<!-- Certificates (active only, by expiry) -->
 <div class="card">
     <div class="card-header">
-        <h3>Активные сертификаты · по сроку истечения</h3>
+        <h3>Active Certificates · by expiry date</h3>
     </div>
     <div class="tbl-overflow">
         <table>
             <thead>
                 <tr>
-                    <th>Имя</th>
-                    <th>Домен</th>
-                    <th>Истекает</th>
-                    <th>Осталось</th>
-                    <th>Тип</th>
-                    <th>Действия</th>
+                    <th>Name</th>
+                    <th>Domain</th>
+                    <th>Expires</th>
+                    <th>Remaining</th>
+                    <th>Type</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -214,7 +214,7 @@
                     </td>
                     <td>{{fmtTime .ExpiresAt}}</td>
                     <td>
-                        <span class="badge {{badgeClass .ExpiresAt}}">{{daysLeft .ExpiresAt}} дн.</span>
+                        <span class="badge {{badgeClass .ExpiresAt}}">{{daysLeft .ExpiresAt}} d</span>
                     </td>
                     <td>
                         <span class="badge gray">{{.KeyType}}</span>
@@ -223,14 +223,14 @@
                         {{if hasRole $.Session.Role "manager"}}
                         <a href="/renew/{{.ID}}"
                            class="btn btn-warn btn-sm confirm-renew"
-                           data-name="{{.Name}}">Перевыпустить</a>
+                           data-name="{{.Name}}">Renew</a>
                         <a href="/download/cert/{{.ID}}" class="btn btn-ghost btn-sm">CRT</a>
                         {{end}}
                     </td>
                 </tr>
             {{else}}
                 <tr>
-                    <td colspan="6" class="muted-center-p24">Нет активных сертификатов</td>
+                    <td colspan="6" class="muted-center-p24">No active certificates</td>
                 </tr>
                 {{end}}
             </tbody>

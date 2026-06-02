@@ -65,10 +65,10 @@ func NeedsPasswordRehash(hash string) bool {
 // at least one digit, letter and special character), or (false, reason) otherwise.
 func ValidatePassword(pw string) (bool, string) {
 	if len(pw) < 8 {
-		return false, "Минимум 8 символов"
+		return false, "Minimum 8 characters required"
 	}
 	if len(pw) > 72 {
-		return false, "Максимум 72 символа"
+		return false, "Maximum 72 characters allowed"
 	}
 	hasDigit, hasLetter, hasSpecial := false, false, false
 	for _, c := range pw {
@@ -82,13 +82,13 @@ func ValidatePassword(pw string) (bool, string) {
 		}
 	}
 	if !hasDigit {
-		return false, "Нужна хотя бы одна цифра"
+		return false, "At least one digit is required"
 	}
 	if !hasLetter {
-		return false, "Нужна хотя бы одна буква"
+		return false, "At least one letter is required"
 	}
 	if !hasSpecial {
-		return false, "Нужен хотя бы один спецсимвол"
+		return false, "At least one special character is required"
 	}
 	return true, ""
 }

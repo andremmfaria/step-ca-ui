@@ -9,7 +9,7 @@
   var input = document.getElementById('themeInput');
   var label = document.getElementById('tsLabel');
   var preview = box.querySelector('.ts-preview');
-  var LABELS = { dark: 'Тёмная', light: 'Светлая', blue: 'Синяя', auto: 'Авто (системная)' };
+  var LABELS = { dark: 'Dark', light: 'Light', blue: 'Blue', auto: 'Auto (system)' };
 
   box.addEventListener('click', function () {
     box.classList.toggle('open');

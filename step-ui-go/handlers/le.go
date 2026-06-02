@@ -52,30 +52,30 @@ func (h *Handler) LEIssuePost(w http.ResponseWriter, r *http.Request) {
 	autoRenew := r.FormValue("auto_renew") == "on"
 
 	if domain == "" || email == "" {
-		h.flash(w, r, "err", "Заполните домен и email")
+		h.flash(w, r, "err", "Please enter the domain and email")
 		http.Redirect(w, r, "/le/issue", http.StatusFound)
 		return
 	}
 
 	if appdb.LECertExists(r.Context(), h.db, domain) {
-		h.flash(w, r, "err", "Сертификат для этого домена уже существует")
+		h.flash(w, r, "err", "A certificate for this domain already exists")
 		http.Redirect(w, r, "/le/issue", http.StatusFound)
 		return
 	}
 
 	settings, _ := appdb.GetLESettings(r.Context(), h.db)
 
-	// Создаём запись в БД со статусом pending
+	// Create a DB record with status pending
 	id, err := appdb.CreateLECert(r.Context(), h.db, domain, email, provider, autoRenew)
 	if err != nil {
-		h.flash(w, r, "err", "Ошибка создания записи: "+err.Error())
+		h.flash(w, r, "err", "Failed to create record: "+err.Error())
 		http.Redirect(w, r, "/le/issue", http.StatusFound)
 		return
 	}
 
-	appdb.AddLELog(r.Context(), h.db, domain, "issue", "Начало выпуска сертификата")
+	appdb.AddLELog(r.Context(), h.db, domain, "issue", "Certificate issuance started")
 
-	// Выпускаем в фоне — use Background so the goroutine outlives the request.
+	// Issue in the background — use Background so the goroutine outlives the request.
 	bgCtx := context.Background()
 	safeGo("le-issue:"+domain, func() {
 		result, err := le.IssueCert(&le.LEConfig{
@@ -90,14 +90,14 @@ func (h *Handler) LEIssuePost(w http.ResponseWriter, r *http.Request) {
 		})
 		if err != nil {
 			_ = appdb.UpdateLECertStatus(bgCtx, h.db, id, "error", err.Error())
-			appdb.AddLELog(bgCtx, h.db, domain, "error", fmt.Sprintf("Ошибка: %v", err))
+			appdb.AddLELog(bgCtx, h.db, domain, "error", fmt.Sprintf("Error: %v", err))
 			return
 		}
 		_ = appdb.UpdateLECertPaths(bgCtx, h.db, id, result.CertPath, result.KeyPath, result.IssuedAt, result.ExpiresAt)
-		appdb.AddLELog(bgCtx, h.db, domain, "issue", "Сертификат успешно выпущен")
+		appdb.AddLELog(bgCtx, h.db, domain, "issue", "Certificate issued successfully")
 	})
 
-	h.flash(w, r, "ok", fmt.Sprintf("Выпуск сертификата для %s запущен! Статус обновится через минуту.", domain))
+	h.flash(w, r, "ok", fmt.Sprintf("Certificate issuance for %s started. Status will update in about a minute.", domain))
 	http.Redirect(w, r, "/le", http.StatusFound)
 }
 
@@ -120,7 +120,7 @@ func (h *Handler) LERenew(w http.ResponseWriter, r *http.Request) {
 
 	settings, _ := appdb.GetLESettings(r.Context(), h.db)
 	_ = appdb.UpdateLECertStatus(r.Context(), h.db, id, "pending", "")
-	appdb.AddLELog(r.Context(), h.db, cert.Domain, "renew", "Ручное обновление запущено")
+	appdb.AddLELog(r.Context(), h.db, cert.Domain, "renew", "Manual renewal started")
 
 	// Use Background so the goroutine outlives the request.
 	bgCtx := context.Background()
@@ -134,14 +134,14 @@ func (h *Handler) LERenew(w http.ResponseWriter, r *http.Request) {
 		})
 		if err != nil {
 			_ = appdb.UpdateLECertStatus(bgCtx, h.db, id, "error", err.Error())
-			appdb.AddLELog(bgCtx, h.db, cert.Domain, "error", fmt.Sprintf("Ошибка обновления: %v", err))
+			appdb.AddLELog(bgCtx, h.db, cert.Domain, "error", fmt.Sprintf("Renewal error: %v", err))
 			return
 		}
 		_ = appdb.UpdateLECertPaths(bgCtx, h.db, id, result.CertPath, result.KeyPath, result.IssuedAt, result.ExpiresAt)
-		appdb.AddLELog(bgCtx, h.db, cert.Domain, "renew", "Сертификат успешно обновлён")
+		appdb.AddLELog(bgCtx, h.db, cert.Domain, "renew", "Certificate renewed successfully")
 	})
 
-	h.flash(w, r, "ok", "Обновление запущено!")
+	h.flash(w, r, "ok", "Renewal started!")
 	http.Redirect(w, r, "/le", http.StatusFound)
 }
 
@@ -157,10 +157,10 @@ func (h *Handler) LEDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if cert != nil {
-		appdb.AddLELog(r.Context(), h.db, cert.Domain, "delete", "Сертификат удалён из системы")
+		appdb.AddLELog(r.Context(), h.db, cert.Domain, "delete", "Certificate removed from the system")
 		_ = appdb.DeleteLECert(r.Context(), h.db, cert.ID)
 	}
-	h.flash(w, r, "ok", "Сертификат удалён")
+	h.flash(w, r, "ok", "Certificate deleted")
 	http.Redirect(w, r, "/le", http.StatusFound)
 }
 
@@ -178,9 +178,9 @@ func (h *Handler) LEToggleAutoRenew(w http.ResponseWriter, r *http.Request) {
 	if cert != nil {
 		_ = appdb.UpdateLECertAutoRenew(r.Context(), h.db, cert.ID, !cert.AutoRenew)
 		if !cert.AutoRenew {
-			h.flash(w, r, "ok", "Авто-обновление включено")
+			h.flash(w, r, "ok", "Auto-renewal enabled")
 		} else {
-			h.flash(w, r, "ok", "Авто-обновление отключено")
+			h.flash(w, r, "ok", "Auto-renewal disabled")
 		}
 	}
 	http.Redirect(w, r, "/le", http.StatusFound)
@@ -244,9 +244,9 @@ func (h *Handler) LESettingsPost(w http.ResponseWriter, r *http.Request) {
 		settings.R53Region = "us-east-1"
 	}
 	if err := appdb.SaveLESettings(r.Context(), h.db, settings); err != nil {
-		h.flash(w, r, "err", "Ошибка сохранения: "+err.Error())
+		h.flash(w, r, "err", "Save error: "+err.Error())
 	} else {
-		h.flash(w, r, "ok", "Настройки сохранены")
+		h.flash(w, r, "ok", "Settings saved")
 	}
 	http.Redirect(w, r, "/le/settings", http.StatusFound)
 }

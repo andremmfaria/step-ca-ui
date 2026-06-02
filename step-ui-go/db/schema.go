@@ -125,7 +125,7 @@ func InitSchema(d *sql.DB) error {
 		return err
 	}
 
-	// Создаём admin если нет пользователей
+	// Create admin user if no users exist
 	var count int
 	if err := d.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&count); err != nil { //nolint:noctx // pre-existing signature
 		return fmt.Errorf("counting users: %w", err)

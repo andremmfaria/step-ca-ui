@@ -1,28 +1,28 @@
 /* ─────────────────────────────────────────────
- * Кастомный datepicker (без зависимостей)
+ * Custom datepicker (no dependencies)
  *
- * Использование в HTML:
+ * Usage in HTML:
  *   <div class="dp-wrap" data-datepicker data-name="custom_datetime"
- *        data-min="now" data-placeholder="Выберите дату и время">
+ *        data-min="now" data-placeholder="Select date and time">
  *   </div>
  *
- * Атрибуты:
- *   data-name        — name скрытого поля (отправляется в форму)
- *   data-min         — "now" или ISO-строка минимально допустимой даты
- *   data-placeholder — текст-плейсхолдер
+ * Attributes:
+ *   data-name        — name of the hidden field submitted with the form
+ *   data-min         — "now" or an ISO string for the earliest allowed date
+ *   data-placeholder — placeholder text
  *
- * Формат отправляемого значения: "YYYY-MM-DD HH:MM"
- * Пустое значение = поле не отправляется.
+ * Submitted value format: "YYYY-MM-DD HH:MM"
+ * Empty value = field is not submitted.
  *
- * Валидация: если дата выбрана, время обязательно (часы И минуты должны
- * быть введены).
+ * Validation: if a date is selected, time is required (both hours AND minutes
+ * must be entered).
  * ───────────────────────────────────────────── */
 (function () {
   'use strict';
 
-  const MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь',
-                  'Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
-  const WEEKDAYS = ['пн','вт','ср','чт','пт','сб','вс'];
+  const MONTHS = ['January','February','March','April','May','June',
+                  'July','August','September','October','November','December'];
+  const WEEKDAYS = ['Mo','Tu','We','Th','Fr','Sa','Su'];
 
   function pad(n) { return String(n).padStart(2, '0'); }
 
@@ -43,12 +43,12 @@
     wrap.dataset.dpInit = '1';
 
     const name        = wrap.dataset.name || 'custom_datetime';
-    const placeholder = wrap.dataset.placeholder || 'Выберите дату и время';
-    const minMode     = wrap.dataset.min || ''; // "now" — запрещает прошлое
+    const placeholder = wrap.dataset.placeholder || 'Select date and time';
+    const minMode     = wrap.dataset.min || ''; // "now" — disallows past dates
 
-    // Состояние
+    // State
     let viewYear, viewMonth;
-    let pickedDate = null;       // {y, m, d} или null
+    let pickedDate = null;       // {y, m, d} or null
     let pickedHH = null, pickedMM = null;
 
     const today = new Date();
@@ -68,26 +68,26 @@
       <input type="hidden" name="${name}" value="">
       <div class="dp-pop">
         <div class="dp-head">
-          <button type="button" class="dp-nav dp-prev" aria-label="Предыдущий месяц">‹</button>
+          <button type="button" class="dp-nav dp-prev" aria-label="Previous month">‹</button>
           <div class="dp-title"></div>
-          <button type="button" class="dp-nav dp-next" aria-label="Следующий месяц">›</button>
+          <button type="button" class="dp-nav dp-next" aria-label="Next month">›</button>
         </div>
         <div class="dp-weekdays">
           ${WEEKDAYS.map(w => `<div class="dp-weekday">${w}</div>`).join('')}
         </div>
         <div class="dp-grid"></div>
         <div class="dp-time">
-          <span class="dp-time-label">Время:</span>
-          <input type="number" class="dp-hh" min="0" max="23" placeholder="чч" inputmode="numeric">
+          <span class="dp-time-label">Time:</span>
+          <input type="number" class="dp-hh" min="0" max="23" placeholder="hh" inputmode="numeric">
           <span class="dp-time-sep">:</span>
-          <input type="number" class="dp-mm" min="0" max="59" placeholder="мм" inputmode="numeric">
+          <input type="number" class="dp-mm" min="0" max="59" placeholder="mm" inputmode="numeric">
         </div>
         <div class="dp-foot">
-          <button type="button" class="dp-clear">Очистить</button>
-          <button type="button" class="dp-ok">Готово</button>
+          <button type="button" class="dp-clear">Clear</button>
+          <button type="button" class="dp-ok">Done</button>
         </div>
       </div>
-      <div class="dp-error">Укажите часы и минуты</div>
+      <div class="dp-error">Please enter hours and minutes</div>
     `;
 
     const inputDisplay = wrap.querySelector('.dp-input');
@@ -116,27 +116,27 @@
       title.textContent = `${MONTHS[viewMonth]} ${viewYear}`;
       grid.innerHTML = '';
 
-      // Первый день месяца + сдвиг до понедельника
+      // First day of the month, shifted to Monday-start
       const first = new Date(viewYear, viewMonth, 1);
-      // getDay(): 0=вс..6=сб → переведём в 0=пн..6=вс
+      // getDay(): 0=Sun..6=Sat → remap to 0=Mon..6=Sun
       let offset = (first.getDay() + 6) % 7;
 
       const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
       const prevMonthDays = new Date(viewYear, viewMonth, 0).getDate();
 
       const cells = [];
-      // Хвост предыдущего месяца
+      // Trailing days from the previous month
       for (let i = offset - 1; i >= 0; i--) {
         const d = prevMonthDays - i;
         const m = viewMonth === 0 ? 11 : viewMonth - 1;
         const y = viewMonth === 0 ? viewYear - 1 : viewYear;
         cells.push({y, m, d, other: true});
       }
-      // Текущий месяц
+      // Current month days
       for (let d = 1; d <= daysInMonth; d++) {
         cells.push({y: viewYear, m: viewMonth, d, other: false});
       }
-      // Голова следующего месяца до 42 ячеек (6×7)
+      // Leading days from the next month to fill 42 cells (6×7)
       while (cells.length < 42) {
         const last = cells[cells.length - 1];
         const next = new Date(last.y, last.m, last.d + 1);
@@ -158,7 +158,7 @@
         } else {
           btn.addEventListener('click', () => {
             pickedDate = {y: c.y, m: c.m, d: c.d};
-            // если день выпадает за текущий месяц — переключим вид
+            // if the day belongs to another month, switch the view
             if (c.m !== viewMonth) {
               viewYear = c.y; viewMonth = c.m;
             }
@@ -172,7 +172,7 @@
     }
 
     function commit() {
-      // Валидация: если есть дата — нужны и часы, и минуты
+      // Validation: if a date is picked, both hours and minutes are required
       if (pickedDate) {
         const hhRaw = inHH.value.trim();
         const mmRaw = inMM.value.trim();
@@ -216,7 +216,7 @@
     function close() { pop.classList.remove('open'); }
     function toggle() { pop.classList.contains('open') ? close() : open(); }
 
-    // События
+    // Events
     inputDisplay.addEventListener('click', toggle);
     inputDisplay.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
@@ -236,28 +236,28 @@
     btnOk.addEventListener('click', commit);
     btnClear.addEventListener('click', clearAll);
 
-    // Esc закрывает
+    // Esc closes the picker
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && pop.classList.contains('open')) close();
     });
 
-    // Клик вне — закрывает
+    // Click outside closes the picker
     document.addEventListener('click', (e) => {
       if (!wrap.contains(e.target) && pop.classList.contains('open')) {
         close();
       }
     });
 
-    // Если пользователь меняет часы/минуты — снимаем подсветку ошибки
+    // Clear error highlight when the user edits hours or minutes
     inHH.addEventListener('input', clearError);
     inMM.addEventListener('input', clearError);
 
-    // При сабмите формы валидируем и подтверждаем
+    // Validate and commit on form submit
     const form = wrap.closest('form');
     if (form) {
       form.addEventListener('submit', (e) => {
-        // Если дата выбрана, но окно закрыто — нужно сделать commit чтобы записать в hidden
-        // Если поповер открыт — пробуем закоммитить, ловим валидацию
+        // If a date is picked but the popover is closed, commit to write the hidden field.
+        // If the popover is open, attempt commit and catch validation errors.
         if (pickedDate && (inHH.value.trim() === '' || inMM.value.trim() === '')) {
           e.preventDefault();
           open();
@@ -265,7 +265,7 @@
           inHH.focus();
           return false;
         }
-        // Если поповер открыт — закоммитим (он переустановит hidden)
+        // If the popover is open, commit (it will update the hidden field)
         if (pop.classList.contains('open')) {
           if (!commit()) {
             e.preventDefault();
@@ -275,7 +275,7 @@
       });
     }
 
-    // Первичная отрисовка
+    // Initial render
     renderGrid();
   }
 
@@ -289,6 +289,6 @@
     initAll();
   }
 
-  // Экспорт на случай динамической вставки
+  // Export for dynamically inserted pickers
   window.initDatepickers = initAll;
 })();

@@ -2,7 +2,7 @@
 <div class="page-header">
     <div>
         <div class="breadcrumb">let's encrypt &middot; logs</div>
-        <h1>Журнал Let's Encrypt</h1>
+        <h1>Let's Encrypt Log</h1>
     </div>
 </div>
 <div class="card card-mb-12">
@@ -11,7 +11,7 @@
               action="/le/logs"
               id="leLogsForm"
               class="flex-filter-form-sm">
-            <label class="mb-0 w-auto">Домен:</label>
+            <label class="mb-0 w-auto">Domain:</label>
             <input type="text"
                    name="domain"
                    id="leDomainFilter"
@@ -20,7 +20,7 @@
                    class="mw-320-flex1"
                    autocomplete="off">
             {{if .FilterDomain}}
-            <a href="/le/logs" class="btn btn-ghost btn-sm">Сбросить</a>
+            <a href="/le/logs" class="btn btn-ghost btn-sm">Reset</a>
             {{end}}
         </form>
     </div>
@@ -36,10 +36,10 @@
             </colgroup>
             <thead>
                 <tr>
-                    <th>Время</th>
-                    <th>Домен</th>
-                    <th>Событие</th>
-                    <th>Сообщение</th>
+                    <th>Time</th>
+                    <th>Domain</th>
+                    <th>Event</th>
+                    <th>Message</th>
                 </tr>
             </thead>
             <tbody>
@@ -56,7 +56,7 @@
                 </tr>
             {{else}}
                 <tr>
-                    <td colspan="4" class="muted-center-p24">Нет записей</td>
+                    <td colspan="4" class="muted-center-p24">No records</td>
                 </tr>
                 {{end}}
             </tbody>

@@ -26,7 +26,7 @@ import (
 // StartedAt records the time the server process started (set in main).
 var StartedAt time.Time
 
-// Версионирование — переопределяется через ldflags при сборке
+// Versioning — overridden via ldflags at build time
 var (
 	Version   = "1.6.0"
 	BuildDate = "2026-05-28"
@@ -289,7 +289,7 @@ func (h *Handler) requireCSRF(w http.ResponseWriter, r *http.Request, redirectTo
 	if h.csrfOK(r) {
 		return true
 	}
-	h.flash(w, r, "err", "Ошибка сессии. Обновите страницу.")
+	h.flash(w, r, "err", "Session error. Please refresh the page.")
 	http.Redirect(w, r, redirectTo, http.StatusSeeOther)
 	return false
 }

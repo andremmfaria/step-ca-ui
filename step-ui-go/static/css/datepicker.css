@@ -1,6 +1,6 @@
 /* ─────────────────────────────────────────────
- * Кастомный datepicker — в стиле тем сайта
- * Использует переменные из themes.css
+ * Custom datepicker — styled to match the site themes
+ * Uses CSS variables from themes.css
  * ───────────────────────────────────────────── */
 
 .dp-wrap {
@@ -10,7 +10,7 @@
   max-width: 320px;
 }
 
-/* Поле-триггер */
+/* Trigger field */
 .dp-input {
   width: 100%;
   padding: 8px 36px 8px 12px;
@@ -37,7 +37,7 @@
   width: 16px; height: 16px;
 }
 
-/* Поповер */
+/* Popover */
 .dp-pop {
   position: absolute;
   z-index: 1000;
@@ -53,7 +53,7 @@
 }
 .dp-pop.open { display: block; }
 
-/* Шапка: ‹ месяц год › */
+/* Header: ‹ month year › */
 .dp-head {
   display: flex;
   align-items: center;
@@ -82,7 +82,7 @@
   text-transform: capitalize;
 }
 
-/* Сетка дней */
+/* Day grid */
 .dp-weekdays, .dp-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
@@ -124,7 +124,7 @@
 }
 .dp-day.dp-disabled:hover { background: transparent; }
 
-/* Блок времени */
+/* Time block */
 .dp-time {
   margin-top: 12px;
   padding-top: 10px;
@@ -166,7 +166,7 @@
   font-size: 14px;
 }
 
-/* Футер: Сейчас / Очистить / Ок */
+/* Footer: Clear / Done buttons */
 .dp-foot {
   margin-top: 10px;
   display: flex;
@@ -194,7 +194,7 @@
 .dp-foot .dp-ok:hover { filter: brightness(1.1); }
 .dp-foot .dp-clear { color: var(--muted); }
 
-/* Ошибка валидации */
+/* Validation error */
 .dp-error {
   margin-top: 6px;
   font-size: 12px;

@@ -293,9 +293,9 @@ func TestFmtUptime(t *testing.T) {
 		d    time.Duration
 		want string
 	}{
-		{2*time.Minute + 30*time.Second, "2м"},
-		{90 * time.Minute, "1ч 30м"},
-		{25*time.Hour + 10*time.Minute, "1д 1ч 10м"},
+		{2*time.Minute + 30*time.Second, "2m"},
+		{90 * time.Minute, "1h 30m"},
+		{25*time.Hour + 10*time.Minute, "1d 1h 10m"},
 	}
 	for _, tc := range cases {
 		got := fmtUptime(tc.d)

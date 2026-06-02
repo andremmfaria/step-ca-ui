@@ -13,7 +13,7 @@
     } catch (e) { /* ignore parse error, start with empty selection */ }
   }
 
-  var LABELS = { issue: 'Выпуск', renew: 'Перевыпуск', revoke: 'Отзыв', import: 'Импорт' };
+  var LABELS = { issue: 'Issue', renew: 'Renew', revoke: 'Revoke', import: 'Import' };
   var ms = document.getElementById('actionsMulti');
   if (!ms) { return; }
   var box = ms.querySelector('.ms-box');

@@ -2,27 +2,27 @@
 <div class="page-header">
     <div>
         <div class="breadcrumb">let's encrypt &middot; settings</div>
-        <h1>Настройки Let's Encrypt</h1>
+        <h1>Let's Encrypt Settings</h1>
     </div>
 </div>
 <div class="mw-600">
     <div class="card">
         <div class="card-header">
-            <h3>Общие настройки</h3>
+            <h3>General Settings</h3>
         </div>
         <div class="card-body">
             <form method="POST" action="/le/settings">
                 <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
                 <div class="form-full">
-                    <label>Email для уведомлений</label>
+                    <label>Notification email</label>
                     <input type="email"
                            name="email"
                            placeholder="admin@example.com"
                            value="{{if .LESettings}}{{.LESettings.Email}}{{end}}">
-                    <div class="muted-fs7-mt4">Let's Encrypt будет слать уведомления об истечении</div>
+                    <div class="muted-fs7-mt4">Let's Encrypt will send expiry notifications to this address</div>
                 </div>
                 <div class="form-full">
-                    <label>Провайдер по умолчанию</label>
+                    <label>Default provider</label>
                 <select name="provider"
                         id="provSelect"
                         data-initial="{{if .LESettings}}{{.LESettings.Provider}}{{else}}http01{{end}}">
@@ -56,7 +56,7 @@
                     <div class="muted-fs7-mt4">Permissions: Zone &mdash; DNS &mdash; Edit</div>
                 </div>
                 <div class="form-full">
-                    <label>Zone ID (опционально)</label>
+                    <label>Zone ID (optional)</label>
                     <input type="text"
                            name="cf_zone_id"
                            placeholder="Cloudflare Zone ID"
@@ -92,7 +92,7 @@
                 </div>
             </div>
             <button type="submit"
-                    class="btn pad-mt8-10-22-fw6">Сохранить настройки</button>
+                    class="btn pad-mt8-10-22-fw6">Save Settings</button>
         </form>
     </div>
 </div>

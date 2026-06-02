@@ -40,7 +40,7 @@ func (h *Handler) UsersPost(w http.ResponseWriter, r *http.Request) {
 		password := trimStr(r.FormValue("password"))
 		role := r.FormValue("role")
 		if username == "" || password == "" {
-			h.flash(w, r, "err", "Заполните все поля")
+			h.flash(w, r, "err", "Please fill in all fields")
 			break
 		}
 		if ok, msg := security.ValidatePassword(password); !ok {
@@ -48,39 +48,39 @@ func (h *Handler) UsersPost(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 		if err := appdb.CreateUser(h.db, username, security.HashPassword(password), role); err != nil {
-			h.flash(w, r, "err", "Пользователь уже существует")
+			h.flash(w, r, "err", "User already exists")
 		} else {
-			h.flash(w, r, "ok", "Пользователь "+username+" создан")
+			h.flash(w, r, "ok", "User "+username+" created")
 		}
 
 	case "delete":
 		uid, _ := strconv.Atoi(r.FormValue("uid"))
 		if uid == si.UserID {
-			h.flash(w, r, "err", "Нельзя удалить себя")
+			h.flash(w, r, "err", "You cannot delete your own account")
 			break
 		}
 		if err := appdb.DeleteUser(h.db, uid); err != nil {
-			h.flash(w, r, "err", "Ошибка удаления: "+err.Error())
+			h.flash(w, r, "err", "Delete error: "+err.Error())
 			break
 		}
-		h.flash(w, r, "ok", "Пользователь удалён")
+		h.flash(w, r, "ok", "User deleted")
 
 	case "change_role":
 		uid, _ := strconv.Atoi(r.FormValue("uid"))
 		role := r.FormValue("role")
 		if uid == si.UserID {
-			h.flash(w, r, "err", "Нельзя изменить свою роль")
+			h.flash(w, r, "err", "You cannot change your own role")
 			break
 		}
 		if role == "viewer" || role == "manager" || role == "admin" {
 			_ = appdb.UpdateUserRole(h.db, uid, role)
-			h.flash(w, r, "ok", "Роль обновлена")
+			h.flash(w, r, "ok", "Role updated")
 		}
 
 	case "toggle_active":
 		uid, _ := strconv.Atoi(r.FormValue("uid"))
 		if uid == si.UserID {
-			h.flash(w, r, "err", "Нельзя заблокировать себя")
+			h.flash(w, r, "err", "You cannot deactivate your own account")
 			break
 		}
 		u, _ := appdb.GetUserByID(h.db, uid)
@@ -88,9 +88,9 @@ func (h *Handler) UsersPost(w http.ResponseWriter, r *http.Request) {
 			newState := !u.IsActive
 			_ = appdb.UpdateUserActive(h.db, uid, newState)
 			if newState {
-				h.flash(w, r, "ok", "Пользователь разблокирован")
+				h.flash(w, r, "ok", "User activated")
 			} else {
-				h.flash(w, r, "ok", "Пользователь заблокирован")
+				h.flash(w, r, "ok", "User deactivated")
 			}
 		}
 
@@ -98,7 +98,7 @@ func (h *Handler) UsersPost(w http.ResponseWriter, r *http.Request) {
 		ip := r.FormValue("target_ip")
 		if ip != "" {
 			security.RL.Clear(ip)
-			h.flash(w, r, "ok", fmt.Sprintf("IP %s разблокирован", ip))
+			h.flash(w, r, "ok", fmt.Sprintf("IP %s unblocked", ip))
 		}
 
 	case "reset_password":
@@ -109,7 +109,7 @@ func (h *Handler) UsersPost(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 		_ = appdb.UpdateUserPassword(h.db, uid, security.HashPassword(newPW))
-		h.flash(w, r, "ok", "Пароль сброшен")
+		h.flash(w, r, "ok", "Password reset")
 	}
 	returnTo := r.FormValue("return_to")
 	// Restrict to relative paths to prevent open-redirect via user-supplied return_to.
@@ -178,9 +178,9 @@ func (h *Handler) ProfilePost(w http.ResponseWriter, r *http.Request) {
 			theme = "dark"
 		}
 		if err := appdb.UpdateUserTheme(h.db, si.UserID, theme); err != nil {
-			h.flash(w, r, "err", "Ошибка сохранения темы")
+			h.flash(w, r, "err", "Failed to save theme")
 		} else {
-			h.flash(w, r, "ok", "Тема обновлена")
+			h.flash(w, r, "ok", "Theme updated")
 		}
 		http.Redirect(w, r, "/profile", http.StatusFound)
 		return
@@ -190,27 +190,27 @@ func (h *Handler) ProfilePost(w http.ResponseWriter, r *http.Request) {
 		displayName := trimStr(r.FormValue("display_name"))
 		email := trimStr(r.FormValue("email"))
 		if username == "" {
-			h.flash(w, r, "err", "Логин не может быть пустым")
+			h.flash(w, r, "err", "Username cannot be empty")
 			http.Redirect(w, r, "/profile", http.StatusFound)
 			return
 		}
-		// Проверим что логин не занят другим пользователем
+		// Check that the username is not taken by another user
 		exists, _ := appdb.UsernameExistsExceptID(h.db, username, si.UserID)
 		if exists {
-			h.flash(w, r, "err", "Пользователь с таким логином уже существует")
+			h.flash(w, r, "err", "A user with that username already exists")
 			http.Redirect(w, r, "/profile", http.StatusFound)
 			return
 		}
 		if err := appdb.UpdateUserInfo(h.db, si.UserID, username, displayName, email); err != nil {
-			h.flash(w, r, "err", "Ошибка при обновлении: "+err.Error())
+			h.flash(w, r, "err", "Update error: "+err.Error())
 			http.Redirect(w, r, "/profile", http.StatusFound)
 			return
 		}
-		// Обновляем username в сессии
+		// Update username in session
 		s := h.sess(r)
 		s.Values["username"] = username
 		_ = s.Save(r, w)
-		h.flash(w, r, "ok", "Профиль обновлён")
+		h.flash(w, r, "ok", "Profile updated")
 		http.Redirect(w, r, "/profile", http.StatusFound)
 		return
 
@@ -221,12 +221,12 @@ func (h *Handler) ProfilePost(w http.ResponseWriter, r *http.Request) {
 
 		u, _ := appdb.GetUserByID(h.db, si.UserID)
 		if u == nil || !security.VerifyPassword(current, u.PasswordHash) {
-			h.flash(w, r, "err", "Неверный текущий пароль")
+			h.flash(w, r, "err", "Current password is incorrect")
 			http.Redirect(w, r, "/profile", http.StatusFound)
 			return
 		}
 		if newPW != confirm {
-			h.flash(w, r, "err", "Пароли не совпадают")
+			h.flash(w, r, "err", "Passwords do not match")
 			http.Redirect(w, r, "/profile", http.StatusFound)
 			return
 		}
@@ -236,7 +236,7 @@ func (h *Handler) ProfilePost(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		_ = appdb.UpdateUserPassword(h.db, si.UserID, security.HashPassword(newPW))
-		h.flash(w, r, "ok", "Пароль успешно изменён")
+		h.flash(w, r, "ok", "Password changed successfully")
 		http.Redirect(w, r, "/profile", http.StatusFound)
 		return
 	}

@@ -1,7 +1,7 @@
 {{define "content"}}
 <div class="admin-page-header">
-    <h1 class="admin-page-title">Уведомления</h1>
-    <p class="admin-page-subtitle">Webhook для критичных событий CA, ошибок выпуска и истекающих сертификатов</p>
+    <h1 class="admin-page-title">Notifications</h1>
+    <p class="admin-page-subtitle">Webhook for critical CA events, issuance failures, and expiring certificates</p>
 </div>
 {{range .Msgs}}
 <div class="alert {{if eq .Type "ok"}}alert-ok{{else}}alert-err{{end}}">{{.Text}}</div>
@@ -19,7 +19,7 @@
                        {{if .Settings.WebhookEnabled}}
                        checked
                        {{end}}>
-                <span>Включить webhook отправку</span>
+                <span>Enable webhook delivery</span>
             </label>
             <label>
                 <span>Webhook URL</span>
@@ -36,10 +36,10 @@
                            {{if .Settings.NotifyExpiry}}
                            checked
                            {{end}}>
-                    <span>Сертификаты скоро истекают</span>
+                    <span>Certificates expiring soon</span>
                 </label>
                 <label>
-                    <span>Порог, дней</span>
+                    <span>Threshold (days)</span>
                     <input type="number"
                            name="expiry_days"
                            min="1"
@@ -53,7 +53,7 @@
                        {{if .Settings.NotifyFailures}}
                        checked
                        {{end}}>
-                <span>Ошибки выпуска и перевыпуска сертификатов</span>
+                <span>Certificate issuance and renewal failures</span>
             </label>
             <label class="check-row">
                 <input type="checkbox"
@@ -61,38 +61,38 @@
                        {{if .Settings.NotifyAuthBurst}}
                        checked
                        {{end}}>
-                <span>Серия неудачных входов до блокировки IP</span>
+                <span>Burst of failed logins before IP block</span>
             </label>
             <div class="form-actions">
-                <button class="btn primary" type="submit">Сохранить</button>
+                <button class="btn primary" type="submit">Save</button>
             </div>
         </form>
     </div>
 </div>
 <div class="card">
     <div class="card-header">
-        <strong>Проверка</strong>
+        <strong>Test</strong>
     </div>
     <div class="card-body">
         <form method="POST" action="/admin/notifications/test">
             <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-            <button class="btn" type="submit">Отправить test webhook</button>
+            <button class="btn" type="submit">Send test webhook</button>
         </form>
     </div>
 </div>
 <div class="card">
     <div class="card-header">
-        <strong>Журнал отправок</strong>
+        <strong>Delivery Log</strong>
     </div>
     <div class="card-body p-0">
         <div class="tbl-wrap">
             <table class="tbl">
                 <thead>
                     <tr>
-                        <th>Время</th>
-                        <th>Событие</th>
-                        <th>Статус</th>
-                        <th>Сообщение</th>
+                        <th>Time</th>
+                        <th>Event</th>
+                        <th>Status</th>
+                        <th>Message</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -116,7 +116,7 @@
                     </tr>
                 {{else}}
                     <tr>
-                        <td colspan="4" class="muted">Событий пока нет</td>
+                        <td colspan="4" class="muted">No events yet</td>
                     </tr>
                     {{end}}
                 </tbody>

@@ -75,9 +75,9 @@ func TestValidatePassword(t *testing.T) {
 	}{
 		{"short", false, "8"},
 		{strings.Repeat("a", 73), false, "72"},
-		{"nospecia1", false, "спецсимвол"},
-		{"NoDigit!", false, "цифр"},
-		{"12345678!", false, "букв"},
+		{"nospecia1", false, "special"},
+		{"NoDigit!", false, "digit"},
+		{"12345678!", false, "letter"},
 		{"ValidPass1!", true, ""},
 	}
 	for _, tc := range cases {

@@ -1,8 +1,8 @@
 /* scoped-for-non-admin */
 /*
- * base.css — общий сброс, типографика, layout обычного приложения
+ * base.css — global reset, typography, and layout for the main application
  *
- * Сюда едут: *, body, html, .sidebar, .main, .logo, .nav-*, .burger
+ * Covers: *, body, html, .sidebar, .main, .logo, .nav-*, .burger
  */
 
 /* ──── extracted from base.html ──── */

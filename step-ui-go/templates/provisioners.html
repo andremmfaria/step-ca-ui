@@ -2,12 +2,12 @@
 <div class="page-header">
     <div>
         <div class="breadcrumb">ca &middot; provisioners</div>
-        <h1>Провижионеры</h1>
+        <h1>Provisioners</h1>
     </div>
 </div>
 <div class="card card-mb-16">
     <div class="card-header">
-        <h3>Подключение к CA</h3>
+        <h3>CA Connection</h3>
     </div>
     <div class="card-body">
         <div class="info-row">
@@ -23,7 +23,7 @@
                 {{if eq .Session.Role "admin"}}
                 <a href="/download/ca"
                    class="btn btn-ghost btn-sm"
-                   title="Скачать корневой сертификат"
+                   title="Download root certificate"
                    class="pad-3-10"
                     <svg width="11"
                          height="11"
@@ -39,7 +39,7 @@
                 </a>
                 <a href="/download/intermediate-ca"
                    class="btn btn-ghost btn-sm"
-                   title="Скачать intermediate сертификат"
+                   title="Download intermediate certificate"
                    class="pad-3-10"
                     <svg width="11"
                          height="11"
@@ -55,7 +55,7 @@
                 </a>
                 <a href="/download/full-chain"
                    class="btn btn-ghost btn-sm"
-                   title="Скачать full chain: intermediate + root"
+                   title="Download full chain: intermediate + root"
                    class="pad-3-10"
                     <svg width="11"
                          height="11"
@@ -83,11 +83,11 @@
 {{range .Provisioners}}
 <div class="prov-card">
     <div class="prov-name">{{index . "name"}}</div>
-    <div class="prov-type">Тип: {{index . "type"}}</div>
+    <div class="prov-type">Type: {{index . "type"}}</div>
 </div>
 {{else}}
 <div class="card">
-    <div class="card-body muted-center-p24">Нет провижионеров или CA недоступен</div>
+    <div class="card-body muted-center-p24">No provisioners or CA is unavailable</div>
 </div>
 {{end}}
 {{end}}

@@ -1,9 +1,9 @@
 /*
- * select.js — автообёртка <select> в кастомный UI
- * Подключается из base.html и admin_base.html
+ * select.js — auto-wraps <select> elements in a custom UI widget
+ * Included from base.html and admin_base.html
  */
 
-// Чистим устаревший ключ темы (теперь хранится на сервере)
+// Remove the legacy theme key (now stored server-side)
 try{localStorage.removeItem('step-ui-theme');}catch(e){}
 var _sidebarOpen = true;
 (function(){
@@ -132,14 +132,14 @@ function initCustomSelect(wrap){
   document.addEventListener('click', function(e){ if(!wrap.contains(e.target)) closeDropdown(); });
   renderLabel();
 }
-// Автооборачивание всех <select> на странице в кастомный select-wrap
+// Auto-wrap all <select> elements on the page into a custom select-wrap
 function autoWrapSelects(){
   document.querySelectorAll('select').forEach(function(sel){
-    if(sel.closest('.select-wrap')) return; // уже обёрнут
-    if(sel.hasAttribute('data-native')) return; // помечен как "не трогать"
+    if(sel.closest('.select-wrap')) return; // already wrapped
+    if(sel.hasAttribute('data-native')) return; // marked as "leave alone"
     var wrap = document.createElement('div');
     wrap.className = 'select-wrap';
-    // Наследуем ширину от select
+    // Inherit width from the original select
     var w = sel.style.width || sel.getAttribute('width');
     if(w) wrap.style.width = w;
     else if(sel.offsetWidth) wrap.style.width = sel.offsetWidth + 'px';
@@ -175,9 +175,9 @@ var _mf=null;
 function showConfirm(form,msg,btn,cls,title){
   _mf=form;
   document.getElementById('modalMsg').textContent=msg;
-  document.getElementById('modalTitle').textContent=title||'Подтвердите действие';
+  document.getElementById('modalTitle').textContent=title||'Confirm action';
   var b=document.getElementById('modalConfirmBtn');
-  b.textContent=btn||'Подтвердить';
+  b.textContent=btn||'Confirm';
   b.className='modal-btn-confirm '+(cls||'danger');
   document.getElementById('confirmModal').classList.add('active');
 }
@@ -196,7 +196,7 @@ document.addEventListener('submit',function(e){
   if(msg){e.preventDefault();showConfirm(f,msg,f.getAttribute('data-confirm-btn'),f.getAttribute('data-confirm-class'),f.getAttribute('data-confirm-title'));}
 });
 
-// Авто-открытие группы для активной страницы
+// Auto-open the nav group for the currently active page
 (function(){
   var activeLink = document.querySelector('.nav-group-items a.active');
   if(activeLink){

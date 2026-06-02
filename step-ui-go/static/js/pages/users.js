@@ -32,8 +32,8 @@
       if (visible) { shown++; }
     });
     counter.textContent = (shown === total)
-      ? ('Всего: ' + total)
-      : ('Найдено: ' + shown + ' из ' + total);
+      ? ('Total: ' + total)
+      : ('Found: ' + shown + ' of ' + total);
   }
 
   fSearch.addEventListener('input', applyFilters);

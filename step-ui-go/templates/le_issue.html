@@ -2,21 +2,21 @@
 <div class="page-header">
     <div>
         <div class="breadcrumb">let's encrypt &middot; issue</div>
-        <h1>Выпустить LE сертификат</h1>
+        <h1>Issue LE Certificate</h1>
     </div>
 </div>
 <div class="grid-le-issue">
     <div class="card">
         <div class="card-header">
-            <h3>Новый сертификат</h3>
+            <h3>New Certificate</h3>
         </div>
         <div class="card-body">
             <form method="POST" action="/le/issue">
                 <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
                 <div class="form-full">
-                    <label>Домен</label>
+                    <label>Domain</label>
                     <input type="text" name="domain" placeholder="example.com" required>
-                    <div class="muted-fs7-mt4">Домен должен быть публично доступен</div>
+                    <div class="muted-fs7-mt4">The domain must be publicly accessible</div>
                 </div>
                 <div class="form-full">
                     <label>Email</label>
@@ -25,17 +25,17 @@
                            placeholder="admin@example.com"
                            value="{{if .LESettings}}{{.LESettings.Email}}{{end}}"
                            required>
-                    <div class="muted-fs7-mt4">Для уведомлений Let's Encrypt</div>
+                    <div class="muted-fs7-mt4">Used for Let's Encrypt notifications</div>
                 </div>
                 <div class="form-full">
-                    <label>Challenge провайдер</label>
+                    <label>Challenge provider</label>
                 <select name="provider"
                         id="providerSelect"
                         data-initial="{{if .LESettings}}{{.LESettings.Provider}}{{else}}http01{{end}}">
                     <option value="http01"
                             {{if eq .LESettings.Provider "http01"}}
                             selected
-                            {{end}}>HTTP-01 (порт 80 должен быть открыт)
+                            {{end}}>HTTP-01 (port 80 must be open)
                     </option>
                     <option value="cloudflare"
                             {{if eq .LESettings.Provider "cloudflare"}}
@@ -50,47 +50,47 @@
                 </select>
             </div>
             <div id="helpHttp01" class="le-help">
-                <strong>HTTP-01:</strong> Let's Encrypt обратится на <code>http://example.com/.well-known/acme-challenge/</code>.
-                Порт 80 должен быть открыт и доступен из интернета.
+                <strong>HTTP-01:</strong> Let's Encrypt will request <code>http://example.com/.well-known/acme-challenge/</code>.
+                Port 80 must be open and reachable from the internet.
             </div>
             <div id="helpCloudflare" class="le-help d-none">
-                <strong>DNS-01 Cloudflare:</strong> Автоматически создаёт TXT запись через Cloudflare API.
-                Настрой API Token в <a href="/le/settings" class="link-accent">Настройках LE</a>.
+                <strong>DNS-01 Cloudflare:</strong> Automatically creates a TXT record via the Cloudflare API.
+                Configure the API Token in <a href="/le/settings" class="link-accent">LE Settings</a>.
             </div>
             <div id="helpRoute53" class="le-help d-none">
-                <strong>DNS-01 Route53:</strong> Автоматически создаёт TXT запись через AWS Route53.
-                Настрой ключи в <a href="/le/settings" class="link-accent">Настройках LE</a>.
+                <strong>DNS-01 Route53:</strong> Automatically creates a TXT record via AWS Route53.
+                Configure the keys in <a href="/le/settings" class="link-accent">LE Settings</a>.
             </div>
             <div class="form-full mt-12">
                 <label class="label-check-flex">
                     <input type="checkbox" name="auto_renew" checked class="w-auto">
-                    Авто-обновление за 30 дней до истечения
+                    Auto-renew 30 days before expiry
                 </label>
             </div>
             <button type="submit"
-                    class="btn pad-mt8-10-22-fw6">Выпустить сертификат</button>
+                    class="btn pad-mt8-10-22-fw6">Issue Certificate</button>
         </form>
     </div>
 </div>
 <div class="card">
     <div class="card-header">
-        <h3>Как это работает</h3>
+        <h3>How It Works</h3>
     </div>
     <div class="card-body">
         <div class="muted-lh18-fs12">
             <p class="mb-12">
-                Let's Encrypt выпускает бесплатные SSL сертификаты для публичных доменов сроком на <strong class="text-text">90 дней</strong>.
+                Let's Encrypt issues free SSL certificates for public domains with a validity of <strong class="text-text">90 days</strong>.
             </p>
             <div class="mb-6">
                 <span class="badge ok">HTTP-01</span>
             </div>
-            <p class="mb-12">Подходит если сервер доступен из интернета на порту 80.</p>
+            <p class="mb-12">Use when the server is reachable from the internet on port 80.</p>
             <div class="mb-6">
                 <span class="badge blue">DNS-01</span>
             </div>
-            <p class="mb-12">Подходит для любых доменов. Требует доступ к DNS через API.</p>
+            <p class="mb-12">Works for any domain. Requires DNS API access.</p>
             <hr class="hr-margin-12">
-            <p>Авто-обновление проверяет сертификаты каждые 24 часа и обновляет за 30 дней до истечения.</p>
+            <p>Auto-renewal checks certificates every 24 hours and renews them 30 days before expiry.</p>
         </div>
     </div>
 </div>

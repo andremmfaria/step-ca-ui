@@ -1,20 +1,20 @@
 {{define "content"}}
 <div class="page-header">
     <div>
-        <h1>Журнал безопасности</h1>
+        <h1>Security Log</h1>
     </div>
 </div>
 <div class="grid-sec-stats">
     <div class="stat-card">
-        <div class="stat-label">Всего записей</div>
+        <div class="stat-label">Total Records</div>
         <div class="stat-value">{{.Total}}</div>
     </div>
     <div class="stat-card">
-        <div class="stat-label">Успешных входов</div>
+        <div class="stat-label">Successful Logins</div>
         <div class="stat-value ok">{{.TotalOK}}</div>
     </div>
     <div class="stat-card">
-        <div class="stat-label">Неудачных попыток</div>
+        <div class="stat-label">Failed Attempts</div>
         <div class="stat-value danger">{{.TotalFail}}</div>
     </div>
 </div>
@@ -28,7 +28,7 @@
                 <input type="text"
                        name="q"
                        id="secSearch"
-                       placeholder="Поиск по логину или IP"
+                       placeholder="Search by username or IP"
                        value="{{.SearchQ}}"
                        autocomplete="off">
             </div>
@@ -36,17 +36,17 @@
                 <select name="filter"
                         id="secFilter"
                         onchange="document.getElementById('secForm').submit()">
-                    <option value="">Все события</option>
-                    <option value="ok"   {{if eq .Filter "ok"}}selected{{end}}>Успешные
+                    <option value="">All Events</option>
+                    <option value="ok"   {{if eq .Filter "ok"}}selected{{end}}>Successful
                     </option>
-                    <option value="fail" {{if eq .Filter "fail"}}selected{{end}}>Неудачные
+                    <option value="fail" {{if eq .Filter "fail"}}selected{{end}}>Failed
                     </option>
                 </select>
             </div>
             {{if or .SearchQ .Filter}}
-            <a href="/admin/security" class="btn btn-ghost btn-sm">Сбросить</a>
+            <a href="/admin/security" class="btn btn-ghost btn-sm">Reset</a>
             {{end}}
-            <span class="muted-fs11-ml-auto">Всего: {{.Total}}</span>
+            <span class="muted-fs11-ml-auto">Total: {{.Total}}</span>
         </form>
     </div>
 </div>
@@ -62,11 +62,11 @@
             </colgroup>
             <thead>
                 <tr>
-                    <th>Время</th>
-                    <th>Пользователь</th>
-                    <th>IP адрес</th>
-                    <th>Событие</th>
-                    <th>Детали</th>
+                    <th>Time</th>
+                    <th>User</th>
+                    <th>IP Address</th>
+                    <th>Event</th>
+                    <th>Details</th>
                 </tr>
             </thead>
             <tbody>
@@ -80,14 +80,14 @@
                         <code>{{.IP}}</code>
                     </td>
                     <td>
-                        {{if .Success}}<span class="badge ok">Вход</span>
-                        {{else}}<span class="badge danger">Отказ</span>{{end}}
+                        {{if .Success}}<span class="badge ok">Login</span>
+                        {{else}}<span class="badge danger">Denied</span>{{end}}
                     </td>
                     <td class="text-muted">{{.Reason}}</td>
                 </tr>
             {{else}}
                 <tr>
-                    <td colspan="5" class="muted-center-p24">Нет записей</td>
+                    <td colspan="5" class="muted-center-p24">No records</td>
                 </tr>
                 {{end}}
             </tbody>

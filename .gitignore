@@ -1,4 +1,4 @@
-# Секреты
+# Secrets
 .env
 *.env.local
 secrets/
@@ -6,7 +6,7 @@ node_modules/
 package-lock.json
 package.json
 
-# Бинарники Go
+# Go binaries
 step-ui-go/step-ui
 step-ui-go/*.exe
 
@@ -16,13 +16,13 @@ coverage.out
 integration.out
 merged.out
 
-# Данные
+# Data files
 *.db
 *.sqlite
 *.sql.gz
 backups/
 
-# SSL сертификаты (генерируются автоматически)
+# SSL certificates (auto-generated)
 step-ui-go/ssl/
 ssl/
 
@@ -42,7 +42,7 @@ step-ui-go/vendor/
 .DS_Store
 Thumbs.db
 
-# Логи
+# Logs
 *.log
 
 # Backup directories from update scripts

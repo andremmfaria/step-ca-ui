@@ -48,7 +48,7 @@ func InitLESchema(d *sql.DB) error {
 	);
 	CREATE INDEX IF NOT EXISTS idx_le_logs_created ON le_logs(created_at);
 
-	-- Одна запись настроек
+	-- Single settings row
 	INSERT INTO le_settings (id, email) VALUES (1, '') ON CONFLICT (id) DO NOTHING;
 	`
 	_, err := d.ExecContext(context.Background(), schema)

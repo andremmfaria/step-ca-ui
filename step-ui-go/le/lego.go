@@ -84,7 +84,7 @@ type LEResult struct {
 	ExpiresAt *time.Time
 }
 
-// IssueCert выпускает сертификат Let's Encrypt.
+// IssueCert issues a Let's Encrypt certificate.
 // It is safe to call concurrently; a package-level mutex serializes access to
 // shared state (account key file, registration file, and the ACME client).
 // IssueCert issues or renews a Let's Encrypt certificate for the domain in cfg.
@@ -98,26 +98,26 @@ func IssueCert(cfg *LEConfig) (*LEResult, error) {
 		return nil, fmt.Errorf("creating cert directory: %w", err)
 	}
 
-	// Загружаем или создаём ключ аккаунта (protected by issueMu)
+	// Load or create the account key (protected by issueMu)
 	privateKey, err := loadOrCreateKey(LEKeyFile)
 	if err != nil {
-		return nil, fmt.Errorf("ключ аккаунта: %w", err)
+		return nil, fmt.Errorf("account key: %w", err)
 	}
 
 	user := &LEUser{Email: cfg.Email, key: privateKey}
 
-	// Загружаем регистрацию если есть (protected by issueMu)
+	// Load existing registration if present (protected by issueMu)
 	if reg, err := loadRegistration(LEAccountFile); err == nil {
 		user.Registration = reg
 	}
 
-	// Выбираем CA
+	// Select CA
 	caURL := LEProductionCA
 	if cfg.Staging {
 		caURL = LEStagingCA
 	}
 
-	// Создаём LEGO клиент
+	// Create the LEGO client
 	legoConfig := lego.NewConfig(user)
 	legoConfig.CADirURL = caURL
 	legoConfig.Certificate.KeyType = certcrypto.EC256
@@ -127,7 +127,7 @@ func IssueCert(cfg *LEConfig) (*LEResult, error) {
 		return nil, fmt.Errorf("lego client: %w", err)
 	}
 
-	// Настраиваем challenge провайдер
+	// Configure the challenge provider
 	switch cfg.Provider {
 	case "http01":
 		if err := client.Challenge.SetHTTP01Provider(http01.NewProviderServer("", "80")); err != nil {
@@ -135,7 +135,7 @@ func IssueCert(cfg *LEConfig) (*LEResult, error) {
 		}
 	case "cloudflare":
 		if cfg.CFToken == "" {
-			return nil, fmt.Errorf("Cloudflare API token не задан")
+			return nil, fmt.Errorf("Cloudflare API token is not set")
 		}
 		// Pass the token via Config.AuthToken instead of os.Setenv to avoid
 		// the process-global environment mutation that races under concurrent
@@ -150,30 +150,30 @@ func IssueCert(cfg *LEConfig) (*LEResult, error) {
 			return nil, fmt.Errorf("setting dns01 provider: %w", err)
 		}
 	default:
-		return nil, fmt.Errorf("неизвестный провайдер: %s", cfg.Provider)
+		return nil, fmt.Errorf("unknown provider: %s", cfg.Provider)
 	}
 
-	// Регистрация если нет
+	// Register if not already registered
 	if user.Registration == nil {
 		reg, err := client.Registration.Register(registration.RegisterOptions{TermsOfServiceAgreed: true})
 		if err != nil {
-			return nil, fmt.Errorf("регистрация: %w", err)
+			return nil, fmt.Errorf("registration: %w", err)
 		}
 		user.Registration = reg
 		saveRegistration(LEAccountFile, reg)
 	}
 
-	// Запрашиваем сертификат
+	// Request the certificate
 	request := certificate.ObtainRequest{
 		Domains: []string{cfg.Domain},
 		Bundle:  true,
 	}
 	certs, err := client.Certificate.Obtain(request)
 	if err != nil {
-		return nil, fmt.Errorf("выпуск сертификата: %w", err)
+		return nil, fmt.Errorf("certificate issuance: %w", err)
 	}
 
-	// Сохраняем файлы
+	// Save files
 	certDir := filepath.Join(LEDirectory, cfg.Domain)
 	certPath := filepath.Join(certDir, "certificate.crt")
 	keyPath := filepath.Join(certDir, "private.key")
@@ -185,7 +185,7 @@ func IssueCert(cfg *LEConfig) (*LEResult, error) {
 		return nil, err
 	}
 
-	// Парсим даты
+	// Parse certificate dates
 	issued, expires := parseCertDates(certs.Certificate)
 
 	return &LEResult{
@@ -218,7 +218,7 @@ func loadOrCreateKey(path string) (crypto.PrivateKey, error) {
 			return x509.ParseECPrivateKey(block.Bytes)
 		}
 	}
-	// Создаём новый ключ
+	// Generate a new key
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return nil, err

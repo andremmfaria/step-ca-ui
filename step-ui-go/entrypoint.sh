@@ -50,7 +50,7 @@ if [ -z "${DATABASE_URL:-}" ]; then
   export DATABASE_URL="postgres://${_pg_user}:${POSTGRES_PASSWORD}@${_pg_host}:${_pg_port}/${_pg_db}?sslmode=disable"
 fi
 
-# ─── Ждём PostgreSQL ──────────────────────────────────────────────────────
+# ─── Wait for PostgreSQL ──────────────────────────────────────────────────
 echo "[*] Waiting for PostgreSQL..."
 until nc -z postgres 5432 2>/dev/null; do
   sleep 1
@@ -59,7 +59,7 @@ echo "[*] PostgreSQL is ready!"
 
 echo "[*] CA readiness is now reported via /ready — not blocking startup on Step-CA"
 
-# SSL сертификат для UI
+# SSL certificate for the UI
 if [ ! -f /opt/step-ui/ssl/server.crt ]; then
   echo "[*] Generating self-signed SSL certificate..."
   openssl req -x509 -nodes -days 3650 -newkey rsa:2048     -keyout /opt/step-ui/ssl/server.key     -out /opt/step-ui/ssl/server.crt     -subj "/CN=${HOST_IP:-localhost}"     -addext "subjectAltName=IP:${HOST_IP:-127.0.0.1},DNS:localhost" 2>/dev/null

@@ -3,12 +3,12 @@
 .gitignore
 .gitattributes
 
-# Скомпилированные бинарники (билд внутри контейнера)
+# Compiled binaries (build happens inside the container)
 step-ui
 *.exe
 *.test
 
-# Документация (не нужна в образе)
+# Documentation (not needed in the image)
 README.md
 CHANGELOG.md
 LICENSE
@@ -20,16 +20,16 @@ docs/
 *.swp
 *.swo
 
-# Логи и временные
+# Logs and temporary files
 *.log
 tmp/
 data/
 backups/
 
-# Секреты
+# Secrets
 .env
 .env.local
 *.env.local
 
-# SSL (монтируется volume'ом)
+# SSL (mounted as a volume)
 ssl/

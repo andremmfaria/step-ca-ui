@@ -332,7 +332,7 @@
 .fs11-accent-fw600 { font-size: 11px; color: var(--accent); margin-bottom: 10px; font-weight: 600; }
 .fs11-warn-fw600   { font-size: 11px; color: var(--warn); margin-bottom: 10px; font-weight: 600; }
 
-/* le_dashboard "Все логи" link in card header */
+/* le_dashboard "All logs" link in card header */
 .card-header-link  { font-size: 11px; color: var(--accent); text-decoration: none; }
 
 /* sidebar footer muted role label */

@@ -32,7 +32,7 @@ type notificationPayload struct {
 func (h *Handler) AdminNotificationsGet(w http.ResponseWriter, r *http.Request) {
 	settings, err := appdb.GetNotificationSettings(r.Context(), h.db)
 	if err != nil {
-		h.flash(w, r, "err", "Не удалось загрузить настройки уведомлений: "+err.Error())
+		h.flash(w, r, "err", "Failed to load notification settings: "+err.Error())
 		settings = &models.NotificationSettings{NotifyExpiry: true, ExpiryDays: 30, NotifyFailures: true, NotifyAuthBurst: true}
 	}
 	logs, _ := appdb.GetNotificationLogs(r.Context(), h.db, 25)
@@ -65,15 +65,15 @@ func (h *Handler) AdminNotificationsPost(w http.ResponseWriter, r *http.Request)
 	}
 	if settings.WebhookEnabled {
 		if _, err := url.ParseRequestURI(settings.WebhookURL); err != nil {
-			h.flash(w, r, "err", "Webhook URL некорректен")
+			h.flash(w, r, "err", "Webhook URL is invalid")
 			http.Redirect(w, r, "/admin/notifications", http.StatusSeeOther)
 			return
 		}
 	}
 	if err := appdb.SaveNotificationSettings(r.Context(), h.db, settings); err != nil {
-		h.flash(w, r, "err", "Не удалось сохранить настройки: "+err.Error())
+		h.flash(w, r, "err", "Failed to save settings: "+err.Error())
 	} else {
-		h.flash(w, r, "ok", "Настройки уведомлений сохранены")
+		h.flash(w, r, "ok", "Notification settings saved")
 	}
 	http.Redirect(w, r, "/admin/notifications", http.StatusSeeOther)
 }
@@ -85,22 +85,22 @@ func (h *Handler) AdminNotificationsTest(w http.ResponseWriter, r *http.Request)
 	}
 	settings, err := appdb.GetNotificationSettings(r.Context(), h.db)
 	if err != nil {
-		h.flash(w, r, "err", "Не удалось загрузить настройки: "+err.Error())
+		h.flash(w, r, "err", "Failed to load settings: "+err.Error())
 		http.Redirect(w, r, "/admin/notifications", http.StatusSeeOther)
 		return
 	}
 	if !settings.WebhookEnabled || strings.TrimSpace(settings.WebhookURL) == "" {
-		h.flash(w, r, "err", "Сначала включите webhook и укажите URL")
+		h.flash(w, r, "err", "Please enable the webhook and provide a URL first")
 		http.Redirect(w, r, "/admin/notifications", http.StatusSeeOther)
 		return
 	}
-	err = h.sendNotification(r.Context(), "", "system.test", "info", "Step-CA UI test notification", "Тестовая отправка webhook из админ-панели", map[string]string{
+	err = h.sendNotification(r.Context(), "", "system.test", "info", "Step-CA UI test notification", "Test webhook dispatch from admin panel", map[string]string{
 		"remote_addr": r.RemoteAddr,
 	})
 	if err != nil {
 		h.flash(w, r, "err", "Webhook test failed: "+err.Error())
 	} else {
-		h.flash(w, r, "ok", "Webhook test отправлен")
+		h.flash(w, r, "ok", "Webhook test sent")
 	}
 	http.Redirect(w, r, "/admin/notifications", http.StatusSeeOther)
 }
@@ -225,7 +225,7 @@ func (h *Handler) checkExpiringCertificates(ctx context.Context) {
 		days := int(time.Until(*c.ExpiresAt).Hours() / 24)
 		_ = h.sendNotification(ctx, eventKey, "certificate.expiring", "warn",
 			"Certificate expires soon",
-			fmt.Sprintf("Сертификат %s (%s) истекает через %d дн.", c.Name, c.Domain, days),
+			fmt.Sprintf("Certificate %s (%s) expires in %d day(s).", c.Name, c.Domain, days),
 			map[string]string{
 				"id":      strconv.Itoa(c.ID),
 				"name":    c.Name,

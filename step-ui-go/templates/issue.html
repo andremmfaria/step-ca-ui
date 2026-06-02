@@ -2,25 +2,25 @@
 <div class="page-header">
     <div>
         <div class="breadcrumb">certificates &middot; issue</div>
-        <h1>Выпустить сертификат</h1>
+        <h1>Issue Certificate</h1>
     </div>
 </div>
 <div class="grid-issue">
-    <!-- ═ Основная форма ═ -->
+    <!-- ═ Main form ═ -->
     <form method="POST" action="/issue" id="issueForm">
         <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
         <input type="hidden" name="template" id="templateInput" value="server">
         <input type="hidden" name="key_type" id="keyTypeInput" value="EC:P-256">
         <input type="hidden" name="duration" id="durationInput" value="8760h">
-        <!-- ── Общие поля ── -->
+        <!-- ── Common fields ── -->
         <div class="card">
             <div class="card-header">
-                <h3>Основные параметры</h3>
+                <h3>Basic Parameters</h3>
             </div>
             <div class="card-body">
                 <div class="form-row">
                     <div>
-                        <label>Название</label>
+                        <label>Name</label>
                         <input type="text"
                                name="name"
                                id="fName"
@@ -29,7 +29,7 @@
                                required>
                     </div>
                     <div>
-                        <label>Домен или IP</label>
+                        <label>Domain or IP</label>
                         <input type="text"
                                name="domain"
                                id="fDomain"
@@ -40,10 +40,10 @@
                 </div>
             </div>
         </div>
-        <!-- ── Шаблон выпуска ── -->
+        <!-- ── Issue template ── -->
         <div class="card">
             <div class="card-header">
-                <h3>Шаблон и policy</h3>
+                <h3>Template &amp; Policy</h3>
             </div>
             <div class="card-body">
                 <div class="template-grid">
@@ -54,7 +54,7 @@
                             data-duration="8760h"
                             data-placeholder="app.example.com">
                         <span class="template-title">Server TLS</span>
-                        <span class="template-sub">Обычный HTTPS/service сертификат на 1 год</span>
+                        <span class="template-sub">Standard HTTPS/service certificate, 1 year</span>
                     </button>
                     <button type="button"
                             class="template-card"
@@ -63,7 +63,7 @@
                             data-duration="87600h"
                             data-placeholder="service.home.local">
                         <span class="template-title">Internal service</span>
-                        <span class="template-sub">Внутренний сервис, срок до 10 лет</span>
+                        <span class="template-sub">Internal service, up to 10 years</span>
                     </button>
                     <button type="button"
                             class="template-card"
@@ -72,7 +72,7 @@
                             data-duration="8760h"
                             data-placeholder="*.example.com">
                         <span class="template-title">Wildcard</span>
-                        <span class="template-sub">Только имена вида *.example.com</span>
+                        <span class="template-sub">Wildcard names only, e.g. *.example.com</span>
                     </button>
                     <button type="button"
                             class="template-card"
@@ -81,97 +81,97 @@
                             data-duration="8760h"
                             data-placeholder="client-01">
                         <span class="template-title">Client identity</span>
-                        <span class="template-sub">Идентификатор для mTLS/VPN сценариев</span>
+                        <span class="template-sub">Client identity for mTLS/VPN scenarios</span>
                     </button>
                 </div>
             </div>
         </div>
-        <!-- ── Тип ключа (карточки) ── -->
+        <!-- ── Key type (cards) ── -->
         <div class="card">
             <div class="card-header">
-                <h3>Тип ключа</h3>
+                <h3>Key Type</h3>
             </div>
             <div class="card-body">
                 <div class="key-grid">
                     <div class="key-card active" data-val="EC:P-256">
                         <div class="key-title">EC P-256</div>
-                        <div class="key-sub">Эллиптическая, 256 бит</div>
-                        <div class="key-badge ok">Рекомендуется</div>
+                        <div class="key-sub">Elliptic curve, 256-bit</div>
+                        <div class="key-badge ok">Recommended</div>
                     </div>
                     <div class="key-card" data-val="EC:P-384">
                         <div class="key-title">EC P-384</div>
-                        <div class="key-sub">Эллиптическая, 384 бит</div>
-                        <div class="key-badge gray">Повышенная</div>
+                        <div class="key-sub">Elliptic curve, 384-bit</div>
+                        <div class="key-badge gray">Enhanced</div>
                     </div>
                     <div class="key-card" data-val="RSA:2048">
                         <div class="key-title">RSA 2048</div>
-                        <div class="key-sub">Совместимость</div>
-                        <div class="key-badge gray">Классика</div>
+                        <div class="key-sub">Compatibility</div>
+                        <div class="key-badge gray">Classic</div>
                     </div>
                     <div class="key-card" data-val="RSA:4096">
                         <div class="key-title">RSA 4096</div>
-                        <div class="key-sub">Максимальная защита</div>
-                        <div class="key-badge warn">Медленная</div>
+                        <div class="key-sub">Maximum security</div>
+                        <div class="key-badge warn">Slow</div>
                     </div>
                 </div>
             </div>
         </div>
-        <!-- ── Срок действия (чипы) ── -->
+        <!-- ── Validity period (chips) ── -->
         <div class="card">
             <div class="card-header">
-                <h3>Срок действия</h3>
+                <h3>Validity Period</h3>
             </div>
             <div class="card-body">
                 <div class="chip-row">
-                    <button type="button" class="chip" data-val="720h">1 месяц</button>
-                    <button type="button" class="chip" data-val="4380h">6 месяцев</button>
-                    <button type="button" class="chip active" data-val="8760h">1 год</button>
-                    <button type="button" class="chip" data-val="87600h">10 лет</button>
+                    <button type="button" class="chip" data-val="720h">1 month</button>
+                    <button type="button" class="chip" data-val="4380h">6 months</button>
+                    <button type="button" class="chip active" data-val="8760h">1 year</button>
+                    <button type="button" class="chip" data-val="87600h">10 years</button>
                 </div>
             </div>
         </div>
         <!-- ── Submit ── -->
         <button type="submit"
-                class="btn pad-10-24-fw6 fs-13">Выпустить сертификат</button>
+                class="btn pad-10-24-fw6 fs-13">Issue Certificate</button>
     </form>
-    <!-- ═ Боковая панель — превью ═ -->
+    <!-- ═ Sidebar — preview ═ -->
     <div class="card card-sticky-top">
         <div class="card-header">
-            <h3>Предпросмотр</h3>
+            <h3>Preview</h3>
         </div>
         <div class="card-body">
             <div class="info-row">
-                <div class="info-key">Название</div>
+                <div class="info-key">Name</div>
                 <div class="info-val">
                     <strong id="pvName" class="text-muted">—</strong>
                 </div>
             </div>
             <div class="info-row">
-                <div class="info-key">Шаблон</div>
+                <div class="info-key">Template</div>
                 <div class="info-val">
                     <span class="badge gray" id="pvTemplate">Server TLS</span>
                 </div>
             </div>
             <div class="info-row">
-                <div class="info-key">Домен</div>
+                <div class="info-key">Domain</div>
                 <div class="info-val">
                     <code id="pvDomain">—</code>
                 </div>
             </div>
             <div class="info-row">
-                <div class="info-key">Тип ключа</div>
+                <div class="info-key">Key Type</div>
                 <div class="info-val">
                     <span class="badge blue" id="pvType">EC P-256</span>
                 </div>
             </div>
             <div class="info-row">
-                <div class="info-key">Срок</div>
+                <div class="info-key">Validity</div>
                 <div class="info-val">
-                    <span id="pvDuration">1 год</span>
+                    <span id="pvDuration">1 year</span>
                 </div>
             </div>
             <div class="info-row">
-                <div class="info-key">Истекает</div>
+                <div class="info-key">Expires</div>
                 <div class="info-val text-muted" id="pvExpires">—</div>
             </div>
         </div>
