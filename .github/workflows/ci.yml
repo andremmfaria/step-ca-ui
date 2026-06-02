@@ -52,6 +52,22 @@ jobs:
       - name: go test
         run: go test -race -coverprofile=coverage.out ./...
 
+      - name: Coverage gate
+        # THRESHOLD is set to the measured baseline at PR-14 time (~10%).
+        # PR-22 will raise this to 80 once all P3 test PRs have landed.
+        # The gate never regresses: each test PR bumps THRESHOLD to its new floor.
+        run: THRESHOLD=10 bash scripts/coverage-gate.sh
+        env:
+          COVERPROFILE: coverage.out
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: coverage-${{ github.run_id }}
+          path: step-ui-go/coverage.out
+          retention-days: 14
+
       - name: golangci-lint
         uses: golangci/golangci-lint-action@82606bf257cbaff209d206a39f5134f0cfbfd2ee # v9.2.1
         with:
