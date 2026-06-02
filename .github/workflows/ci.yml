@@ -74,3 +74,44 @@ jobs:
           version: v2.12.2
           working-directory: step-ui-go
           # Config file is step-ui-go/.golangci.yml — picked up automatically
+
+  db-integration:
+    name: DB Integration Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: step-ui-go
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: stepui_test
+          POSTGRES_PASSWORD: stepui_test
+          POSTGRES_DB: stepui_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        with:
+          go-version-file: step-ui-go/go.mod
+          cache: true
+          cache-dependency-path: step-ui-go/go.sum
+
+      - name: Run integration tests
+        run: go test -tags=integration -race -count=1 ./db/...
+        env:
+          INTEGRATION_DB_DSN: postgres://stepui_test:stepui_test@localhost:5432/stepui_test?sslmode=disable
+          STEPUI_ADMIN_PASSWORD: IntegrationTest123!
