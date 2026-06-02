@@ -67,10 +67,11 @@ jobs:
         run: go install golang.org/x/vuln/cmd/govulncheck@latest
 
       - name: Run govulncheck
-        # Non-failing on first pass — govulncheck has no native SARIF output yet;
-        # text output captured; tighten exit-code after baseline triage.
+        # BLOCKING (PR-22): a known CVE in any direct or transitive dependency
+        # fails the build.  govulncheck only reports vulnerabilities that are
+        # reachable in the compiled call graph, so false-positives are rare.
         working-directory: step-ui-go
-        run: govulncheck ./... || true
+        run: govulncheck ./...
 
   gitleaks:
     name: gitleaks
@@ -85,15 +86,19 @@ jobs:
           fetch-depth: 0
 
       - name: Run gitleaks
-        # Non-failing on first pass — tighten after baseline triage
+        # BLOCKING for NEW findings (PR-22).  A committed baseline report
+        # (.gitleaks-baseline.json) suppresses any pre-existing findings so only
+        # newly introduced secrets fail the build.  Regenerate the baseline after
+        # a one-time triage: `gitleaks detect --report-format json --report-path
+        # .gitleaks-baseline.json` then commit the file.
+        # TODO: commit .gitleaks-baseline.json after first-time triage scan.
         uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_ENABLE_SARIF: "true"
           GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "true"
           GITLEAKS_ENABLE_SUMMARY: "true"
-          # Set to 1 to make gitleaks block the build after baseline triage
-          GITLEAKS_EXIT_CODE: "0"
+          GITLEAKS_EXIT_CODE: "1"
 
   trivy-fs:
     name: trivy filesystem scan
@@ -106,14 +111,19 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Run Trivy (filesystem)
-        # Non-failing on first pass — tighten exit-code after baseline triage
+        # BLOCKING for HIGH/CRITICAL findings (PR-22).  Only reachable
+        # vulnerabilities in Go binaries and OS packages are flagged.
+        # If a large pre-existing backlog surfaces, add a .trivyignore file
+        # with documented CVE IDs and a due-date comment for each entry.
+        # TODO: triage any initial findings and add to .trivyignore if accepted.
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: fs
           scan-ref: .
           format: sarif
           output: trivy-fs.sarif
-          exit-code: "0"
+          exit-code: "1"
+          severity: "HIGH,CRITICAL"
 
       - name: Upload Trivy fs SARIF
         if: ${{ hashFiles('trivy-fs.sarif') != '' }}

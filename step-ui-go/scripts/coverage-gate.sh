@@ -4,9 +4,10 @@
 # Usage:
 #   ./scripts/coverage-gate.sh [THRESHOLD]
 #
-# THRESHOLD defaults to the THRESHOLD environment variable, then to 10 (the
-# initial baseline set when this script was introduced in PR-14).  PR-22 will
-# raise it to 80 once all P3 test PRs have landed.
+# THRESHOLD defaults to the THRESHOLD environment variable, then to 15 (the
+# honest measured baseline set in PR-22: 15.4% total, floored to 15).
+# Reaching 80% requires DI seams — a DB interface for handlers/ and an issuer
+# interface for le/ — tracked as a follow-up refactor wave.
 #
 # Exemptions (kept thin so the number reflects logic, not bootstrap):
 #   - main() wiring in the root package (step-ui) is excluded because it is
@@ -21,7 +22,7 @@
 
 set -euo pipefail
 
-THRESHOLD="${1:-${THRESHOLD:-10}}"
+THRESHOLD="${1:-${THRESHOLD:-15}}"
 
 PROFILE="${COVERPROFILE:-coverage.out}"
 

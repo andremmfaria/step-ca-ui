@@ -53,10 +53,11 @@ jobs:
         run: go test -race -coverprofile=coverage.out ./...
 
       - name: Coverage gate
-        # THRESHOLD is set to the measured baseline at PR-14 time (~10%).
-        # PR-22 will raise this to 80 once all P3 test PRs have landed.
-        # The gate never regresses: each test PR bumps THRESHOLD to its new floor.
-        run: THRESHOLD=10 bash scripts/coverage-gate.sh
+        # THRESHOLD=15 is the honest measured baseline set in PR-22 (15.4% total,
+        # floored to 15).  Reaching 80% requires DI seams (a DB interface for
+        # handlers/, an issuer interface for le/) — tracked as a follow-up wave.
+        # The gate never regresses: each test PR must bump THRESHOLD to its new floor.
+        run: THRESHOLD=15 bash scripts/coverage-gate.sh
         env:
           COVERPROFILE: coverage.out
 
