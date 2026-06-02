@@ -1,6 +1,7 @@
 package db
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log"
@@ -112,6 +113,11 @@ func InitSchema(d *sql.DB) error {
 		);
 		CREATE INDEX IF NOT EXISTS idx_recovery_codes_user ON user_recovery_codes(user_id);
 	`); err != nil {
+		return err
+	}
+
+	// -- migration: totp_last_step for replay protection (P2-1)
+	if _, err := d.ExecContext(context.Background(), `ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_last_step BIGINT DEFAULT 0`); err != nil {
 		return err
 	}
 
@@ -252,11 +258,30 @@ func EnableUserTOTP(d *sql.DB, id int, secret string) error {
 }
 
 func DisableUserTOTP(d *sql.DB, id int) error {
-	_, err := d.Exec(`UPDATE users SET totp_enabled=false, totp_secret='', totp_pending_secret='' WHERE id=$1`, id)
+	_, err := d.ExecContext(context.Background(),
+		`UPDATE users SET totp_enabled=false, totp_secret='', totp_pending_secret='', totp_last_step=0 WHERE id=$1`, id)
 	if err != nil {
 		return err
 	}
 	_, err = d.Exec(`DELETE FROM user_recovery_codes WHERE user_id=$1`, id)
+	return err
+}
+
+// GetTOTPLastStep returns the last accepted TOTP timestep for a user.
+// Returns 0 if no step has been accepted yet.
+func GetTOTPLastStep(ctx context.Context, d *sql.DB, userID int) (int64, error) {
+	var step int64
+	err := d.QueryRowContext(ctx, `SELECT COALESCE(totp_last_step, 0) FROM users WHERE id=$1`, userID).Scan(&step)
+	if err != nil {
+		return 0, err
+	}
+	return step, nil
+}
+
+// SetTOTPLastStep records the timestep of the last accepted TOTP code so that
+// replay attempts using the same or an earlier step are rejected.
+func SetTOTPLastStep(ctx context.Context, d *sql.DB, userID int, step int64) error {
+	_, err := d.ExecContext(ctx, `UPDATE users SET totp_last_step=$1 WHERE id=$2`, step, userID)
 	return err
 }
 

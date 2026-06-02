@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/pquerna/otp/totp"
 	appdb "step-ui/db"
 	"step-ui/models"
 	"step-ui/security"
@@ -134,8 +133,12 @@ func (h *Handler) loginPost2FA(w http.ResponseWriter, r *http.Request, uid int) 
 	}
 	code := r.FormValue("totp_code")
 	recovery := r.FormValue("recovery_code")
-	ok := totp.Validate(code, user.TOTPSecret)
+	ok := false
 	recoveryUsed := false
+
+	if code != "" {
+		ok = h.validateTOTPWithReplayCtx(r.Context(), user.ID, user.TOTPSecret, code)
+	}
 	if !ok && recovery != "" {
 		ok = h.verifyRecoveryCode(user.ID, recovery)
 		recoveryUsed = ok

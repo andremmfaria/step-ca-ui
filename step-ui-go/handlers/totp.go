@@ -1,10 +1,12 @@
 package handlers
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
 	"image/png"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -96,6 +98,9 @@ func (h *Handler) Profile2FAConfirm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	code := strings.TrimSpace(r.FormValue("totp_code"))
+	// Use the pending secret (not yet promoted to totp_secret); replay
+	// protection is not applied here because enabling 2FA is a one-shot
+	// confirmation, not a repeated authentication path.
 	if !totp.Validate(code, u.TOTPPendingSecret) {
 		h.flash(w, r, "err", "Неверный TOTP код")
 		http.Redirect(w, r, "/profile/2fa", http.StatusFound)
@@ -139,7 +144,8 @@ func (h *Handler) Profile2FADisable(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/profile/2fa", http.StatusFound)
 		return
 	}
-	if !totp.Validate(code, u.TOTPSecret) {
+	// Disable is a privileged action: require a fresh (non-replayed) TOTP code.
+	if !h.validateTOTPWithReplayCtx(r.Context(), u.ID, u.TOTPSecret, code) {
 		h.flash(w, r, "err", "Неверный TOTP код")
 		http.Redirect(w, r, "/profile/2fa", http.StatusFound)
 		return
@@ -183,4 +189,36 @@ func (h *Handler) verifyRecoveryCode(userID int, code string) bool {
 		}
 	}
 	return false
+}
+
+// validateTOTPWithReplayCtx validates the TOTP code and rejects replay attacks
+// by tracking the last accepted timestep per user.  The TOTP period is 30 s,
+// so the current step is floor(unix / 30).  A code is only accepted when the
+// current timestep is strictly greater than the last accepted one, preventing
+// the same physical code from being used a second time within its validity
+// window.
+func (h *Handler) validateTOTPWithReplayCtx(ctx context.Context, userID int, secret, code string) bool {
+	if !totp.Validate(code, secret) {
+		return false
+	}
+	currentStep := time.Now().Unix() / 30
+	lastStep, err := appdb.GetTOTPLastStep(ctx, h.db, userID)
+	if err != nil {
+		// Fail open on DB read error — we already validated the code, and
+		// blocking valid users on a DB glitch is worse than the narrow replay
+		// window left open.  The error is logged for operator visibility.
+		log.Printf("[warn] TOTP: GetTOTPLastStep user=%d err=%T", userID, err) //nolint:gosec // G706: userID is int, err type is logged without value
+		return true
+	}
+	if currentStep <= lastStep {
+		log.Printf("[warn] TOTP replay rejected for user=%d", userID) //nolint:gosec // G706: only int userID logged
+		return false
+	}
+	if err := appdb.SetTOTPLastStep(ctx, h.db, userID, currentStep); err != nil {
+		// Write failure: accept the code but log — the step was valid and
+		// the worst-case outcome is a single replay opportunity before the
+		// window expires.
+		log.Printf("[warn] TOTP: SetTOTPLastStep user=%d err=%T", userID, err) //nolint:gosec // G706: only int userID and error type logged
+	}
+	return true
 }
