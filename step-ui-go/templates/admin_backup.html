@@ -1,7 +1,7 @@
 {{define "content"}}
 <div class="admin-page-header">
-    <h1 class="admin-page-title">Бэкап</h1>
-    <p class="admin-page-subtitle">Экспорт критичных данных CA и Step-CA UI для ручного восстановления</p>
+    <h1 class="admin-page-title">Backup</h1>
+    <p class="admin-page-subtitle">Export critical CA and Step-CA UI data for manual restore</p>
 </div>
 <div class="card">
     <div class="card-header">
@@ -9,8 +9,8 @@
     </div>
     <div class="card-body">
         <p class="muted mt-0 mb-14">
-            Архив содержит manifest с SHA-256 checksums, дамп PostgreSQL и архивы Docker volumes,
-            доступные контейнеру Step-CA UI.
+            The archive contains a manifest with SHA-256 checksums, a PostgreSQL dump,
+            and archives of the Docker volumes accessible to the Step-CA UI container.
         </p>
         <table class="tbl admin-kv-table mb-16">
             <tbody>
@@ -27,7 +27,7 @@
                         <strong>Step-CA data</strong>
                     </td>
                     <td>
-                        <code>step-ca-data.tgz</code> из <code>/home/step</code>
+                        <code>step-ca-data.tgz</code> from <code>/home/step</code>
                     </td>
                 </tr>
                 <tr>
@@ -43,30 +43,30 @@
                         <strong>Manifest</strong>
                     </td>
                     <td>
-                        <code>manifest.json</code> с версиями, размерами и checksums
+                        <code>manifest.json</code> with versions, sizes and checksums
                     </td>
                 </tr>
             </tbody>
         </table>
         <form method="POST" action="/admin/backup/download">
             <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-            <button class="btn primary" type="submit">Скачать backup bundle</button>
+            <button class="btn primary" type="submit">Download backup bundle</button>
         </form>
     </div>
 </div>
 <div class="card">
     <div class="card-header">
-        <strong>Важные условия</strong>
+        <strong>Important notes</strong>
     </div>
     <div class="card-body">
         <ul class="admin-note-list">
-            <li>Backup содержит приватные ключи CA. Храните архив как секрет.</li>
-            <li>Restore из UI намеренно не реализован: восстановление может перезаписать CA keys и базу.</li>
+            <li>The backup contains CA private keys. Store the archive as a secret.</li>
+            <li>Restore from the UI is intentionally not implemented: restoring could overwrite CA keys and the database.</li>
             <li>
                 Проверенная ручная процедура описана в <code>BACKUP_RESTORE.md</code>.
             </li>
             <li>
-                Перед обновлениями можно также использовать CLI: <code>sudo ./install.sh --mode backup --lang ru</code>.
+                Before updates you can also create a CLI backup: <code>make backup</code>.
             </li>
         </ul>
     </div>

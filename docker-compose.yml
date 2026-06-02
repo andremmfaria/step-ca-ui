@@ -111,7 +111,8 @@ services:
 # ─── Secrets ───────────────────────────────────────────────────────────────
 # Each secret is a host file mounted read-only at /run/secrets/<name>.
 # Values do NOT appear in `docker inspect` environment or /proc/<pid>/environ.
-# Create them once (install.sh does this automatically):
+# Create them once with: make setup
+# Or manually:
 #   mkdir -p secrets && chmod 700 secrets
 #   printf '%s' 'strong-pg-pass'  > secrets/postgres_password && chmod 600 secrets/postgres_password
 #   printf '%s' 'strong-ca-pass'  > secrets/ca_password       && chmod 600 secrets/ca_password

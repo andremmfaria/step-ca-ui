@@ -109,19 +109,18 @@ Docker volumes:
 ```bash
 git clone https://github.com/UncleFi1/step-ca-ui.git
 cd step-ca-ui
-sudo ./install.sh
+make setup   # создаёт .env и secrets/
+# отредактируй .env: HOST_IP, PROVISIONER, TZ
+make up
 ```
 
-Установщик делает:
+`make setup` делает:
 
-1. Проверку окружения.
-2. Проверку Docker / Docker Compose.
-3. Автоопределение private IP.
-4. Проверку порта `443`; если занят, предлагает `8443`.
-5. Генерацию секретов.
-6. Запись `.env`.
-7. Запись `credentials.txt`.
-8. Сборку и запуск контейнеров.
+1. Копирует `.env.example` → `.env` если отсутствует.
+2. Генерирует `secrets/postgres_password`, `secrets/secret_key`, `secrets/ca_password` (chmod 600).
+3. Печатает следующие шаги.
+
+`make up` запускает `docker compose up -d --build`.
 9. Ожидание healthcheck.
 10. Вывод URL, логина и пароля admin.
 
@@ -316,10 +315,10 @@ Production-сервер обновлен до v1.4.7.
 
 Добавлено:
 
-- `install.sh`;
+- `install.sh` (later replaced by `Makefile`);
 - `LICENSE` GPL-3.0;
 - `README.md`;
-- `README.ru.md`;
+- `README.ru.md` (later removed);
 - `.env.example`;
 - `test_deploy.sh`;
 - `STEPUI_ADMIN_PASSWORD` для первого admin;
@@ -335,7 +334,7 @@ Production-сервер обновлен до v1.4.7.
 Исправлено:
 
 - порядок `InitSchema`: сначала `CREATE TABLE`, потом `ALTER TABLE`;
-- автоопределение IP в `install.sh`;
+- автоопределение IP в установщике;
 - отказ от `curl ifconfig.me` как источника адреса для LAN-сценариев.
 
 ### v1.4.3 — hotfix передачи admin password
@@ -351,7 +350,7 @@ Production-сервер обновлен до v1.4.7.
 Добавлено:
 
 - healthcheck для `step-ui`;
-- более тихий `install.sh`;
+- более тихий установщик;
 - подробный install log в `/var/log/step-ca-ui-install.log`;
 - `--verbose` режим;
 - fallback-проверка HTTPS в `test_deploy.sh`.
@@ -604,7 +603,7 @@ Production-сервер обновлен до v1.4.7.
 - не использовать `docker compose down -v` при обновлении production;
 - проверять чистую установку отдельно от обновления existing stack;
 - перед релизом прогонять:
-  - `bash -n install.sh`;
+  - `make -n setup up backup` (синтаксис Makefile);
   - `bash -n step-ca-bootstrap.sh`;
   - `docker compose config --quiet`;
   - `go test ./...`;

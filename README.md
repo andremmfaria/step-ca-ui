@@ -51,29 +51,18 @@ Highlights:
 ```bash
 git clone https://github.com/UncleFi1/step-ca-ui.git
 cd step-ca-ui
-sudo ./install.sh
+make setup   # copy .env.example → .env and generate secrets/
 ```
 
-The installer can run in Russian or English and supports both clean installs and
-safe updates:
+Edit `.env` — set `HOST_IP`, `UI_HTTPS_PORT`, `PROVISIONER`, and `TZ` — then:
 
 ```bash
-sudo ./install.sh --mode install --lang en
-sudo ./install.sh --mode update --lang en
+make up      # docker compose up -d --build
 ```
 
-Update mode creates a backup first, preserves `.env` and Docker volumes, then
-runs `docker compose up -d --build`. It does not run `docker compose down -v`.
-
-That's it. The installer:
-1. Detects your OS and installs Docker if needed
-2. Auto-detects your server IP (with confirmation)
-3. Generates strong passwords for everything
-4. Writes `.env` and `credentials.txt` (chmod 600)
-5. Builds and starts the containers
-6. Prints the URL and admin password
-
 The whole thing takes 2–4 minutes on a fresh VM.
+
+Run `make help` to see all available targets.
 
 ## Requirements
 
@@ -288,7 +277,7 @@ Use the admin UI: `Admin -> Backup -> Download backup bundle`.
 CLI export is also supported:
 
 ```bash
-sudo ./install.sh --mode backup --lang en
+make backup
 ```
 
 Backups include PostgreSQL, `step-ca-data`, Step-CA UI data/certs/uploads and
@@ -323,9 +312,10 @@ Yes. Point your reverse proxy at `step-ui:8443` (HTTPS upstream) or change step-
 <summary><b>How do I update to a new version?</b></summary>
 
 ```bash
-sudo ./install.sh --mode update --lang en
+make backup  # snapshot first
+make update  # docker compose pull + up -d --build
 ```
-The update mode creates a backup first, keeps existing Docker volumes, optionally checks out a selected tag, and runs migrations automatically on startup. Always check the [release notes](https://github.com/UncleFi1/step-ca-ui/releases) first — major versions may have breaking changes.
+Migrations run automatically on startup. Always check the [release notes](https://github.com/UncleFi1/step-ca-ui/releases) first — major versions may have breaking changes.
 </details>
 
 ## Container image
@@ -442,7 +432,7 @@ When submitting:
 .
 ├── docker-compose.yml         # 3 services: postgres, step-ca, step-ui
 ├── .env.example               # configuration template
-├── install.sh                 # one-shot installer
+├── Makefile                   # setup, up, down, backup, test, lint, …
 ├── LICENSE                    # GPL-3.0
 ├── README.md                  # this file
 └── step-ui-go/
