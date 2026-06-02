@@ -10,7 +10,6 @@
 [![Current version](https://img.shields.io/badge/version-v1.6.0-success.svg)](https://github.com/UncleFi1/step-ca-ui/releases/tag/v1.6.0)
 [![Latest release](https://img.shields.io/badge/release-v1.6.0-success.svg)](https://github.com/UncleFi1/step-ca-ui/releases/latest)
 
-🇬🇧 **English** · [🇷🇺 Русский](README.ru.md)
 
 </div>
 
@@ -445,8 +444,7 @@ When submitting:
 ├── .env.example               # configuration template
 ├── install.sh                 # one-shot installer
 ├── LICENSE                    # GPL-3.0
-├── README.md                  # this file (English)
-├── README.ru.md               # Russian translation
+├── README.md                  # this file
 └── step-ui-go/
     ├── main.go                # entry point, router setup
     ├── config/                # env-based config loader
