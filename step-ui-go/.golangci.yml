@@ -60,9 +60,3 @@ formatters:
       # module-path tells gofumpt which import prefix is "local" so it can
       # produce the three-group layout (stdlib | external | local).
       module-path: step-ui
-
-issues:
-  # Ratchet baseline removed: all 82 residual findings (revive, gosec, noctx,
-  # gocritic, unparam) cleared in W4-3.  Full-repo lint is now enforced on
-  # every diff — no new-from-rev baseline.
-  # Caps removed — no baseline needed.
