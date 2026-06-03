@@ -25,7 +25,7 @@
 - **Admin workspace** — dedicated admin UI with matching themes
 - **Built-in security** — CSRF tokens, rate limiting, IP blocking, security log
 - **Admin audit log** — every admin action (user management, backups, key downloads, notification changes) is recorded in the security log with a per-entry event badge
-- **Diagnostics console** — read-only `/admin/console` page runs one of 10 allowlisted diagnostic commands; no shell access, 8-second timeout, 16 KB output cap, all invocations audit-logged
+- **Diagnostics console** — read-only `/admin/console` page runs one of 10 allowlisted diagnostic commands; no shell access, 8-second timeout, 16 KB output cap, all invocations audit-logged. The `step.ca.health` target is derived from `CA_URL` and `ROOT_CERT`; the `postgres.ready` target is parsed from `DATABASE_URL` — both adapt automatically to non-compose deployments
 - **Provisioner inspection** — list and inspect step-ca provisioners
 - **Backup export** — admin UI and CLI backup bundles with SHA-256 manifest checksums
 - **CA integrity checks** — root/intermediate chain, provisioner claims, password sync, and pinned step-ca image verification
@@ -230,39 +230,133 @@ openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | head -c 48
 
 All configuration lives in `.env`. `make setup` creates this file from `.env.example` and generates `secrets/` automatically. See `.env.example` for the full annotated list.
 
-**Core variables:**
+### Startup sequence
 
-```env
-HOST_IP=192.168.1.100              # SAN in self-signed cert; step-ca DNS
-UI_HTTPS_PORT=443                  # external HTTPS port
-PROVISIONER=admin                  # step-ca provisioner identifier
-STEP_CA_IMAGE=smallstep/step-ca:0.30.2  # pinned step-ca image
-SESSION_SECURE=true                # secure session cookie (warn if false)
-ENABLE_HSTS=false                  # enable only with a trusted TLS certificate
-TZ=UTC                             # container timezone
-STEPCA_DEFAULT_TLS_CERT_DURATION=8760h
-STEPCA_MAX_TLS_CERT_DURATION=87600h
-```
+The container entrypoint (`entrypoint.sh`) performs these steps in order before `exec`-ing the Go app:
 
-Sensitive values are read from `secrets/` files via Docker Compose secrets. The equivalent plain-env fallbacks (`SECRET_KEY`, `POSTGRES_PASSWORD`, `CA_PASSWORD`) are supported for development but not recommended for production.
+1. **Secret files** — read `POSTGRES_PASSWORD`, `SECRET_KEY`, `PROVISIONER_PASSWORD` from `secrets/` (or plain-env fallbacks).
+2. **DATABASE\_URL construction** — assemble the connection string from `POSTGRES_*` parts if `DATABASE_URL` is not already set.
+3. **PostgreSQL wait** — derive host/port from `DATABASE_URL` and probe with `nc` up to 60 times (1 s apart). Bounded and non-fatal: if PostgreSQL is not yet reachable the Go app's own connection retry takes over. The host/port come from `DATABASE_URL` so the wait works with any backend — docker-compose service name, RDS endpoint, managed PostgreSQL, or Kubernetes service.
+4. **Provisioner password file** — write `PROVISIONER_PASSWORD` to `$PASSWORD_FILE` if the file does not yet exist. Done at this point because `UI_TLS_MODE=stepca` needs the file ready before the TLS block.
+5. **Root CA trust** — obtain or verify the step-ca root certificate (see [Root CA trust](#root-ca-trust) below). Done before TLS acquisition because `UI_TLS_MODE=stepca` calls `step ca certificate --root $ROOT_CERT`.
+6. **TLS certificate acquisition** — run the selected `UI_TLS_MODE` branch (see [TLS certificate modes](#tls-certificate-modes) below).
+7. **Go app** — `exec /opt/step-ui/step-ui`.
 
-**Reverse-proxy and OIDC variables** (off by default):
+> **Load-bearing order:** steps 4 and 5 must complete before step 6 when using `UI_TLS_MODE=stepca`. If the provisioner password or root cert is missing at TLS acquisition time, the `stepca` branch will exhaust its 30 retries and fall back to a self-signed certificate.
 
-```env
-TRUST_PROXY=false
-LOCAL_LOGIN_ENABLED=true
-OIDC_ENABLED=false
-OIDC_ISSUER_URL=https://oauth.id.jumpcloud.com/
-OIDC_CLIENT_ID=
-OIDC_CLIENT_SECRET=
-OIDC_REDIRECT_URL=https://<your-host>/auth/oidc/callback
-OIDC_GROUP_CLAIM=groups
-OIDC_GROUP_ADMIN=step-ca-admins
-OIDC_GROUP_MANAGER=step-ca-managers
-OIDC_GROUP_VIEWER=step-ca-viewers
-OIDC_DEFAULT_ROLE=
-OIDC_SYNC_ROLE=true
-```
+### Root CA trust
+
+The entrypoint establishes the root CA certificate that the Go app (and `step` CLI calls) use to verify the step-ca server. The three methods are applied with this precedence (highest → lowest):
+
+1. **`CA_ROOT_CERT_PEM` set** — the inline PEM is written to `$ROOT_CERT`. Use this for ECS / Kubernetes deployments where a Docker volume mount is impractical.
+2. **`CA_FINGERPRINT` set and `$ROOT_CERT` absent or empty** — `step ca root` is called to download the cert from step-ca, retried up to 30 times (1 s apart). On failure a warning is logged and startup continues; the app will surface CA connectivity errors through its own health endpoint.
+3. **Neither set** — the file at `$ROOT_CERT` is assumed to be already present (e.g. mounted as a Docker volume from the step-ca container).
+
+`CA_FINGERPRINT` is the SHA-256 hex digest of the root certificate's DER encoding. It is a **public, non-secret value** — it merely authenticates which certificate to trust on download. It can be found in the step-ca startup logs or by running `step certificate fingerprint root_ca.crt`.
+
+### TLS certificate modes
+
+`UI_TLS_MODE` controls how the UI's own serving certificate is obtained. Set it in `.env`:
+
+| `UI_TLS_MODE` | Behaviour |
+|---|---|
+| `self-signed` (default) | Generate a 10-year self-signed RSA-2048 cert on first boot (if `$SSL_CERT` is absent). SANs include `IP:$HOST_IP`, `DNS:localhost`, and `DNS:$UI_HOSTNAME` when set. |
+| `provided` | Do nothing — expect a cert and key to already exist at `$SSL_CERT` / `$SSL_KEY` (volume mount or init container). |
+| `stepca` | Call `step ca certificate` to obtain a signed leaf cert from the step-ca that this UI manages. Retried up to 30 times (1 s apart). On failure falls back to self-signed. After a successful issue, starts `step ca renew --daemon` in the background to keep the cert renewed automatically. |
+
+**`UI_HOSTNAME`** sets the certificate subject (CN) and an extra DNS SAN. For `self-signed` it adds the hostname to the self-signed cert's SAN list. For `stepca` it is the CN/SAN requested from the CA (`hostname -f` is used as fallback when `UI_HOSTNAME` is empty).
+
+**`stepca` mode caveats:**
+
+- Requires `CA_URL`, `ROOT_CERT`, and `PASSWORD_FILE` to be ready **before** the TLS block runs (the entrypoint ordering guarantees this — see [Startup sequence](#startup-sequence)).
+- The `step ca renew --daemon` background process is **unsupervised** — if it exits, it is not restarted. Cert renewal relies on the Go TLS hot-reloader (see below) picking up the refreshed files; the Go app itself (PID 1) is unaffected.
+
+### TLS hot-reload
+
+The Go server (`tlsreload.go`) re-stats both `SSL_CERT` and `SSL_KEY` on **every TLS handshake**. When either file's modification time changes it reloads the certificate pair in-place via `tls.LoadX509KeyPair`. If the reload fails (e.g. a transient partial write), the last successfully loaded certificate is served — no handshake is ever dropped. This is wired into `tls.Config.GetCertificate` in `main.go`.
+
+**Practical effect:** you can hot-swap the serving certificate with zero restart and zero downtime. This works for:
+
+- `step ca renew --daemon` writing renewed cert/key files (the `stepca` TLS mode).
+- Manually replacing the cert files in the `step-ui-ssl` volume.
+- Any external cert-manager that writes updated files to the mounted path.
+
+### Environment variable reference
+
+#### Core deployment
+
+| Variable | Default | Description |
+|---|---|---|
+| `HOST_IP` | `192.168.1.100` | Server IP — SAN in the self-signed cert and DNS name for step-ca. |
+| `UI_HTTPS_PORT` | `443` | External host port mapped to the container's `8443`. |
+| `PORT` | `8443` | Internal port the Go app listens on. Rarely changed. |
+| `TZ` | `UTC` | Container timezone (all containers). |
+| `STEPUI_ADMIN_PASSWORD` | _(empty — uses `Admin123!`)_ | Seeds the initial admin user on first boot. Remove after first login. |
+
+#### step-ca connection
+
+| Variable | Default | Description |
+|---|---|---|
+| `CA_URL` | `https://step-ca:9443` | Base URL of the step-ca API. |
+| `ROOT_CERT` | `/home/step/certs/root_ca.crt` | Path to the step-ca root certificate inside the container. |
+| `CA_FINGERPRINT` | _(empty)_ | SHA-256 hex fingerprint of the root cert DER. **Public, non-secret.** When set and `$ROOT_CERT` is absent, the cert is downloaded on startup. See [Root CA trust](#root-ca-trust). |
+| `CA_ROOT_CERT_PEM` | _(empty)_ | Inline PEM of the root CA certificate. Highest-precedence root-trust method. Use for ECS / Kubernetes where volume mounts are not available. |
+| `PROVISIONER` | `admin` | step-ca provisioner identifier used for certificate requests. |
+| `PASSWORD_FILE` | `/opt/step-ui/data/provisioner_password` | Path to the provisioner password file inside the container. |
+| `PROVISIONER_PASSWORD` | _(empty)_ | Plain-env fallback: written to `$PASSWORD_FILE` by the entrypoint when the file does not exist. Prefer `secrets/ca_password`. |
+| `PROVISIONER_PASSWORD_FILE` | `/run/secrets/ca_password` | Docker secret path for the provisioner password. |
+| `STEP_CA_IMAGE` | `smallstep/step-ca:0.30.2` | step-ca image tag used for CA integrity verification. |
+| `STEPCA_DEFAULT_TLS_CERT_DURATION` | `8760h` | Default cert lifetime applied during step-ca initialisation. |
+| `STEPCA_MAX_TLS_CERT_DURATION` | `87600h` | Maximum cert lifetime applied during step-ca initialisation. |
+
+#### TLS — UI serving certificate
+
+| Variable | Default | Description |
+|---|---|---|
+| `UI_TLS_MODE` | `self-signed` | Serving cert mode: `self-signed`, `provided`, or `stepca`. See [TLS certificate modes](#tls-certificate-modes). |
+| `UI_HOSTNAME` | _(empty)_ | Hostname added as DNS SAN (self-signed) or used as CN (stepca). Falls back to `hostname -f` when empty in `stepca` mode. |
+| `SSL_CERT` | `/opt/step-ui/ssl/server.crt` | Path to the serving TLS certificate inside the container. |
+| `SSL_KEY` | `/opt/step-ui/ssl/server.key` | Path to the serving TLS private key inside the container. |
+| `USE_HTTPS` | _(empty — auto-detect)_ | Force TLS on (`true`) or off (`false`). When empty the Go app probes whether `$SSL_CERT` exists to decide. |
+
+#### Database
+
+| Variable | Default | Description |
+|---|---|---|
+| `DATABASE_URL` | _(constructed from parts)_ | Full PostgreSQL DSN. If set, overrides the `POSTGRES_*` parts. Useful for RDS, managed PG, or Kubernetes where individual parts are less convenient. |
+| `POSTGRES_HOST` | `postgres` | Hostname of the PostgreSQL server. Used only when `DATABASE_URL` is not set. |
+| `POSTGRES_PORT` | `5432` | PostgreSQL port. Used only when `DATABASE_URL` is not set. |
+| `POSTGRES_USER` | `stepui` | PostgreSQL username. Used only when `DATABASE_URL` is not set. |
+| `POSTGRES_DB` | `stepui` | PostgreSQL database name. Used only when `DATABASE_URL` is not set. |
+| `POSTGRES_PASSWORD` | _(empty)_ | Plain-env fallback for the database password. Used only when `DATABASE_URL` is not set. Prefer `secrets/postgres_password`. |
+| `POSTGRES_PASSWORD_FILE` | `/run/secrets/postgres_password` | Docker secret path for the database password. |
+
+#### Application security
+
+| Variable | Default | Description |
+|---|---|---|
+| `SECRET_KEY` | _(required — no default)_ | Signs session cookies and CSRF tokens. **Min 32 chars; must not be the default placeholder.** The app refuses to start otherwise. |
+| `SECRET_KEY_FILE` | `/run/secrets/secret_key` | Docker secret path for `SECRET_KEY`. Preferred over plain-env. |
+| `SESSION_SECURE` | `true` | Sets the `Secure` flag on session cookies. Set `false` only for local HTTP development. |
+| `ENABLE_HSTS` | `false` | Send `Strict-Transport-Security`. Enable only with a trusted, non-self-signed certificate. |
+| `TRUST_PROXY` | `false` | Rewrite `RemoteAddr` from `X-Forwarded-For` / `X-Real-IP`. Enable only behind a trusted reverse proxy. |
+
+#### OIDC SSO
+
+| Variable | Default | Description |
+|---|---|---|
+| `OIDC_ENABLED` | `false` | Enable OIDC SSO. Existing deployments are unaffected until this is set. |
+| `OIDC_ISSUER_URL` | — | Provider issuer URL. |
+| `OIDC_CLIENT_ID` | — | OAuth2 client ID from the IdP. |
+| `OIDC_CLIENT_SECRET` | — | OAuth2 client secret from the IdP. |
+| `OIDC_REDIRECT_URL` | — | Must be `https://<your-host>/auth/oidc/callback`. |
+| `OIDC_GROUP_CLAIM` | `groups` | ID token claim that carries group membership. |
+| `OIDC_GROUP_ADMIN` | — | IdP group name that maps to the `admin` role. |
+| `OIDC_GROUP_MANAGER` | — | IdP group name that maps to the `manager` role. |
+| `OIDC_GROUP_VIEWER` | — | IdP group name that maps to the `viewer` role. |
+| `OIDC_DEFAULT_ROLE` | _(empty — deny)_ | Role assigned when no group matches. |
+| `OIDC_SYNC_ROLE` | `true` | Re-sync role from IdP groups on every login. |
+| `LOCAL_LOGIN_ENABLED` | `true` | Show the username/password form (break-glass path when OIDC is primary). |
 
 After changing `.env`, recreate the containers:
 
@@ -316,7 +410,13 @@ Log in with `admin` / `newpass` and change it from the UI. The legacy SHA-256 re
 <details>
 <summary><b>The browser warns about a self-signed certificate. How do I use my own?</b></summary>
 
-Replace the cert and key at the paths mounted into the `step-ui-ssl` volume (`/opt/step-ui/ssl/server.crt` and `server.key`) with your own (e.g. from Let's Encrypt or your internal CA), then restart `step-ui`. The cert must cover your `HOST_IP` or hostname.
+There are three approaches depending on how you obtain the certificate:
+
+**Option 1 — operator-provided cert (static):** Set `UI_TLS_MODE=provided` in `.env` and mount your certificate and key into the container at `SSL_CERT` / `SSL_KEY` (default paths: `/opt/step-ui/ssl/server.crt` and `server.key`). The entrypoint will not touch those files. Recreate the container to pick up the change.
+
+**Option 2 — manual replacement (hot-swap, no restart required):** Replace the cert and key files inside the `step-ui-ssl` volume (`/opt/step-ui/ssl/server.crt` and `server.key`) with your own. The TLS hot-reloader re-stats both files on every handshake and reloads them automatically when their modification time changes — no restart needed. The cert must cover your `HOST_IP` or hostname.
+
+**Option 3 — cert from step-ca itself:** Set `UI_TLS_MODE=stepca` in `.env`. The entrypoint will request a signed leaf cert from the step-ca on startup and start `step ca renew --daemon` to keep it renewed. The hot-reloader picks up each renewed cert with zero downtime. Requires `CA_URL`, `CA_FINGERPRINT` (or a pre-populated `ROOT_CERT`), and the provisioner password to be configured.
 </details>
 
 <details>
@@ -441,7 +541,8 @@ When submitting:
     ├── templates/             # HTML templates (Go html/template)
     ├── static/                # CSS, JS, favicon, images
     ├── Dockerfile             # multi-stage Alpine build
-    └── entrypoint.sh          # waits for deps, generates SSL, starts app
+    ├── entrypoint.sh          # startup sequence: secrets → DB wait → provisioner → root CA → TLS → exec app
+    └── tlsreload.go           # hot-reloading TLS cert reloader (mtime-based, zero-restart)
 ```
 
 ## License
