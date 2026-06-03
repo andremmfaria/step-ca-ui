@@ -6,10 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os/exec"
 	"strings"
 	"time"
 
+	"step-ui/config"
 	appdb "step-ui/db"
 )
 
@@ -38,10 +40,47 @@ type adminConsoleResult struct {
 	Success     bool
 }
 
-// adminConsoleCommands returns the fixed allowlist of diagnostic commands.
-// The user can only supply a command_id; the binary and all arguments are
-// server-controlled. This is the only place they are defined.
-func adminConsoleCommands() []adminConsoleCommand {
+// pgIsReadyArgs parses a postgres DSN and returns the pg_isready flag list
+// (-h, -p, -U, -d).  The password is deliberately excluded — pg_isready does
+// not accept one and it must never appear on the command line.
+// On a malformed or empty DSN the function returns safe defaults.
+func pgIsReadyArgs(dsn string) []string {
+	const (
+		defaultHost   = "postgres"
+		defaultPort   = "5432"
+		defaultUser   = "stepui"
+		defaultDBName = "stepui"
+	)
+
+	host, port, user, dbname := defaultHost, defaultPort, defaultUser, defaultDBName
+
+	if dsn != "" {
+		if u, err := url.Parse(dsn); err == nil && u.Host != "" {
+			if h := u.Hostname(); h != "" {
+				host = h
+			}
+			if p := u.Port(); p != "" {
+				port = p
+			}
+			if u.User != nil {
+				if n := u.User.Username(); n != "" {
+					user = n
+				}
+			}
+			// Path is "/dbname"; strip the leading slash.
+			if p := strings.TrimPrefix(u.Path, "/"); p != "" {
+				dbname = p
+			}
+		}
+	}
+
+	return []string{"-h", host, "-p", port, "-U", user, "-d", dbname}
+}
+
+// adminConsoleCommands returns the allowlist of diagnostic commands built from
+// runtime config.  The user can only supply a command_id; the binary and all
+// arguments are server-controlled.  This is the only place they are defined.
+func adminConsoleCommands(cfg *config.Config) []adminConsoleCommand {
 	return []adminConsoleCommand{
 		{
 			ID:          "system.date",
@@ -93,7 +132,7 @@ func adminConsoleCommands() []adminConsoleCommand {
 			Label:       "step-ca health",
 			Description: "Reachability check for the CA from the UI container",
 			Name:        "step",
-			Args:        []string{"ca", "health", "--ca-url", "https://step-ca:9443", "--root", "/home/step/certs/root_ca.crt"},
+			Args:        []string{"ca", "health", "--ca-url", cfg.CAURL, "--root", cfg.RootCert},
 		},
 		{
 			ID:          "openssl.version",
@@ -107,15 +146,15 @@ func adminConsoleCommands() []adminConsoleCommand {
 			Label:       "PostgreSQL readiness",
 			Description: "Reachability check for the PostgreSQL service",
 			Name:        "pg_isready",
-			Args:        []string{"-h", "postgres", "-U", "stepui", "-d", "stepui"},
+			Args:        pgIsReadyArgs(cfg.DatabaseURL),
 		},
 	}
 }
 
 // findAdminConsoleCommand looks up a command by its ID in the allowlist.
 // Returns the command and true on a hit; zero value and false on a miss.
-func findAdminConsoleCommand(id string) (adminConsoleCommand, bool) {
-	for _, c := range adminConsoleCommands() {
+func findAdminConsoleCommand(cfg *config.Config, id string) (adminConsoleCommand, bool) {
+	for _, c := range adminConsoleCommands(cfg) {
 		if c.ID == id {
 			return c, true
 		}
@@ -137,7 +176,7 @@ func (h *Handler) AdminConsolePost(w http.ResponseWriter, r *http.Request) {
 
 	commandID := strings.TrimSpace(r.FormValue("command_id"))
 
-	c, ok := findAdminConsoleCommand(commandID)
+	c, ok := findAdminConsoleCommand(h.cfg, commandID)
 	if !ok {
 		h.auditSecurity(r, "console.denied command_id="+commandID)
 		data := h.adminConsolePageData(w, r, commandID, nil)
@@ -164,7 +203,7 @@ func (h *Handler) adminConsolePageData(
 	result *adminConsoleResult,
 ) map[string]interface{} {
 	data := h.base(w, r, "admin_console")
-	data["Commands"] = adminConsoleCommands()
+	data["Commands"] = adminConsoleCommands(h.cfg)
 	data["Timeout"] = adminConsoleTimeout.String()
 	data["MaxOutputKB"] = adminConsoleMaxOut / 1024
 	data["SelectedCommandID"] = selectedID
