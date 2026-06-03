@@ -79,6 +79,20 @@ else
 fi
 export PASSWORD_FILE
 
+# Root CA certificate. When CA_ROOT_CERT_PEM is provided (e.g. injected from a
+# secret in ECS, where no /home/step volume is mounted), write it to the path the
+# Go app reads as ROOT_CERT so CA verification and the diagnostics console work.
+# In docker-compose CA_ROOT_CERT_PEM is unset and the cert is mounted instead, so
+# this block is skipped.
+ROOT_CERT="${ROOT_CERT:-/home/step/certs/root_ca.crt}"
+if [ -n "${CA_ROOT_CERT_PEM:-}" ]; then
+  echo "[*] Writing root CA certificate to $ROOT_CERT"
+  mkdir -p "$(dirname "$ROOT_CERT")"
+  printf "%s" "$CA_ROOT_CERT_PEM" > "$ROOT_CERT"
+  chmod 644 "$ROOT_CERT"
+fi
+export ROOT_CERT
+
 echo "[*] Starting Step-CA UI on port ${PORT:-8443}"
 # Seed initial admin password from STEPUI_ADMIN_PASSWORD if provided.
 # The Go app reads this on first boot when no admin user exists.
