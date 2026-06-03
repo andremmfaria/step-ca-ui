@@ -217,6 +217,8 @@ func (h *Handler) templateFuncs() template.FuncMap {
 			}
 			return s
 		},
+		"securityEventLabel": securityEventLabel,
+		"securityEventBadge": securityEventBadge,
 	}
 }
 

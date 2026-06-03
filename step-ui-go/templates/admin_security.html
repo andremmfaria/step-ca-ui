@@ -35,7 +35,7 @@
             <div class="w-180">
                 <select name="filter"
                         id="secFilter"
-                        onchange="document.getElementById('secForm').submit()">
+                        data-autosubmit="secForm">
                     <option value="">All Events</option>
                     <option value="ok"   {{if eq .Filter "ok"}}selected{{end}}>Successful
                     </option>
@@ -80,8 +80,7 @@
                         <code>{{.IP}}</code>
                     </td>
                     <td>
-                        {{if .Success}}<span class="badge ok">Login</span>
-                        {{else}}<span class="badge danger">Denied</span>{{end}}
+                        <span class="badge {{securityEventBadge .Success .Reason}}">{{securityEventLabel .Success .Reason}}</span>
                     </td>
                     <td class="text-muted">{{.Reason}}</td>
                 </tr>
