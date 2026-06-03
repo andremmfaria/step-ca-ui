@@ -43,11 +43,23 @@ func (h *Handler) AdminNotificationsGet(w http.ResponseWriter, r *http.Request) 
 	h.render(w, "admin_notifications", data)
 }
 
-// AdminNotificationsPost handles saving notification settings.
+// AdminNotificationsPost handles saving notification settings (webhook + SMTP).
 func (h *Handler) AdminNotificationsPost(w http.ResponseWriter, r *http.Request) {
 	if !h.requireCSRF(w, r, "/admin/notifications") {
 		return
 	}
+
+	// Load current settings so we can preserve fields the form omits and
+	// retain the stored SMTP password when the password field is left blank.
+	current, err := appdb.GetNotificationSettings(r.Context(), h.db)
+	if err != nil || current == nil {
+		current = &models.NotificationSettings{
+			ID: 1, ExpiryDays: 30, NotifyExpiry: true,
+			NotifyFailures: true, NotifyAuthBurst: true,
+			SMTPPort: 587, SMTPSecurity: "starttls",
+		}
+	}
+
 	expiryDays, _ := strconv.Atoi(r.FormValue("expiry_days"))
 	if expiryDays < 1 {
 		expiryDays = 1
@@ -55,6 +67,7 @@ func (h *Handler) AdminNotificationsPost(w http.ResponseWriter, r *http.Request)
 	if expiryDays > 365 {
 		expiryDays = 365
 	}
+
 	settings := &models.NotificationSettings{
 		WebhookEnabled:  r.FormValue("webhook_enabled") == "on",
 		WebhookURL:      strings.TrimSpace(r.FormValue("webhook_url")),
@@ -63,23 +76,86 @@ func (h *Handler) AdminNotificationsPost(w http.ResponseWriter, r *http.Request)
 		NotifyFailures:  r.FormValue("notify_failures") == "on",
 		NotifyAuthBurst: r.FormValue("notify_auth_burst") == "on",
 	}
+
+	settings, err = parseSMTPFields(r, settings, current)
+	if err != nil {
+		h.flash(w, r, "err", err.Error())
+		http.Redirect(w, r, "/admin/notifications", http.StatusSeeOther)
+		return
+	}
+
 	if settings.WebhookEnabled {
-		if _, err := url.ParseRequestURI(settings.WebhookURL); err != nil {
+		if _, urlErr := url.ParseRequestURI(settings.WebhookURL); urlErr != nil {
 			h.flash(w, r, "err", "Webhook URL is invalid")
 			http.Redirect(w, r, "/admin/notifications", http.StatusSeeOther)
 			return
 		}
 	}
+	if settings.SMTPEnabled {
+		if settings.SMTPHost == "" || settings.SMTPFrom == "" {
+			h.flash(w, r, "err", "SMTP requires a host and a From address")
+			http.Redirect(w, r, "/admin/notifications", http.StatusSeeOther)
+			return
+		}
+	}
+
 	if err := appdb.SaveNotificationSettings(r.Context(), h.db, settings); err != nil {
 		h.flash(w, r, "err", "Failed to save settings: "+err.Error())
 	} else {
 		h.auditSecurity(r, fmt.Sprintf(
-			"notifications.save webhook_enabled=%t notify_expiry=%t notify_failures=%t notify_auth_burst=%t expiry_days=%d",
-			settings.WebhookEnabled, settings.NotifyExpiry, settings.NotifyFailures, settings.NotifyAuthBurst, settings.ExpiryDays,
+			"notifications.save webhook_enabled=%t smtp_enabled=%t smtp_host=%s smtp_security=%s notify_expiry=%t notify_failures=%t notify_auth_burst=%t expiry_days=%d",
+			settings.WebhookEnabled, settings.SMTPEnabled, settings.SMTPHost, settings.SMTPSecurity,
+			settings.NotifyExpiry, settings.NotifyFailures, settings.NotifyAuthBurst, settings.ExpiryDays,
 		))
 		h.flash(w, r, "ok", "Notification settings saved")
 	}
 	http.Redirect(w, r, "/admin/notifications", http.StatusSeeOther)
+}
+
+// parseSMTPFields extracts and validates the SMTP form fields from r, merging
+// them into dst. current is the live DB row and is used to:
+//   - keep the stored password when the submitted smtp_password field is blank
+//     (security: never force-clear a credential on ambiguous form submissions)
+//   - fill in defaults when the SMTP panel fields are absent (e.g. old webhooks form)
+//
+// Returns the modified dst or an error if validation fails.
+func parseSMTPFields(r *http.Request, dst *models.NotificationSettings, current *models.NotificationSettings) (*models.NotificationSettings, error) {
+	dst.SMTPEnabled = r.FormValue("smtp_enabled") == "on"
+	dst.SMTPHost = strings.TrimSpace(r.FormValue("smtp_host"))
+	dst.SMTPUsername = strings.TrimSpace(r.FormValue("smtp_username"))
+	dst.SMTPFrom = strings.TrimSpace(r.FormValue("smtp_from"))
+
+	portStr := strings.TrimSpace(r.FormValue("smtp_port"))
+	if portStr == "" {
+		dst.SMTPPort = current.SMTPPort
+	} else {
+		p, _ := strconv.Atoi(portStr)
+		if p < 1 || p > 65535 {
+			return nil, fmt.Errorf("SMTP port must be between 1 and 65535")
+		}
+		dst.SMTPPort = p
+	}
+
+	sec := strings.ToLower(strings.TrimSpace(r.FormValue("smtp_security")))
+	switch sec {
+	case "none", "starttls", "tls":
+		dst.SMTPSecurity = sec
+	case "":
+		dst.SMTPSecurity = current.SMTPSecurity
+	default:
+		return nil, fmt.Errorf("SMTP security must be one of: none, starttls, tls")
+	}
+
+	// Password-preserve-on-blank: only update when a new non-empty value is submitted.
+	// This prevents an accidental save from erasing a stored credential.
+	newPwd := strings.TrimSpace(r.FormValue("smtp_password"))
+	if newPwd == "" {
+		dst.SMTPPassword = current.SMTPPassword
+	} else {
+		dst.SMTPPassword = newPwd
+	}
+
+	return dst, nil
 }
 
 // AdminNotificationsTest sends a test webhook notification.
