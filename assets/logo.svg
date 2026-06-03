@@ -1,0 +1,44 @@
+<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Step-CA UI logo">
+  <title>Step-CA UI</title>
+  <desc>Three ascending steps representing the certificate chain of trust (root, intermediate, leaf), the literal "step" in step-ca, framed as a UI tile, topped by a red certificate seal.</desc>
+
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="160" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0f3486"/>
+      <stop offset="1" stop-color="#000b24"/>
+    </linearGradient>
+    <linearGradient id="stepTop" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#a9bce5"/>
+      <stop offset="1" stop-color="#5479cb"/>
+    </linearGradient>
+    <linearGradient id="seal" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e8675c"/>
+      <stop offset="1" stop-color="#dc4b40"/>
+    </linearGradient>
+  </defs>
+
+  <!-- UI app tile: this is a web interface -->
+  <rect x="0" y="0" width="160" height="160" rx="34" fill="url(#tile)"/>
+  <!-- title-bar dots: a browser/app window -->
+  <circle cx="26" cy="24" r="3.5" fill="#dc4b40" opacity="0.9"/>
+  <circle cx="38" cy="24" r="3.5" fill="#f7c26d" opacity="0.85"/>
+  <circle cx="50" cy="24" r="3.5" fill="#5479cb" opacity="0.85"/>
+
+  <!-- Chain of trust as an ascending staircase: root -> intermediate -> leaf -->
+  <!-- root (foundation, darkest) -->
+  <rect x="22"  y="104" width="46" height="30" rx="6" fill="#2958be"/>
+  <!-- intermediate -->
+  <rect x="54"  y="80"  width="46" height="30" rx="6" fill="#3f75ef"/>
+  <!-- leaf (summit, brightest = the issued identity) -->
+  <rect x="86"  y="56"  width="46" height="30" rx="6" fill="url(#stepTop)"/>
+
+  <!-- Certificate seal: the trusted, signed output, in Smallstep brand red -->
+  <g transform="translate(109,42)">
+    <circle r="22" fill="url(#seal)"/>
+    <circle r="22" fill="none" stroke="#ffffff" stroke-opacity="0.25" stroke-width="2"/>
+    <!-- check = verified / valid certificate -->
+    <path d="M -9 1 L -2.5 8 L 10 -7" fill="none" stroke="#ffffff" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- ribbon tails -->
+    <path d="M -8 19 L -8 34 L -1 28 L 6 34 L 6 19 Z" fill="#dc4b40"/>
+  </g>
+</svg>

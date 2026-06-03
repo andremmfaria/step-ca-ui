@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="assets/logo.svg" alt="Step-CA UI logo" width="140" height="140" />
+
 # Step-CA UI
 
 **Self-hosted web interface for [Smallstep step-ca](https://smallstep.com/docs/step-ca/) — manage your private PKI from a browser.**
