@@ -75,7 +75,7 @@ type SessionInfo struct {
 	Theme    string
 }
 
-// NotificationSettings holds the webhook notification configuration.
+// NotificationSettings holds the webhook and SMTP notification configuration.
 type NotificationSettings struct {
 	ID              int
 	WebhookEnabled  bool
@@ -84,7 +84,25 @@ type NotificationSettings struct {
 	ExpiryDays      int
 	NotifyFailures  bool
 	NotifyAuthBurst bool
-	UpdatedAt       *time.Time
+	// SMTP fields — used for password recovery email delivery.
+	SMTPEnabled  bool
+	SMTPHost     string
+	SMTPPort     int
+	SMTPSecurity string // "none" | "starttls" | "tls"
+	SMTPUsername string
+	SMTPPassword string // stored hashed/plain by DB layer; never echoed to templates
+	SMTPFrom     string
+	UpdatedAt    *time.Time
+}
+
+// PasswordResetToken is a single-use, time-limited token for self-service password recovery.
+type PasswordResetToken struct {
+	ID        int
+	UserID    int
+	TokenHash string
+	ExpiresAt time.Time
+	UsedAt    *time.Time
+	CreatedAt time.Time
 }
 
 // NotificationLog records a sent (or attempted) webhook notification.

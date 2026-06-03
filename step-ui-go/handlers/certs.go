@@ -361,6 +361,7 @@ func (h *Handler) DownloadKey(w http.ResponseWriter, r *http.Request) {
 	if safe, nameErr := safeName(c.Name); nameErr == nil {
 		fn = safe + ".key"
 	}
+	h.auditSecurity(r, fmt.Sprintf("certificate.key_download id=%d name=%s domain=%s", c.ID, c.Name, c.Domain))
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", fn))
 	http.ServeFile(w, r, c.KeyPath)
 }

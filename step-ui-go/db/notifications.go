@@ -7,7 +7,8 @@ import (
 	"step-ui/models"
 )
 
-// InitNotificationSchema creates the notification settings and log tables if absent.
+// InitNotificationSchema creates the notification settings and log tables if absent,
+// then adds SMTP columns idempotently so existing deployments are migrated forward.
 func InitNotificationSchema(d *sql.DB) error {
 	schema := `
 	CREATE TABLE IF NOT EXISTS notification_settings (
@@ -36,18 +37,74 @@ func InitNotificationSchema(d *sql.DB) error {
 
 	INSERT INTO notification_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
 	`
-	_, err := d.ExecContext(context.Background(), schema)
-	return err
+	if _, err := d.ExecContext(context.Background(), schema); err != nil {
+		return err
+	}
+
+	// Forward migrations — ADD COLUMN IF NOT EXISTS is idempotent; one Exec per column
+	// so a partial failure is unambiguous and the completed columns are not re-applied.
+
+	// migration: smtp_enabled
+	if _, err := d.ExecContext(context.Background(),
+		`ALTER TABLE notification_settings ADD COLUMN IF NOT EXISTS smtp_enabled BOOLEAN DEFAULT FALSE`); err != nil {
+		return err
+	}
+	// migration: smtp_host
+	if _, err := d.ExecContext(context.Background(),
+		`ALTER TABLE notification_settings ADD COLUMN IF NOT EXISTS smtp_host TEXT NOT NULL DEFAULT ''`); err != nil {
+		return err
+	}
+	// migration: smtp_port
+	if _, err := d.ExecContext(context.Background(),
+		`ALTER TABLE notification_settings ADD COLUMN IF NOT EXISTS smtp_port INT NOT NULL DEFAULT 587`); err != nil {
+		return err
+	}
+	// migration: smtp_security — valid values: none / starttls / tls
+	if _, err := d.ExecContext(context.Background(),
+		`ALTER TABLE notification_settings ADD COLUMN IF NOT EXISTS smtp_security VARCHAR(20) NOT NULL DEFAULT 'starttls'`); err != nil {
+		return err
+	}
+	// migration: smtp_username
+	if _, err := d.ExecContext(context.Background(),
+		`ALTER TABLE notification_settings ADD COLUMN IF NOT EXISTS smtp_username TEXT NOT NULL DEFAULT ''`); err != nil {
+		return err
+	}
+	// migration: smtp_password — stored as-is; never echoed to templates
+	if _, err := d.ExecContext(context.Background(),
+		`ALTER TABLE notification_settings ADD COLUMN IF NOT EXISTS smtp_password TEXT NOT NULL DEFAULT ''`); err != nil {
+		return err
+	}
+	// migration: smtp_from
+	if _, err := d.ExecContext(context.Background(),
+		`ALTER TABLE notification_settings ADD COLUMN IF NOT EXISTS smtp_from TEXT NOT NULL DEFAULT ''`); err != nil {
+		return err
+	}
+	return nil
 }
 
 // GetNotificationSettings returns the singleton notification settings row.
 func GetNotificationSettings(ctx context.Context, d *sql.DB) (*models.NotificationSettings, error) {
 	s := &models.NotificationSettings{}
-	err := d.QueryRowContext(ctx, `SELECT id,webhook_enabled,COALESCE(webhook_url,''),notify_expiry,
-		COALESCE(expiry_days,30),notify_failures,notify_auth_burst,updated_at
+	err := d.QueryRowContext(ctx, `
+		SELECT id,
+		       webhook_enabled, COALESCE(webhook_url,''),
+		       notify_expiry, COALESCE(expiry_days,30),
+		       notify_failures, notify_auth_burst,
+		       COALESCE(smtp_enabled,false),
+		       COALESCE(smtp_host,''),
+		       COALESCE(smtp_port,587),
+		       COALESCE(smtp_security,'starttls'),
+		       COALESCE(smtp_username,''),
+		       COALESCE(smtp_password,''),
+		       COALESCE(smtp_from,''),
+		       updated_at
 		FROM notification_settings WHERE id=1`).
-		Scan(&s.ID, &s.WebhookEnabled, &s.WebhookURL, &s.NotifyExpiry,
-			&s.ExpiryDays, &s.NotifyFailures, &s.NotifyAuthBurst, &s.UpdatedAt)
+		Scan(&s.ID, &s.WebhookEnabled, &s.WebhookURL,
+			&s.NotifyExpiry, &s.ExpiryDays,
+			&s.NotifyFailures, &s.NotifyAuthBurst,
+			&s.SMTPEnabled, &s.SMTPHost, &s.SMTPPort, &s.SMTPSecurity,
+			&s.SMTPUsername, &s.SMTPPassword, &s.SMTPFrom,
+			&s.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return &models.NotificationSettings{
 			ID:              1,
@@ -55,28 +112,54 @@ func GetNotificationSettings(ctx context.Context, d *sql.DB) (*models.Notificati
 			ExpiryDays:      30,
 			NotifyFailures:  true,
 			NotifyAuthBurst: true,
+			SMTPPort:        587,
+			SMTPSecurity:    "starttls",
 		}, nil
 	}
 	if s.ExpiryDays <= 0 {
 		s.ExpiryDays = 30
 	}
+	if s.SMTPPort <= 0 {
+		s.SMTPPort = 587
+	}
+	if s.SMTPSecurity == "" {
+		s.SMTPSecurity = "starttls"
+	}
 	return s, err
 }
 
-// SaveNotificationSettings upserts the notification settings.
+// SaveNotificationSettings upserts the notification settings singleton (id=1).
 func SaveNotificationSettings(ctx context.Context, d *sql.DB, s *models.NotificationSettings) error {
-	_, err := d.ExecContext(ctx, `INSERT INTO notification_settings
-		(id,webhook_enabled,webhook_url,notify_expiry,expiry_days,notify_failures,notify_auth_burst,updated_at)
-		VALUES (1,$1,$2,$3,$4,$5,$6,NOW())
+	_, err := d.ExecContext(ctx, `
+		INSERT INTO notification_settings
+			(id,
+			 webhook_enabled, webhook_url,
+			 notify_expiry, expiry_days,
+			 notify_failures, notify_auth_burst,
+			 smtp_enabled, smtp_host, smtp_port, smtp_security,
+			 smtp_username, smtp_password, smtp_from,
+			 updated_at)
+		VALUES (1, $1,$2, $3,$4, $5,$6, $7,$8,$9,$10, $11,$12,$13, NOW())
 		ON CONFLICT (id) DO UPDATE SET
-			webhook_enabled=$1,
-			webhook_url=$2,
-			notify_expiry=$3,
-			expiry_days=$4,
-			notify_failures=$5,
-			notify_auth_burst=$6,
-			updated_at=NOW()`,
-		s.WebhookEnabled, s.WebhookURL, s.NotifyExpiry, s.ExpiryDays, s.NotifyFailures, s.NotifyAuthBurst)
+			webhook_enabled  = $1,
+			webhook_url      = $2,
+			notify_expiry    = $3,
+			expiry_days      = $4,
+			notify_failures  = $5,
+			notify_auth_burst= $6,
+			smtp_enabled     = $7,
+			smtp_host        = $8,
+			smtp_port        = $9,
+			smtp_security    = $10,
+			smtp_username    = $11,
+			smtp_password    = $12,
+			smtp_from        = $13,
+			updated_at       = NOW()`,
+		s.WebhookEnabled, s.WebhookURL,
+		s.NotifyExpiry, s.ExpiryDays,
+		s.NotifyFailures, s.NotifyAuthBurst,
+		s.SMTPEnabled, s.SMTPHost, s.SMTPPort, s.SMTPSecurity,
+		s.SMTPUsername, s.SMTPPassword, s.SMTPFrom)
 	return err
 }
 

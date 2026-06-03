@@ -50,6 +50,7 @@ func (h *Handler) UsersPost(w http.ResponseWriter, r *http.Request) {
 		if err := appdb.CreateUser(h.db, username, security.HashPassword(password), role); err != nil {
 			h.flash(w, r, "err", "User already exists")
 		} else {
+			h.auditSecurity(r, fmt.Sprintf("user.create target=%s role=%s", username, role))
 			h.flash(w, r, "ok", "User "+username+" created")
 		}
 
@@ -59,9 +60,15 @@ func (h *Handler) UsersPost(w http.ResponseWriter, r *http.Request) {
 			h.flash(w, r, "err", "You cannot delete your own account")
 			break
 		}
+		target, _ := appdb.GetUserByID(h.db, uid)
 		if err := appdb.DeleteUser(h.db, uid); err != nil {
 			h.flash(w, r, "err", "Delete error: "+err.Error())
 			break
+		}
+		if target != nil {
+			h.auditSecurity(r, fmt.Sprintf("user.delete target=%s uid=%d", target.Username, uid))
+		} else {
+			h.auditSecurity(r, fmt.Sprintf("user.delete uid=%d", uid))
 		}
 		h.flash(w, r, "ok", "User deleted")
 
@@ -74,6 +81,12 @@ func (h *Handler) UsersPost(w http.ResponseWriter, r *http.Request) {
 		}
 		if role == "viewer" || role == "manager" || role == "admin" {
 			_ = appdb.UpdateUserRole(h.db, uid, role)
+			roleTarget, _ := appdb.GetUserByID(h.db, uid)
+			if roleTarget != nil {
+				h.auditSecurity(r, fmt.Sprintf("user.change_role target=%s uid=%d role=%s", roleTarget.Username, uid, role))
+			} else {
+				h.auditSecurity(r, fmt.Sprintf("user.change_role uid=%d role=%s", uid, role))
+			}
 			h.flash(w, r, "ok", "Role updated")
 		}
 
@@ -88,8 +101,10 @@ func (h *Handler) UsersPost(w http.ResponseWriter, r *http.Request) {
 			newState := !u.IsActive
 			_ = appdb.UpdateUserActive(h.db, uid, newState)
 			if newState {
+				h.auditSecurity(r, fmt.Sprintf("user.activate target=%s uid=%d", u.Username, uid))
 				h.flash(w, r, "ok", "User activated")
 			} else {
+				h.auditSecurity(r, fmt.Sprintf("user.deactivate target=%s uid=%d", u.Username, uid))
 				h.flash(w, r, "ok", "User deactivated")
 			}
 		}
@@ -98,6 +113,7 @@ func (h *Handler) UsersPost(w http.ResponseWriter, r *http.Request) {
 		ip := r.FormValue("target_ip")
 		if ip != "" {
 			security.RL.Clear(ip)
+			h.auditSecurity(r, fmt.Sprintf("ip.unblock target=%s", ip))
 			h.flash(w, r, "ok", fmt.Sprintf("IP %s unblocked", ip))
 		}
 
@@ -109,6 +125,12 @@ func (h *Handler) UsersPost(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 		_ = appdb.UpdateUserPassword(h.db, uid, security.HashPassword(newPW))
+		pwTarget, _ := appdb.GetUserByID(h.db, uid)
+		if pwTarget != nil {
+			h.auditSecurity(r, fmt.Sprintf("user.reset_password target=%s uid=%d", pwTarget.Username, uid))
+		} else {
+			h.auditSecurity(r, fmt.Sprintf("user.reset_password uid=%d", uid))
+		}
 		h.flash(w, r, "ok", "Password reset")
 	}
 	returnTo := r.FormValue("return_to")
