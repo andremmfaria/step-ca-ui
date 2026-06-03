@@ -15,6 +15,10 @@ body{background:#0d0d0d;color:#e8e8e8;font-family:-apple-system,BlinkMacSystemFo
 .card{background:#141414;border:1px solid #222;border-radius:12px;padding:28px}
 .card h2{font-size:14px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#666;margin-bottom:20px}
 .error{background:rgb(231,76,60,.12);border:1px solid rgb(231,76,60,.25);color:#e74c3c;padding:10px 14px;border-radius:6px;font-size:12px;margin-bottom:16px}
+.info{background:rgb(68,147,248,.12);border:1px solid rgb(68,147,248,.25);color:#9bc8ff;padding:10px 14px;border-radius:6px;font-size:12px;margin-bottom:16px}
+.auth-footer{margin-top:14px;text-align:center}
+.auth-link{color:#8a8f98;font-size:12px;text-decoration:none}
+.auth-link:hover{color:#e8e8e8}
 .form-group{margin-bottom:14px}
 label{display:block;font-size:10px;font-weight:600;color:#666;text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}
 input{width:100%;background:#0d0d0d;border:1px solid #222;border-radius:6px;padding:10px 12px;color:#e8e8e8;font-size:13px}

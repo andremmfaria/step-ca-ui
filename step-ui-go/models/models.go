@@ -95,6 +95,16 @@ type NotificationSettings struct {
 	UpdatedAt    *time.Time
 }
 
+// PasswordResetToken is a single-use, time-limited token for self-service password recovery.
+type PasswordResetToken struct {
+	ID        int
+	UserID    int
+	TokenHash string
+	ExpiresAt time.Time
+	UsedAt    *time.Time
+	CreatedAt time.Time
+}
+
 // NotificationLog records a sent (or attempted) webhook notification.
 type NotificationLog struct {
 	ID        int

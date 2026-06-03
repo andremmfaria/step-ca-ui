@@ -138,19 +138,24 @@ func (h *Handler) loadTemplates() {
 		}
 		h.tmpls[page] = t
 	}
-	var (
-		loginTmpl *template.Template
-		loginErr  error
-	)
-	if h.assets != nil {
-		loginTmpl, loginErr = template.New("login.html").Funcs(funcs).ParseFS(h.assets, "templates/login.html")
-	} else {
-		loginTmpl, loginErr = template.New("login.html").Funcs(funcs).ParseFiles("templates/login.html")
-	}
-	if loginErr == nil {
-		h.tmpls["login"] = loginTmpl
-	} else {
-		slog.Error("login template parse error", "err", loginErr)
+	// Standalone auth pages (no base layout — same pattern as login).
+	for _, authPage := range []string{"login", "forgot_password", "reset_password"} {
+		file := fmt.Sprintf("templates/%s.html", authPage)
+		name := authPage + ".html"
+		var (
+			t   *template.Template
+			err error
+		)
+		if h.assets != nil {
+			t, err = template.New(name).Funcs(funcs).ParseFS(h.assets, file)
+		} else {
+			t, err = template.New(name).Funcs(funcs).ParseFiles(file)
+		}
+		if err == nil {
+			h.tmpls[authPage] = t
+		} else {
+			slog.Error("auth template parse error", "page", authPage, "err", err)
+		}
 	}
 }
 
@@ -313,9 +318,10 @@ func (h *Handler) render(w http.ResponseWriter, page string, data map[string]int
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	name := "layout"
-	if page == "login" {
-		name = "login.html"
-	} else if page == "admin" || (len(page) >= 6 && page[:6] == "admin_") {
+	switch {
+	case page == "login" || page == "forgot_password" || page == "reset_password":
+		name = page + ".html"
+	case page == "admin" || (len(page) >= 6 && page[:6] == "admin_"):
 		name = "admin_layout"
 	}
 	if err := tmpl.ExecuteTemplate(w, name, data); err != nil {

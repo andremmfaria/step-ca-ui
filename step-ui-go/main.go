@@ -150,6 +150,10 @@ func main() {
 		_ = conn.Close()
 		log.Fatalf("Cannot init notification schema: %v", err)
 	}
+	if err := appdb.InitPasswordResetSchema(conn); err != nil {
+		_ = conn.Close()
+		log.Fatalf("Cannot init password reset schema: %v", err)
+	}
 	defer func() { _ = conn.Close() }()
 
 	// ─── Sessions ────────────────────────────────────────────────────────────
@@ -190,6 +194,10 @@ func main() {
 	r.Get("/ready", h.Readiness)
 	r.Get("/login", h.LoginGet)
 	r.Post("/login", h.LoginPost)
+	r.Get("/forgot-password", h.ForgotPasswordGet)
+	r.Post("/forgot-password", h.ForgotPasswordPost)
+	r.Get("/reset-password", h.ResetPasswordGet)
+	r.Post("/reset-password", h.ResetPasswordPost)
 	r.Get("/logout", h.Logout)
 	if cfg.OIDCEnabled {
 		r.Get("/auth/oidc/login", h.OIDCLogin)
