@@ -24,12 +24,17 @@
 - **4 themes** — dark, light, blue, auto (follows OS)
 - **Admin workspace** — dedicated admin UI with matching themes
 - **Built-in security** — CSRF tokens, rate limiting, IP blocking, security log
+- **Admin audit log** — every admin action (user management, backups, key downloads, notification changes) is recorded in the security log with a per-entry event badge
+- **Diagnostics console** — read-only `/admin/console` page runs one of 10 allowlisted diagnostic commands; no shell access, 8-second timeout, 16 KB output cap, all invocations audit-logged
 - **Provisioner inspection** — list and inspect step-ca provisioners
 - **Backup export** — admin UI and CLI backup bundles with SHA-256 manifest checksums
 - **CA integrity checks** — root/intermediate chain, provisioner claims, password sync, and pinned step-ca image verification
 - **Certificate details** — SANs, fingerprints, key usage, cert/key pair and chain validation
 - **Certificate templates** — server, internal service, wildcard, and client identity presets
 - **Webhook notifications** — test webhook, failed issue/renew alerts, login burst alerts, and expiry watcher
+- **SMTP email delivery** — optional SMTP transport alongside webhooks; configured on the `/admin/notifications` page (host, port, TLS mode, credentials, from address)
+- **Password recovery** — self-service forgot-password flow: a single-use, 30-minute reset token is sent by email; tokens are SHA-256 hashed before storage and invalidated on use; IP rate-limited to 3 attempts per 15 minutes; no user enumeration
+- **Responsive navigation** — mobile-first top navigation bar on screens ≤ 980 px with collapsible section dropdowns; closes on outside-click or Esc
 - **TOTP 2FA** — authenticator app enrollment, QR code, recovery codes, and login challenge
 - **OIDC SSO** — authorization code + PKCE flow with group-to-role mapping; feature-flagged, off by default
 - **Let's Encrypt / ACME** — issue, renew, and manage public TLS certificates from within the UI
@@ -194,6 +199,8 @@ When `OIDC_SYNC_ROLE=true` (default), the role is updated on every login so IdP 
 - **Security headers** — strict CSP (no `unsafe-inline`), `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, optional HSTS
 - **Session timeout** — 8 hours, sliding; `Secure` flag enforced in production
 - **Login audit log** — every login attempt is recorded with IP and User-Agent
+- **Admin audit log** — every admin action is appended to the same security log with a structured event badge (Audit / Login / Logout / 2FA / Reset / Denied)
+- **Password-recovery rate limit** — dedicated sliding-window limiter (3 attempts / 15 min per IP); identical response on known and unknown accounts prevents user enumeration
 - **Self-signed TLS** — auto-generated on first boot; replace with a trusted cert for production
 - **Password hashing** — bcrypt for new/updated passwords, with transparent migration from legacy SHA-256 hashes on next successful login
 - **Non-root container** — the app process runs as an unprivileged user
@@ -293,6 +300,10 @@ Backups include the PostgreSQL dump, all named volumes, and a `manifest.json` wi
 
 <details>
 <summary><b>How do I reset the admin password?</b></summary>
+
+**Self-service (requires SMTP configured):** use the **Forgot password?** link on the login page. A single-use reset link is emailed and expires after 30 minutes.
+
+**Database reset (no email required):**
 
 ```bash
 docker compose exec postgres psql -U stepui -d stepui -c \
