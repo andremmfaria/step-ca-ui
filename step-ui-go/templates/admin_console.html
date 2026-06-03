@@ -1,45 +1,77 @@
 {{define "content"}}
-<div class="page-header">
-    <h1 class="m-0-0-4-h3">Server Console</h1>
-    <p class="muted m-0">Direct command execution inside the container</p>
+<div class="admin-page-header">
+  <h1 class="admin-page-title">Diagnostics Console</h1>
+  <p class="admin-page-subtitle">Run allowlisted read-only diagnostic commands inside the step-ui container</p>
 </div>
-<div class="card card-mt-18 card-border-danger">
-    <div class="card-body p-24">
-        <div class="d-flex align-start gap-14">
-            <div class="admin-icon-box danger">
-                <svg width="22"
-                     height="22"
-                     viewBox="0 0 24 24"
-                     fill="none"
-                     stroke="currentColor"
-                     stroke-width="2"
-                     stroke-linecap="round"
-                     stroke-linejoin="round">
-                    <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                    <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
-                </svg>
-            </div>
-            <div class="flex-1">
-                <h2 class="section-h2">Two-Factor Authentication Required</h2>
-                <p class="muted mb-14">
-                    The console provides full shell access inside the container — a potentially destructive operation.
-                    To enable it, set up 2FA in the administrator profile.
-                </p>
-                <div class="row-gap8-wrap">
-                    <a href="/profile" class="btn btn-primary">Set Up 2FA</a>
-                    <a href="/admin" class="btn btn-ghost">← Back to Panel</a>
-                </div>
-            </div>
-        </div>
-        <hr class="hr-22-0">
-        <strong class="admin-coming-label">Available after 2FA</strong>
-        <ul class="m-0-pl20-lh17">
-            <li>Interactive shell inside the step-ui container</li>
-            <li>Command history and autocomplete</li>
-            <li>Built-in commands: restart step-ca, reload, backup</li>
-            <li>All actions are logged to the security audit log</li>
-            <li>Automatic blocking of dangerous commands (rm -rf /, dd, mkfs)</li>
-        </ul>
+
+<div class="card admin-console-warning">
+  <div class="card-body">
+    <strong>Allowlist mode</strong>
+    <p class="muted">
+      Free shell access is disabled. Only pre-approved commands without user-supplied arguments are
+      available. Every run is recorded in the security audit log.
+    </p>
+    {{if .TOTPEnabled}}
+      <span class="badge ok">2FA enabled</span>
+    {{else}}
+      <span class="badge warn">2FA not enabled</span>
+      <a href="/profile/2fa" class="btn btn-ghost btn-sm">Set up 2FA</a>
+    {{end}}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header"><strong>Run a command</strong></div>
+  <div class="card-body">
+    {{range .Msgs}}
+      <div class="flash {{.Type}}">{{.Text}}</div>
+    {{end}}
+    {{if .ConsoleError}}<div class="flash err">{{.ConsoleError}}</div>{{end}}
+    <form method="POST" action="/admin/console" class="admin-console-form">
+      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+      <label for="command_id">Command</label>
+      <div class="admin-console-row">
+        <select id="command_id" name="command_id" required>
+          <option value="">Select a command</option>
+          {{range .Commands}}
+            <option value="{{.ID}}" {{if eq $.SelectedCommandID .ID}}selected{{end}}>
+              {{- .Label}} &#x2014; {{.Name}}{{range .Args}} {{.}}{{end -}}
+            </option>
+          {{end}}
+        </select>
+        <button class="btn btn-primary" type="submit">Run</button>
+      </div>
+      <div class="admin-console-command-list">
+        {{range .Commands}}
+          <div class="admin-console-command">
+            <code>{{.Name}}{{range .Args}} {{.}}{{end}}</code>
+            <span>{{.Description}}</span>
+          </div>
+        {{end}}
+      </div>
+    </form>
+  </div>
+</div>
+
+{{if .Result}}
+<div class="card">
+  <div class="card-header admin-console-result-head">
+    <strong>Result</strong>
+    {{if .Result.Success}}
+      <span class="badge ok">exit 0</span>
+    {{else}}
+      <span class="badge danger">exit {{.Result.ExitCode}}</span>
+    {{end}}
+  </div>
+  <div class="card-body">
+    <div class="admin-console-meta">
+      <span><b>Command:</b> <code>{{.Result.CommandLine}}</code></span>
+      <span><b>Duration:</b> {{.Result.Duration}}</span>
+      <span><b>Limits:</b> {{.Timeout}}, {{.MaxOutputKB}} KB</span>
+      {{if .Result.Truncated}}<span class="badge warn">output truncated</span>{{end}}
     </div>
+    <pre class="admin-console-output">{{.Result.Output}}</pre>
+  </div>
 </div>
+{{end}}
 {{end}}
