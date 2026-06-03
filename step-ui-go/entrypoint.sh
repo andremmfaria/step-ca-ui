@@ -51,11 +51,35 @@ if [ -z "${DATABASE_URL:-}" ]; then
 fi
 
 # ─── Wait for PostgreSQL ──────────────────────────────────────────────────
-echo "[*] Waiting for PostgreSQL..."
-until nc -z postgres 5432 2>/dev/null; do
+# Derive host/port from DATABASE_URL so the wait works in any deployment
+# (docker-compose "postgres:5432", an RDS endpoint, a managed PG, etc.) instead
+# of assuming the compose service name. Bounded and non-fatal: if PG is not yet
+# reachable we proceed and let the Go app's own connect/retry handle it.
+_rest="${DATABASE_URL#*://}" # strip scheme
+_hostport="${_rest##*@}"     # drop userinfo (handles '@' in the password)
+_hostport="${_hostport%%/*}" # drop /dbname
+_hostport="${_hostport%%\?*}" # drop ?query
+_db_host="${_hostport%%:*}"
+case "$_hostport" in
+*:*) _db_port="${_hostport##*:}" ;;
+*) _db_port=5432 ;;
+esac
+echo "[*] Waiting for PostgreSQL at ${_db_host}:${_db_port}..."
+_ok=0
+_i=0
+while [ "$_i" -lt 60 ]; do
+  if nc -z "$_db_host" "$_db_port" 2>/dev/null; then
+    _ok=1
+    break
+  fi
+  _i=$((_i + 1))
   sleep 1
 done
-echo "[*] PostgreSQL is ready!"
+if [ "$_ok" -eq 1 ]; then
+  echo "[*] PostgreSQL is ready!"
+else
+  echo "[!] PostgreSQL not reachable at ${_db_host}:${_db_port} after ${_i}s — continuing; the app will retry."
+fi
 
 echo "[*] CA readiness is now reported via /ready — not blocking startup on Step-CA"
 
