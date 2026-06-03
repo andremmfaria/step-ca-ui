@@ -343,9 +343,17 @@ func main() {
 
 	srvErr := make(chan error, 1)
 	if useHTTPS {
-		srv.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+		// Hot-reloading TLS: GetCertificate re-stats both files on every handshake
+		// and reloads when mtime changes.  This lets `step ca renew --daemon`
+		// replace the cert on disk and have it picked up with zero restart.
+		reloader := newCertReloader(cfg.SSLCert, cfg.SSLKey)
+		srv.TLSConfig = &tls.Config{
+			MinVersion:     tls.VersionTLS12,
+			GetCertificate: reloader.GetCertificate,
+		}
 		slog.Info("starting Step-CA UI (HTTPS)", "port", cfg.Port)
-		go func() { srvErr <- srv.ListenAndServeTLS(cfg.SSLCert, cfg.SSLKey) }()
+		// Empty cert/key paths are valid when GetCertificate is set.
+		go func() { srvErr <- srv.ListenAndServeTLS("", "") }()
 	} else {
 		slog.Warn("starting Step-CA UI (HTTP) — not suitable for production", "port", cfg.Port)
 		go func() { srvErr <- srv.ListenAndServe() }()
