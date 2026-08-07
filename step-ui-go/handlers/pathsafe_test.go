@@ -131,3 +131,56 @@ func TestSafeName(t *testing.T) {
 		})
 	}
 }
+
+// TestSafeRelativePath covers the scheme-relative bypasses that a bare
+// leading-slash check lets through.
+func TestSafeRelativePath(t *testing.T) {
+	const fallback = "/admin/users"
+
+	tests := []struct {
+		name      string
+		candidate string
+		want      string
+	}{
+		{"simple path", "/admin/users", "/admin/users"},
+		{"path with query", "/admin/users?tab=1", "/admin/users?tab=1"},
+		{"path with fragment", "/profile#security", "/profile#security"},
+		{"root", "/", "/"},
+		{"empty", "", fallback},
+		{"relative", "admin/users", fallback},
+		{"protocol relative", "//evil.com", fallback},
+		{"protocol relative with path", "//evil.com/admin", fallback},
+		{"backslash scheme relative", `/\evil.com`, fallback},
+		{"backslash with path", `/\evil.com/admin`, fallback},
+		{"absolute http", "http://evil.com", fallback},
+		{"absolute https", "https://evil.com/admin", fallback},
+		{"scheme no slashes", "javascript:alert(1)", fallback},
+		{"triple slash", "///evil.com", fallback},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := safeRelativePath(tc.candidate, fallback); got != tc.want {
+				t.Errorf("safeRelativePath(%q) = %q, want %q", tc.candidate, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestSafeRelativePathNeverLeavesSite asserts the invariant directly: whatever
+// comes back must be site-relative with no host.
+func TestSafeRelativePathNeverLeavesSite(t *testing.T) {
+	candidates := []string{
+		"//evil.com", `/\evil.com`, "https://evil.com", "/ok", "", "..\\..",
+		`/\/evil.com`, "/\t/evil", "HTTPS://EVIL.COM",
+	}
+	for _, c := range candidates {
+		got := safeRelativePath(c, "/admin/users")
+		if !strings.HasPrefix(got, "/") {
+			t.Errorf("safeRelativePath(%q) = %q: not site-relative", c, got)
+		}
+		if len(got) > 1 && (got[1] == '/' || got[1] == '\\') {
+			t.Errorf("safeRelativePath(%q) = %q: scheme-relative escape", c, got)
+		}
+	}
+}

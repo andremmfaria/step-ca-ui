@@ -3,6 +3,7 @@ package le
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 )
@@ -81,5 +82,69 @@ func TestParseCertDates(t *testing.T) {
 	issued, expires := parseCertDates([]byte("not a pem block"))
 	if issued != nil || expires != nil {
 		t.Errorf("expected nil times for invalid PEM, got issued=%v expires=%v", issued, expires)
+	}
+}
+
+// TestCertDirFor rejects any domain that could escape LEDirectory and accepts
+// the hostname forms the ACME flow actually issues for.
+func TestCertDirFor(t *testing.T) {
+	valid := []string{
+		"example.com",
+		"sub.example.com",
+		"*.example.com",
+		"a.b.c.d.example.com",
+		"xn--bcher-kva.example.com",
+		"host",
+	}
+	for _, d := range valid {
+		got, err := certDirFor(d)
+		if err != nil {
+			t.Errorf("certDirFor(%q) returned error: %v", d, err)
+			continue
+		}
+		want := filepath.Join(LEDirectory, d)
+		if got != want {
+			t.Errorf("certDirFor(%q) = %q, want %q", d, got, want)
+		}
+	}
+
+	invalid := []string{
+		"",
+		"../etc",
+		"../../etc/cron.d",
+		"example.com/../..",
+		"/etc/passwd",
+		"foo/bar",
+		`foo\bar`,
+		"..",
+		".",
+		".example.com",
+		"example.com.",
+		"-example.com",
+		"example.com\x00",
+		"exam ple.com",
+		"example.com\r\n",
+		strings.Repeat("a", 254),
+	}
+	for _, d := range invalid {
+		got, err := certDirFor(d)
+		if err == nil {
+			t.Errorf("certDirFor(%q) accepted, returned %q; want error", d, got)
+		}
+	}
+}
+
+// TestCertDirForStaysUnderLEDirectory is the property the path guard exists for:
+// no accepted domain may resolve outside LEDirectory.
+func TestCertDirForStaysUnderLEDirectory(t *testing.T) {
+	prefix := LEDirectory + string(filepath.Separator)
+	for _, d := range []string{"example.com", "*.example.com", "deep.sub.example.com"} {
+		got, err := certDirFor(d)
+		if err != nil {
+			t.Fatalf("certDirFor(%q): %v", d, err)
+		}
+		if !strings.HasPrefix(filepath.Clean(got), prefix) {
+			t.Errorf("certDirFor(%q) = %q escapes %q", d, got, LEDirectory)
+		}
 	}
 }

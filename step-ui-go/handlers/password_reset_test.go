@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 )
@@ -151,5 +152,87 @@ func TestPasswordResetConstants(t *testing.T) {
 	}
 	if passwordResetLimitWindow != 15*time.Minute {
 		t.Errorf("limit window: got %v want 15m", passwordResetLimitWindow)
+	}
+}
+
+// ─── SMTP header injection ────────────────────────────────────────────────────
+
+// TestSendPasswordResetMailRejectsHeaderInjection asserts that addresses
+// carrying CR/LF are refused before any connection is attempted, so injected
+// headers can never reach the SMTP DATA stage.  Port 1 is used deliberately:
+// if validation regressed, the dial would fail with a connection error rather
+// than the address error asserted here.
+func TestSendPasswordResetMailRejectsHeaderInjection(t *testing.T) {
+	tests := []struct {
+		name    string
+		from    string
+		to      string
+		wantErr string
+	}{
+		{
+			name:    "bcc injected into recipient",
+			from:    "ca@example.com",
+			to:      "user@example.com\r\nBcc: attacker@evil.com",
+			wantErr: "invalid recipient address",
+		},
+		{
+			name:    "subject and body injected into recipient",
+			from:    "ca@example.com",
+			to:      "user@example.com\nSubject: Account seized\n\nGo to evil.com",
+			wantErr: "invalid recipient address",
+		},
+		{
+			name:    "injected sender",
+			from:    "ca@example.com\r\nBcc: attacker@evil.com",
+			to:      "user@example.com",
+			wantErr: "invalid sender address",
+		},
+		{
+			name:    "recipient is not an address at all",
+			from:    "ca@example.com",
+			to:      "not-an-email",
+			wantErr: "invalid recipient address",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+
+			err := sendPasswordResetMail(
+				ctx,
+				"127.0.0.1", 1, "starttls",
+				"", "",
+				tc.from, tc.to, "https://ca.example.com/reset?token=x",
+			)
+			if err == nil {
+				t.Fatalf("expected error for from=%q to=%q, got nil", tc.from, tc.to)
+			}
+			if !strings.Contains(err.Error(), tc.wantErr) {
+				t.Errorf("error = %q, want it to contain %q", err, tc.wantErr)
+			}
+		})
+	}
+}
+
+// TestSendPasswordResetMailAcceptsDisplayNameForm confirms the validation does
+// not reject legitimate RFC 5322 forms; it fails at the dial, not the parse.
+func TestSendPasswordResetMailAcceptsDisplayNameForm(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	err := sendPasswordResetMail(
+		ctx,
+		"127.0.0.1", 1, "starttls",
+		"", "",
+		"Step CA <ca@example.com>", "User <user@example.com>", "https://ca.example.com/reset?token=x",
+	)
+	if err == nil {
+		t.Fatal("expected a dial error, got nil")
+	}
+	if strings.Contains(err.Error(), "invalid recipient address") ||
+		strings.Contains(err.Error(), "invalid sender address") {
+		t.Errorf("valid addresses were rejected as malformed: %v", err)
 	}
 }
