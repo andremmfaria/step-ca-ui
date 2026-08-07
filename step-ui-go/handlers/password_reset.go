@@ -109,7 +109,15 @@ func (h *Handler) ForgotPasswordPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	link := absoluteURL(r, "/reset-password?token="+url.QueryEscape(rawToken))
+	link, err := resetLink(h.cfg.PublicBaseURL, rawToken)
+	if err != nil {
+		slog.Error("password reset link could not be built", "user", user.Username, "err", err)
+		_ = appdb.LogAuth(h.db, user.Username, ip, false, "Password reset link not built: "+err.Error())
+		data["Info"] = genericResetInfo
+		h.render(w, "forgot_password", data)
+		return
+	}
+
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 	if err := sendPasswordResetMail(
@@ -238,14 +246,26 @@ func passwordResetAllowed(ip string) bool {
 
 // absoluteURL constructs a fully-qualified URL for the given path, honouring
 // X-Forwarded-Proto and the presence of TLS on the connection.
-func absoluteURL(r *http.Request, path string) string {
-	scheme := "https"
-	if proto := strings.TrimSpace(r.Header.Get("X-Forwarded-Proto")); proto != "" {
-		scheme = proto
-	} else if r.TLS == nil {
-		scheme = "http"
+// resetLink builds the password-reset URL from the configured public origin.
+//
+// It deliberately takes no *http.Request.  Deriving the origin from r.Host and
+// X-Forwarded-Proto let an unauthenticated caller poison those headers and have
+// the victim emailed a valid token pointing at the attacker's domain, so the
+// origin must come from configuration only.  An unset PUBLIC_BASE_URL fails the
+// send rather than falling back to the request.
+func resetLink(base, rawToken string) (string, error) {
+	if base == "" {
+		return "", fmt.Errorf("PUBLIC_BASE_URL is not configured; refusing to send a password reset link")
 	}
-	return scheme + "://" + r.Host + path
+	u, err := url.Parse(base)
+	if err != nil {
+		return "", fmt.Errorf("PUBLIC_BASE_URL %q is not a valid URL: %w", base, err)
+	}
+	if (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return "", fmt.Errorf("PUBLIC_BASE_URL %q must be an absolute http or https origin", base)
+	}
+	origin := u.Scheme + "://" + u.Host
+	return origin + "/reset-password?token=" + url.QueryEscape(rawToken), nil
 }
 
 // sendPasswordResetMail dials the SMTP server using the configured security

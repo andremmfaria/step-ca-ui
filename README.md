@@ -342,6 +342,7 @@ The Go server (`tlsreload.go`) re-stats both `SSL_CERT` and `SSL_KEY` on **every
 | `SESSION_SECURE` | `true` | Sets the `Secure` flag on session cookies. Set `false` only for local HTTP development. |
 | `ENABLE_HSTS` | `false` | Send `Strict-Transport-Security`. Enable only with a trusted, non-self-signed certificate. |
 | `TRUST_PROXY` | `false` | Rewrite `RemoteAddr` from `X-Forwarded-For` / `X-Real-IP`. Enable only behind a trusted reverse proxy. |
+| `PUBLIC_BASE_URL` | _(unset)_ | Externally reachable origin, e.g. `https://ca.example.com`. **Required for password recovery.** Emailed links are built from this and never from the request, because `Host` and `X-Forwarded-Proto` are attacker-controlled. Unset means reset emails are not sent. |
 
 #### OIDC SSO
 
@@ -424,7 +425,9 @@ There are three approaches depending on how you obtain the certificate:
 <details>
 <summary><b>Can I run this behind Cloudflare / Caddy / nginx?</b></summary>
 
-Yes. Point your reverse proxy at `step-ui:8443` (HTTPS upstream). Set `X-Forwarded-Proto: https` so the app generates correct URLs, and set `TRUST_PROXY=true` in `.env` only if your proxy is trusted and strips incoming forwarding headers.
+Yes. Point your reverse proxy at `step-ui:8443` (HTTPS upstream). Set `TRUST_PROXY=true` in `.env` only if your proxy is trusted and strips incoming forwarding headers.
+
+Set `PUBLIC_BASE_URL` to the origin your users actually reach, e.g. `https://ca.example.com`. Emailed password-reset links are built from it. They are deliberately not derived from `Host` or `X-Forwarded-Proto`, so forwarding those headers does not affect the links.
 </details>
 
 <details>

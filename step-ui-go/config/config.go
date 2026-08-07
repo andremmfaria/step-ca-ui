@@ -21,6 +21,11 @@ type Config struct {
 	SessionSecure bool
 	EnableHSTS    bool
 	TrustProxy    bool
+
+	// PublicBaseURL is the externally reachable origin ("https://ca.example.com").
+	// Links sent by email are built from this and never from the inbound
+	// request, because Host and X-Forwarded-Proto are attacker controlled.
+	PublicBaseURL string
 	Port          int
 	CertsDir      string
 	UploadDir     string
@@ -62,6 +67,7 @@ func Load() *Config {
 		SessionSecure: getEnvBool("SESSION_SECURE", true),
 		EnableHSTS:    getEnvBool("ENABLE_HSTS", false),
 		TrustProxy:    getEnvBool("TRUST_PROXY", false),
+		PublicBaseURL: strings.TrimRight(strings.TrimSpace(getEnv("PUBLIC_BASE_URL", "")), "/"),
 		Port:          port,
 		CertsDir:      "/opt/step-ui/certs",
 		UploadDir:     "/opt/step-ui/uploads",

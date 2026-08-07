@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -100,42 +99,54 @@ func TestPasswordResetAllowed_IndependentIPs(t *testing.T) {
 	}
 }
 
-// ─── absoluteURL ─────────────────────────────────────────────────────────────
+// ─── resetLink ────────────────────────────────────────────────────────────────
 
-func newResetRequest(t *testing.T, target string) *http.Request {
-	t.Helper()
-	r, err := http.NewRequestWithContext(context.Background(), http.MethodGet, target, nil)
+// TestResetLinkUsesConfiguredOrigin pins the property that replaced
+// absoluteURL: the link comes from configuration, so no request header can
+// steer where a victim's reset token is sent.
+func TestResetLinkUsesConfiguredOrigin(t *testing.T) {
+	tests := []struct {
+		name string
+		base string
+		want string
+	}{
+		{"https origin", "https://ca.example.com", "https://ca.example.com/reset-password?token=t0k"},
+		{"http origin", "http://ca.example.com", "http://ca.example.com/reset-password?token=t0k"},
+		{"explicit port", "https://ca.example.com:8443", "https://ca.example.com:8443/reset-password?token=t0k"},
+		{"path on base is dropped", "https://ca.example.com/ui", "https://ca.example.com/reset-password?token=t0k"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := resetLink(tc.base, "t0k")
+			if err != nil {
+				t.Fatalf("resetLink(%q): %v", tc.base, err)
+			}
+			if got != tc.want {
+				t.Errorf("resetLink(%q) = %q, want %q", tc.base, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestResetLinkFailsClosed confirms an unusable origin stops the send instead
+// of falling back to anything request-derived.
+func TestResetLinkFailsClosed(t *testing.T) {
+	for _, base := range []string{
+		"", "   ", "not a url", "ftp://ca.example.com", "https://", "/reset", "javascript:alert(1)",
+	} {
+		if got, err := resetLink(base, "t0k"); err == nil {
+			t.Errorf("resetLink(%q) returned %q, want an error", base, got)
+		}
+	}
+}
+
+// TestResetLinkEscapesToken guards the one caller-supplied component.
+func TestResetLinkEscapesToken(t *testing.T) {
+	got, err := resetLink("https://ca.example.com", "a b&c=d#e")
 	if err != nil {
-		t.Fatalf("build request: %v", err)
+		t.Fatalf("resetLink: %v", err)
 	}
-	r.Host = "example.com"
-	return r
-}
-
-func TestAbsoluteURL_ForwardedProtoHTTPS(t *testing.T) {
-	r := newResetRequest(t, "/reset-password?token=abc")
-	r.Header.Set("X-Forwarded-Proto", "https")
-	got := absoluteURL(r, "/reset-password?token=abc")
-	want := "https://example.com/reset-password?token=abc"
-	if got != want {
-		t.Errorf("got %q want %q", got, want)
-	}
-}
-
-func TestAbsoluteURL_PlainHTTPFallback(t *testing.T) {
-	r := newResetRequest(t, "/foo")
-	got := absoluteURL(r, "/foo")
-	want := "http://example.com/foo"
-	if got != want {
-		t.Errorf("got %q want %q", got, want)
-	}
-}
-
-func TestAbsoluteURL_ForwardedProtoHTTP(t *testing.T) {
-	r := newResetRequest(t, "/bar")
-	r.Header.Set("X-Forwarded-Proto", "http")
-	got := absoluteURL(r, "/bar")
-	want := "http://example.com/bar"
+	want := "https://ca.example.com/reset-password?token=a+b%26c%3Dd%23e"
 	if got != want {
 		t.Errorf("got %q want %q", got, want)
 	}
