@@ -70,7 +70,9 @@ jobs:
       - name: Install frontend linters
         run: |
           npm install --no-save stylelint@^16 stylelint-config-standard@^37 eslint@^9
-          pip install --quiet djlint
+          # Pinned: an unpinned djlint silently gains rules between runs, which
+          # turns an unrelated push red on files it did not touch.
+          pip install --quiet djlint==1.44.1
 
       - name: stylelint (CSS)
         run: |

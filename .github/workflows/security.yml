@@ -115,7 +115,12 @@ jobs:
         # vulnerabilities in Go binaries and OS packages are flagged.
         # If a large pre-existing backlog surfaces, add a .trivyignore file
         # with documented CVE IDs and a due-date comment for each entry.
-        # TODO: triage any initial findings and add to .trivyignore if accepted.
+        #
+        # limit-severities-for-sarif is required, not cosmetic: without it the
+        # action builds the SARIF "with all severities" and drops the severity
+        # filter, so exit-code 1 then fires on UNKNOWN findings too.  That is
+        # what made this job fail every run since 2026-06-21 on GO-2026-5932,
+        # an UNKNOWN-severity advisory with no fix available.
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: fs
@@ -124,6 +129,7 @@ jobs:
           output: trivy-fs.sarif
           exit-code: "1"
           severity: "HIGH,CRITICAL"
+          limit-severities-for-sarif: true
 
       - name: Upload Trivy fs SARIF
         if: ${{ hashFiles('trivy-fs.sarif') != '' }}
