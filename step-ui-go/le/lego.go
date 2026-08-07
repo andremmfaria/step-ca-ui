@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sync"
 	"time"
 
@@ -40,6 +41,27 @@ const (
 	LEProductionCA = "https://acme-v02.api.letsencrypt.org/directory"
 	LEStagingCA    = "https://acme-staging-v02.api.letsencrypt.org/directory"
 )
+
+// validDomain accepts hostnames, FQDNs, and wildcards (*.example.com); mirrors
+// validIdentifier in the step CLI wrapper.  Every label must begin and end with
+// an alphanumeric, so no separator or dot-segment can match: a value passing
+// this check is safe to join into a filesystem path.
+var validDomain = regexp.MustCompile(`^(\*\.)?[A-Za-z0-9]([A-Za-z0-9\-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9\-]*[A-Za-z0-9])?)*$`)
+
+// certDirFor validates domain and returns its storage directory under
+// LEDirectory.  Single entry point so no caller can join an unchecked value.
+func certDirFor(domain string) (string, error) {
+	if domain == "" {
+		return "", fmt.Errorf("domain must not be empty")
+	}
+	if len(domain) > 253 {
+		return "", fmt.Errorf("domain %q exceeds 253 characters", domain)
+	}
+	if !validDomain.MatchString(domain) {
+		return "", fmt.Errorf("domain %q contains disallowed characters", domain)
+	}
+	return filepath.Join(LEDirectory, domain), nil
+}
 
 // LEUser implements the registration.User interface for the ACME account.
 //
@@ -94,7 +116,12 @@ func IssueCert(cfg *LEConfig) (*LEResult, error) {
 	issueMu.Lock()
 	defer issueMu.Unlock()
 
-	if err := os.MkdirAll(filepath.Join(LEDirectory, cfg.Domain), 0o700); err != nil {
+	certDir, err := certDirFor(cfg.Domain)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := os.MkdirAll(certDir, 0o700); err != nil {
 		return nil, fmt.Errorf("creating cert directory: %w", err)
 	}
 
@@ -174,7 +201,6 @@ func IssueCert(cfg *LEConfig) (*LEResult, error) {
 	}
 
 	// Save files
-	certDir := filepath.Join(LEDirectory, cfg.Domain)
 	certPath := filepath.Join(certDir, "certificate.crt")
 	keyPath := filepath.Join(certDir, "private.key")
 

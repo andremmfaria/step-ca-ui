@@ -3,8 +3,8 @@ package handlers
 import (
 	"fmt"
 	"net/http"
+	"net/mail"
 	"strconv"
-	"strings"
 	"time"
 
 	"step-ui/security"
@@ -133,12 +133,8 @@ func (h *Handler) UsersPost(w http.ResponseWriter, r *http.Request) {
 		}
 		h.flash(w, r, "ok", "Password reset")
 	}
-	returnTo := r.FormValue("return_to")
-	// Restrict to relative paths to prevent open-redirect via user-supplied return_to.
-	if returnTo == "" || !strings.HasPrefix(returnTo, "/") || strings.HasPrefix(returnTo, "//") {
-		returnTo = "/admin/users"
-	}
-	//nolint:gosec // G710: returnTo is validated above to be a relative path (starts with / but not //)
+	returnTo := safeRelativePath(r.FormValue("return_to"), "/admin/users")
+	//nolint:gosec // G710: safeRelativePath guarantees a site-relative path with no scheme or host
 	http.Redirect(w, r, returnTo, http.StatusFound)
 }
 
@@ -215,6 +211,15 @@ func (h *Handler) ProfilePost(w http.ResponseWriter, r *http.Request) {
 			h.flash(w, r, "err", "Username cannot be empty")
 			http.Redirect(w, r, "/profile", http.StatusFound)
 			return
+		}
+		if email != "" {
+			parsed, err := mail.ParseAddress(email)
+			if err != nil {
+				h.flash(w, r, "err", "Invalid email address")
+				http.Redirect(w, r, "/profile", http.StatusFound)
+				return
+			}
+			email = parsed.Address
 		}
 		// Check that the username is not taken by another user
 		exists, _ := appdb.UsernameExistsExceptID(h.db, username, si.UserID)

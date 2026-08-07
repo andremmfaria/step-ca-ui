@@ -2,11 +2,30 @@ package handlers
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 )
+
+// safeRelativePath returns candidate when it is a site-relative path, else
+// fallback.  Both "//host" and "/\host" are rejected: browsers resolve the
+// backslash form as scheme-relative too, so a leading-slash check alone still
+// allows an off-site redirect.
+func safeRelativePath(candidate, fallback string) string {
+	if candidate == "" || candidate[0] != '/' {
+		return fallback
+	}
+	if len(candidate) > 1 && (candidate[1] == '/' || candidate[1] == '\\') {
+		return fallback
+	}
+	u, err := url.Parse(candidate)
+	if err != nil || u.Scheme != "" || u.Host != "" {
+		return fallback
+	}
+	return candidate
+}
 
 // containedPath resolves candidate relative to root and verifies that the
 // result is strictly inside root (not equal to it, not a sibling directory).

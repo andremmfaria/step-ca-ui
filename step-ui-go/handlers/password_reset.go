@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/mail"
 	"net/smtp"
 	"net/url"
 	"strings"
@@ -261,6 +262,18 @@ func sendPasswordResetMail(
 		port = 587
 	}
 	addr := fmt.Sprintf("%s:%d", host, port)
+
+	// Headers are concatenated below, so a bare CR/LF in either address would
+	// inject arbitrary headers.  ParseAddress rejects those.
+	fromAddr, err := mail.ParseAddress(from)
+	if err != nil {
+		return fmt.Errorf("invalid sender address: %w", err)
+	}
+	toAddr, err := mail.ParseAddress(to)
+	if err != nil {
+		return fmt.Errorf("invalid recipient address: %w", err)
+	}
+	from, to = fromAddr.Address, toAddr.Address
 
 	subject := "Step-CA UI — Password Reset"
 	body := fmt.Sprintf(
