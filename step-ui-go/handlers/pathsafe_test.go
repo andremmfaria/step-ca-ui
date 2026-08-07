@@ -3,6 +3,7 @@ package handlers
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -132,55 +133,56 @@ func TestSafeName(t *testing.T) {
 	}
 }
 
-// TestSafeRelativePath covers the scheme-relative bypasses that a bare
-// leading-slash check lets through.
-func TestSafeRelativePath(t *testing.T) {
-	const fallback = "/admin/users"
+// TestUserReturnTarget checks that every input maps onto one of exactly two
+// targets, including the scheme-relative forms a leading-slash check misses.
+func TestUserReturnTarget(t *testing.T) {
+	const list = "/admin/users"
 
 	tests := []struct {
 		name      string
 		candidate string
 		want      string
 	}{
-		{"simple path", "/admin/users", "/admin/users"},
-		{"path with query", "/admin/users?tab=1", "/admin/users?tab=1"},
-		{"path with fragment", "/profile#security", "/profile#security"},
-		{"root", "/", "/"},
-		{"empty", "", fallback},
-		{"relative", "admin/users", fallback},
-		{"protocol relative", "//evil.com", fallback},
-		{"protocol relative with path", "//evil.com/admin", fallback},
-		{"backslash scheme relative", `/\evil.com`, fallback},
-		{"backslash with path", `/\evil.com/admin`, fallback},
-		{"absolute http", "http://evil.com", fallback},
-		{"absolute https", "https://evil.com/admin", fallback},
-		{"scheme no slashes", "javascript:alert(1)", fallback},
-		{"triple slash", "///evil.com", fallback},
+		{"users list", "/admin/users", list},
+		{"user profile", "/admin/users/42", "/admin/users/42"},
+		{"leading zeros normalised", "/admin/users/007", "/admin/users/7"},
+		{"empty", "", list},
+		{"zero id", "/admin/users/0", list},
+		{"negative id", "/admin/users/-1", list},
+		{"non numeric id", "/admin/users/abc", list},
+		{"trailing slash", "/admin/users/42/", list},
+		{"deeper path", "/admin/users/42/edit", list},
+		{"prefix collision", "/admin/users-evil", list},
+		{"protocol relative", "//evil.com", list},
+		{"backslash scheme relative", `/\evil.com`, list},
+		{"absolute url", "https://evil.com/admin/users", list},
+		{"traversal", "/admin/users/../../etc", list},
+		{"crlf", "/admin/users\r\nSet-Cookie: x=1", list},
+		{"overflow id", "/admin/users/99999999999999999999", list},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := safeRelativePath(tc.candidate, fallback); got != tc.want {
-				t.Errorf("safeRelativePath(%q) = %q, want %q", tc.candidate, got, tc.want)
+			if got := userReturnTarget(tc.candidate); got != tc.want {
+				t.Errorf("userReturnTarget(%q) = %q, want %q", tc.candidate, got, tc.want)
 			}
 		})
 	}
 }
 
-// TestSafeRelativePathNeverLeavesSite asserts the invariant directly: whatever
-// comes back must be site-relative with no host.
-func TestSafeRelativePathNeverLeavesSite(t *testing.T) {
+// TestUserReturnTargetIsAlwaysAllowlisted asserts the invariant directly: the
+// result is always one of the two known-good shapes, never caller text.
+func TestUserReturnTargetIsAlwaysAllowlisted(t *testing.T) {
+	shape := regexp.MustCompile(`^/admin/users(/[1-9][0-9]*)?$`)
 	candidates := []string{
-		"//evil.com", `/\evil.com`, "https://evil.com", "/ok", "", "..\\..",
-		`/\/evil.com`, "/\t/evil", "HTTPS://EVIL.COM",
+		"//evil.com", `/\evil.com`, "https://evil.com", "/admin/users", "",
+		"/admin/users/1", "/admin/users/abc", "/admin/users/9999999999999999999999",
+		"/admin/users\x00", "/admin/users/1;/evil", "javascript:alert(1)",
 	}
 	for _, c := range candidates {
-		got := safeRelativePath(c, "/admin/users")
-		if !strings.HasPrefix(got, "/") {
-			t.Errorf("safeRelativePath(%q) = %q: not site-relative", c, got)
-		}
-		if len(got) > 1 && (got[1] == '/' || got[1] == '\\') {
-			t.Errorf("safeRelativePath(%q) = %q: scheme-relative escape", c, got)
+		got := userReturnTarget(c)
+		if !shape.MatchString(got) {
+			t.Errorf("userReturnTarget(%q) = %q, outside the allowlist shape", c, got)
 		}
 	}
 }

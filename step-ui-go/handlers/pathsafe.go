@@ -2,29 +2,35 @@ package handlers
 
 import (
 	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
-// safeRelativePath returns candidate when it is a site-relative path, else
-// fallback.  Both "//host" and "/\host" are rejected: browsers resolve the
-// backslash form as scheme-relative too, so a leading-slash check alone still
-// allows an off-site redirect.
-func safeRelativePath(candidate, fallback string) string {
-	if candidate == "" || candidate[0] != '/' {
-		return fallback
+// userReturnToRe matches the only two return_to targets the user templates
+// emit: the admin user list, and one user's profile.
+var userReturnToRe = regexp.MustCompile(`^/admin/users(?:/([0-9]{1,18}))?$`)
+
+// userReturnTarget maps an untrusted return_to onto one of those two targets.
+//
+// The returned string is rebuilt from an integer rather than passed through, so
+// no attacker-controlled text reaches the Location header by any route: there
+// is nothing to escape and no bypass to enumerate. Anything unrecognised, and
+// that includes "//host" and "/\host", degrades to the list.
+func userReturnTarget(candidate string) string {
+	const usersList = "/admin/users"
+
+	m := userReturnToRe.FindStringSubmatch(candidate)
+	if m == nil || m[1] == "" {
+		return usersList
 	}
-	if len(candidate) > 1 && (candidate[1] == '/' || candidate[1] == '\\') {
-		return fallback
+	id, err := strconv.Atoi(m[1])
+	if err != nil || id <= 0 {
+		return usersList
 	}
-	u, err := url.Parse(candidate)
-	if err != nil || u.Scheme != "" || u.Host != "" {
-		return fallback
-	}
-	return candidate
+	return usersList + "/" + strconv.Itoa(id)
 }
 
 // containedPath resolves candidate relative to root and verifies that the

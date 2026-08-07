@@ -133,8 +133,11 @@ func (h *Handler) UsersPost(w http.ResponseWriter, r *http.Request) {
 		}
 		h.flash(w, r, "ok", "Password reset")
 	}
-	returnTo := safeRelativePath(r.FormValue("return_to"), "/admin/users")
-	//nolint:gosec // G710: safeRelativePath guarantees a site-relative path with no scheme or host
+	returnTo := userReturnTarget(r.FormValue("return_to"))
+	//nolint:gosec // G710: returnTo is "/admin/users" or that plus an integer
+	// rebuilt via strconv.Itoa, so it carries no caller text. gosec's taint
+	// analysis cannot see the rebuild; TestUserReturnTargetIsAlwaysAllowlisted
+	// asserts the invariant instead.
 	http.Redirect(w, r, returnTo, http.StatusFound)
 }
 
