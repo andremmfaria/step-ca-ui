@@ -90,6 +90,9 @@ services:
       SECRET_KEY_FILE:  /run/secrets/secret_key
       SESSION_SECURE:   "${SESSION_SECURE:-true}"
       ENABLE_HSTS:      "${ENABLE_HSTS:-false}"
+      # Required for password recovery; emailed links are built from this and
+      # never from the request. See PUBLIC_BASE_URL in .env.example.
+      PUBLIC_BASE_URL:  "${PUBLIC_BASE_URL:-}"
       STEP_CA_IMAGE:    "${STEP_CA_IMAGE:-smallstep/step-ca:0.30.2}"
       HOST_IP:          "${HOST_IP:-127.0.0.1}"
       PORT:             "8443"
