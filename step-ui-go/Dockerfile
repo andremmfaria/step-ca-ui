@@ -1,5 +1,5 @@
 # ── Stage 1: Build ───────────────────────────────────────────────────────────
-FROM golang:1.26.4-alpine3.23 AS builder
+FROM golang:1.26.5-alpine3.23 AS builder
 
 WORKDIR /build
 
@@ -24,11 +24,11 @@ RUN addgroup -g 10001 -S stepui && \
 
 # hadolint ignore=DL3018,DL4006
 RUN apk add --no-cache curl openssl ca-certificates netcat-openbsd tzdata postgresql-client && \
-    wget -q "https://github.com/smallstep/cli/releases/download/v0.30.2/step_linux_0.30.2_amd64.tar.gz" \
+    wget -q "https://github.com/smallstep/cli/releases/download/v0.30.6/step_linux_0.30.6_amd64.tar.gz" \
          -O /tmp/step.tar.gz && \
-    echo "abf5ffe9a39c01c7b4e777d50a96f30f33f5bd8eeafa2dfeef22b8a4abeee14a  /tmp/step.tar.gz" | sha256sum -c - && \
+    echo "e44a5dc5f880a694b24a0f2941a69a81b0bc6ee053170fdfde18453d4d5816de  /tmp/step.tar.gz" | sha256sum -c - && \
     tar -xzf /tmp/step.tar.gz -C /tmp && \
-    mv /tmp/step_0.30.2/bin/step /usr/local/bin/step && \
+    mv /tmp/step_0.30.6/bin/step /usr/local/bin/step && \
     rm -rf /tmp/step* && \
     chmod +x /usr/local/bin/step
 
