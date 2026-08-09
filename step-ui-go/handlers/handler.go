@@ -10,11 +10,13 @@ import (
 	"log"
 	"log/slog"
 	"net/http"
+	"sync"
 	"time"
 
 	"step-ui/config"
 	"step-ui/models"
 	"step-ui/security"
+	"step-ui/stepca"
 
 	gooidc "github.com/coreos/go-oidc/v3/oidc"
 	"github.com/gorilla/sessions"
@@ -47,6 +49,13 @@ type Handler struct {
 	// OIDC fields — non-nil only when cfg.OIDCEnabled is true
 	oidcOAuth2Config *oauth2.Config
 	oidcVerifier     *gooidc.IDTokenVerifier
+
+	// CA client — lazily constructed and cached on first successful call to
+	// caClient(). A construction failure is never cached (see caClient), so a
+	// step-ca that isn't up yet at UI boot cannot poison the Handler.
+	caMu  sync.Mutex
+	ca    stepca.CA
+	caErr error
 }
 
 // New creates a Handler that reads templates from the filesystem (CWD-relative).
@@ -84,6 +93,27 @@ func (h *Handler) initOIDC() {
 	}
 	h.oidcVerifier = provider.Verifier(&gooidc.Config{ClientID: h.cfg.OIDCClientID})
 	slog.Info("OIDC enabled", "issuer", h.cfg.OIDCIssuerURL)
+}
+
+// caClient lazily constructs and caches the CA client on first successful
+// call. Unlike initOIDC, construction failure is never cached — the next
+// call retries from scratch — because step-ca may not have produced its
+// root cert yet at UI-container-boot, and this must degrade to a reported
+// status (today's /ready behavior), never a fatal boot error (R2).
+func (h *Handler) caClient() (stepca.CA, error) {
+	h.caMu.Lock()
+	defer h.caMu.Unlock()
+	if h.ca != nil {
+		return h.ca, nil
+	}
+	c, err := stepca.New(h.cfg)
+	if err != nil {
+		h.caErr = err
+		return nil, err
+	}
+	h.ca = c
+	h.caErr = nil
+	return h.ca, nil
 }
 
 func (h *Handler) loadTemplates() {
