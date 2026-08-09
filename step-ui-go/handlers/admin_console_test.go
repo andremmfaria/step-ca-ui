@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"context"
+	"errors"
 	"testing"
 
 	"step-ui/config"
@@ -17,16 +19,19 @@ func defaultTestCfg() *config.Config {
 }
 
 // TestFindAdminConsoleCommand verifies that every declared command_id in the
-// allowlist resolves to the expected binary name and that an unknown id is
-// correctly rejected.
+// allowlist resolves to the expected shape and that an unknown id is
+// correctly rejected. Native commands (app.version, ca.health) assert
+// Native == true instead of a binary name/args, since Phase 4 replaced their
+// exec.CommandContext invocation with a direct Go call.
 func TestFindAdminConsoleCommand(t *testing.T) {
 	cfg := defaultTestCfg()
 
 	cases := []struct {
-		id        string
-		wantFound bool
-		wantName  string
-		wantArgs  []string
+		id         string
+		wantFound  bool
+		wantNative bool
+		wantName   string
+		wantArgs   []string
 	}{
 		{id: "system.date", wantFound: true, wantName: "date", wantArgs: nil},
 		{id: "system.hostname", wantFound: true, wantName: "hostname", wantArgs: nil},
@@ -34,13 +39,8 @@ func TestFindAdminConsoleCommand(t *testing.T) {
 		{id: "system.disk", wantFound: true, wantName: "df", wantArgs: []string{"-h", "/opt/step-ui", "/home/step"}},
 		{id: "system.processes", wantFound: true, wantName: "ps", wantArgs: nil},
 		{id: "app.files", wantFound: true, wantName: "ls", wantArgs: []string{"-la", "/opt/step-ui"}},
-		{id: "step.version", wantFound: true, wantName: "step", wantArgs: []string{"version"}},
-		{
-			id:        "step.ca.health",
-			wantFound: true,
-			wantName:  "step",
-			wantArgs:  []string{"ca", "health", "--ca-url", "https://step-ca:9443", "--root", "/home/step/certs/root_ca.crt"},
-		},
+		{id: "app.version", wantFound: true, wantNative: true},
+		{id: "ca.health", wantFound: true, wantNative: true},
 		{id: "openssl.version", wantFound: true, wantName: "openssl", wantArgs: []string{"version", "-a"}},
 		{
 			id:        "postgres.ready",
@@ -56,12 +56,24 @@ func TestFindAdminConsoleCommand(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.id, func(t *testing.T) {
-			c, ok := findAdminConsoleCommand(cfg, tc.id)
+			c, ok := findAdminConsoleCommand(cfg, &FakeCA{}, tc.id)
 			if ok != tc.wantFound {
 				t.Fatalf("findAdminConsoleCommand(%q) found=%v; want %v", tc.id, ok, tc.wantFound)
 			}
 			if !tc.wantFound {
 				return
+			}
+			if tc.wantNative {
+				if !c.Native {
+					t.Errorf("expected Native == true for %q", tc.id)
+				}
+				if c.NativeFn == nil {
+					t.Errorf("expected non-nil NativeFn for %q", tc.id)
+				}
+				return
+			}
+			if c.Native {
+				t.Errorf("expected Native == false for %q", tc.id)
 			}
 			if c.Name != tc.wantName {
 				t.Errorf("Name: got %q want %q", c.Name, tc.wantName)
@@ -79,7 +91,8 @@ func TestFindAdminConsoleCommand(t *testing.T) {
 	}
 }
 
-// TestAdminCommandLine verifies that the display string is assembled correctly.
+// TestAdminCommandLine verifies that the display string is assembled correctly
+// for both exec-backed and native commands.
 func TestAdminCommandLine(t *testing.T) {
 	cases := []struct {
 		c    adminConsoleCommand
@@ -94,8 +107,8 @@ func TestAdminCommandLine(t *testing.T) {
 			want: "df -h /opt/step-ui",
 		},
 		{
-			c:    adminConsoleCommand{Name: "step", Args: []string{"ca", "health", "--ca-url", "https://step-ca:9443"}},
-			want: "step ca health --ca-url https://step-ca:9443",
+			c:    adminConsoleCommand{Native: true, ID: "ca.health"},
+			want: "(native) ca.health",
 		},
 	}
 
@@ -111,7 +124,7 @@ func TestAdminCommandLine(t *testing.T) {
 // declared so an accidental deletion is caught.
 func TestAdminConsoleAllowlistCount(t *testing.T) {
 	const want = 10
-	got := len(adminConsoleCommands(defaultTestCfg()))
+	got := len(adminConsoleCommands(defaultTestCfg(), &FakeCA{}))
 	if got != want {
 		t.Errorf("allowlist has %d commands; want %d", got, want)
 	}
@@ -166,8 +179,9 @@ func TestPgIsReadyArgs(t *testing.T) {
 	}
 }
 
-// TestAdminConsoleCommandsReflectConfig verifies that step.ca.health picks up
-// cfg.CAURL / cfg.RootCert and that postgres.ready reflects the parsed DSN.
+// TestAdminConsoleCommandsReflectConfig verifies that ca.health's NativeFn
+// calls through to the supplied stepca.CA (not hardcoded literals) and that
+// postgres.ready reflects the parsed DSN.
 func TestAdminConsoleCommandsReflectConfig(t *testing.T) {
 	cfg := &config.Config{ //nolint:gosec // G101: test-only cfg
 		CAURL:       "https://ca.sec.waratek.org",
@@ -175,12 +189,14 @@ func TestAdminConsoleCommandsReflectConfig(t *testing.T) {
 		DatabaseURL: "postgres://app:secret@rds.example.com:5432/proddb",
 	}
 
-	cmds := adminConsoleCommands(cfg)
+	wantHealthErr := errors.New("boom")
+	fakeCA := &FakeCA{HealthErr: wantHealthErr}
+	cmds := adminConsoleCommands(cfg, fakeCA)
 
 	var caHealth, pgReady *adminConsoleCommand
 	for i := range cmds {
 		switch cmds[i].ID {
-		case "step.ca.health":
+		case "ca.health":
 			caHealth = &cmds[i]
 		case "postgres.ready":
 			pgReady = &cmds[i]
@@ -188,21 +204,17 @@ func TestAdminConsoleCommandsReflectConfig(t *testing.T) {
 	}
 
 	if caHealth == nil {
-		t.Fatal("step.ca.health not found in allowlist")
+		t.Fatal("ca.health not found in allowlist")
 	}
 	if pgReady == nil {
 		t.Fatal("postgres.ready not found in allowlist")
 	}
 
-	// step.ca.health must use cfg values, not hardcoded literals.
-	wantCAArgs := []string{"ca", "health", "--ca-url", "https://ca.sec.waratek.org", "--root", "/etc/ssl/step/root.crt"}
-	if len(caHealth.Args) != len(wantCAArgs) {
-		t.Fatalf("step.ca.health args len=%d; want %d — %v", len(caHealth.Args), len(wantCAArgs), caHealth.Args)
+	if !caHealth.Native {
+		t.Fatal("ca.health must be Native")
 	}
-	for i, v := range wantCAArgs {
-		if caHealth.Args[i] != v {
-			t.Errorf("step.ca.health args[%d]: got %q want %q", i, caHealth.Args[i], v)
-		}
+	if _, err := caHealth.NativeFn(context.Background(), fakeCA); !errors.Is(err, wantHealthErr) {
+		t.Errorf("ca.health NativeFn(fakeCA) error = %v; want %v", err, wantHealthErr)
 	}
 
 	// postgres.ready must parse the DSN; password must NOT appear.

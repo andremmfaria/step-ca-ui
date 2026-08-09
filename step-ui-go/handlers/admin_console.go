@@ -8,10 +8,13 @@ import (
 	"net/http"
 	"net/url"
 	"os/exec"
+	"runtime/debug"
 	"strings"
 	"time"
 
 	"step-ui/config"
+	"step-ui/stepca"
+
 	appdb "step-ui/db"
 )
 
@@ -21,12 +24,18 @@ const (
 )
 
 // adminConsoleCommand describes a single allowlisted diagnostic command.
+// A command is either an OS subprocess (Name/Args, run via
+// exec.CommandContext) or Native (NativeFn, run as a plain Go call) — never
+// both. This is the only place either kind is defined (see
+// runAdminConsoleCommand's shared timeout/truncation/audit wrapper).
 type adminConsoleCommand struct {
 	ID          string
 	Label       string
 	Description string
 	Name        string
 	Args        []string
+	Native      bool
+	NativeFn    func(ctx context.Context, ca stepca.CA) (string, error)
 }
 
 // adminConsoleResult carries the output of a completed command run.
@@ -79,8 +88,10 @@ func pgIsReadyArgs(dsn string) []string {
 
 // adminConsoleCommands returns the allowlist of diagnostic commands built from
 // runtime config.  The user can only supply a command_id; the binary and all
-// arguments are server-controlled.  This is the only place they are defined.
-func adminConsoleCommands(cfg *config.Config) []adminConsoleCommand {
+// arguments (or NativeFn) are server-controlled.  This is the only place
+// they are defined. ca may be nil (Handler.caClient() failed to construct a
+// client) — both native commands below handle that without panicking.
+func adminConsoleCommands(cfg *config.Config, ca stepca.CA) []adminConsoleCommand {
 	return []adminConsoleCommand{
 		{
 			ID:          "system.date",
@@ -121,18 +132,18 @@ func adminConsoleCommands(cfg *config.Config) []adminConsoleCommand {
 			Args:        []string{"-la", "/opt/step-ui"},
 		},
 		{
-			ID:          "step.version",
-			Label:       "step version",
-			Description: "Smallstep CLI version inside the container",
-			Name:        "step",
-			Args:        []string{"version"},
+			ID:          "app.version",
+			Label:       "step-ui version",
+			Description: "step-ui build info and pinned certificates-library version",
+			Native:      true,
+			NativeFn:    appVersionNativeFn,
 		},
 		{
-			ID:          "step.ca.health",
+			ID:          "ca.health",
 			Label:       "step-ca health",
 			Description: "Reachability check for the CA from the UI container",
-			Name:        "step",
-			Args:        []string{"ca", "health", "--ca-url", cfg.CAURL, "--root", cfg.RootCert},
+			Native:      true,
+			NativeFn:    caHealthNativeFn,
 		},
 		{
 			ID:          "openssl.version",
@@ -151,10 +162,43 @@ func adminConsoleCommands(cfg *config.Config) []adminConsoleCommand {
 	}
 }
 
+// appVersionNativeFn reports step-ui's own version/build metadata plus the
+// pinned smallstep/certificates library version, replacing "step version"'s
+// former exec.CommandContext("step", "version") call.
+func appVersionNativeFn(_ context.Context, _ stepca.CA) (string, error) {
+	libVersion := "unknown"
+	if info, ok := debug.ReadBuildInfo(); ok {
+		for _, dep := range info.Deps {
+			if dep.Path == "github.com/smallstep/certificates" {
+				libVersion = dep.Version
+				break
+			}
+		}
+	}
+	return fmt.Sprintf(
+		"step-ui %s (build %s, commit %s)\nsmallstep/certificates %s",
+		Version, BuildDate, GitCommit, libVersion,
+	), nil
+}
+
+// caHealthNativeFn replaces "step ca health --ca-url ... --root ..." with a
+// direct stepca.CA.Health call. ca may be nil when Handler.caClient() failed
+// to construct a client (e.g. root cert not yet present) — report that as
+// the command's result text instead of panicking.
+func caHealthNativeFn(ctx context.Context, ca stepca.CA) (string, error) {
+	if ca == nil {
+		return "", errors.New("CA client unavailable")
+	}
+	if err := ca.Health(ctx); err != nil {
+		return "", err
+	}
+	return "ok", nil
+}
+
 // findAdminConsoleCommand looks up a command by its ID in the allowlist.
 // Returns the command and true on a hit; zero value and false on a miss.
-func findAdminConsoleCommand(cfg *config.Config, id string) (adminConsoleCommand, bool) {
-	for _, c := range adminConsoleCommands(cfg) {
+func findAdminConsoleCommand(cfg *config.Config, ca stepca.CA, id string) (adminConsoleCommand, bool) {
+	for _, c := range adminConsoleCommands(cfg, ca) {
 		if c.ID == id {
 			return c, true
 		}
@@ -165,7 +209,8 @@ func findAdminConsoleCommand(cfg *config.Config, id string) (adminConsoleCommand
 
 // AdminConsoleGet renders the diagnostics console form.
 func (h *Handler) AdminConsoleGet(w http.ResponseWriter, r *http.Request) {
-	h.render(w, "admin_console", h.adminConsolePageData(w, r, "", nil))
+	caClient, _ := h.caClient() // nil on error is fine — native commands report it as their result text
+	h.render(w, "admin_console", h.adminConsolePageData(w, r, "", nil, caClient))
 }
 
 // AdminConsolePost runs the selected allowlisted command and renders the result.
@@ -175,24 +220,25 @@ func (h *Handler) AdminConsolePost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	commandID := strings.TrimSpace(r.FormValue("command_id"))
+	caClient, _ := h.caClient()
 
-	c, ok := findAdminConsoleCommand(h.cfg, commandID)
+	c, ok := findAdminConsoleCommand(h.cfg, caClient, commandID)
 	if !ok {
 		h.auditSecurity(r, "console.denied command_id="+commandID)
-		data := h.adminConsolePageData(w, r, commandID, nil)
+		data := h.adminConsolePageData(w, r, commandID, nil, caClient)
 		data["ConsoleError"] = "Unknown command. Only allowlisted commands may be run."
 		h.render(w, "admin_console", data)
 
 		return
 	}
 
-	result := runAdminConsoleCommand(r.Context(), &c)
+	result := runAdminConsoleCommand(r.Context(), &c, caClient)
 	h.auditSecurity(r, fmt.Sprintf(
 		"console.run id=%s command=%q exit=%d timeout=%t duration=%s",
 		c.ID, result.CommandLine, result.ExitCode, result.TimedOut, result.Duration,
 	))
 
-	h.render(w, "admin_console", h.adminConsolePageData(w, r, commandID, &result))
+	h.render(w, "admin_console", h.adminConsolePageData(w, r, commandID, &result, caClient))
 }
 
 // adminConsolePageData builds the template data map for the console page.
@@ -201,9 +247,10 @@ func (h *Handler) adminConsolePageData(
 	r *http.Request,
 	selectedID string,
 	result *adminConsoleResult,
+	caClient stepca.CA,
 ) map[string]interface{} {
 	data := h.base(w, r, "admin_console")
-	data["Commands"] = adminConsoleCommands(h.cfg)
+	data["Commands"] = adminConsoleCommands(h.cfg, caClient)
 	data["Timeout"] = adminConsoleTimeout.String()
 	data["MaxOutputKB"] = adminConsoleMaxOut / 1024
 	data["SelectedCommandID"] = selectedID
@@ -222,11 +269,18 @@ func (h *Handler) adminConsolePageData(
 
 // runAdminConsoleCommand executes a single allowlisted command under a fixed
 // timeout and returns its combined output capped at adminConsoleMaxOut bytes.
-func runAdminConsoleCommand(ctx context.Context, c *adminConsoleCommand) adminConsoleResult {
+// Native commands (c.Native) run c.NativeFn instead of exec.CommandContext,
+// under the same timeout/truncation/duration contract.
+func runAdminConsoleCommand(ctx context.Context, c *adminConsoleCommand, ca stepca.CA) adminConsoleResult {
 	cctx, cancel := context.WithTimeout(ctx, adminConsoleTimeout)
 	defer cancel()
 
 	start := time.Now()
+
+	if c.Native {
+		return runNativeAdminConsoleCommand(cctx, c, ca, start)
+	}
+
 	//nolint:gosec // command name+args come from a fixed server-side allowlist; user only supplies an id
 	cmd := exec.CommandContext(cctx, c.Name, c.Args...)
 	cmd.Dir = "/opt/step-ui"
@@ -275,8 +329,49 @@ func runAdminConsoleCommand(ctx context.Context, c *adminConsoleCommand) adminCo
 	}
 }
 
+// runNativeAdminConsoleCommand runs c.NativeFn and formats its (text, error)
+// result into the same adminConsoleResult shape the exec.CommandContext path
+// produces, so the template and audit log don't need to know the difference.
+func runNativeAdminConsoleCommand(cctx context.Context, c *adminConsoleCommand, ca stepca.CA, start time.Time) adminConsoleResult {
+	text, err := c.NativeFn(cctx, ca)
+	duration := time.Since(start).Round(time.Millisecond)
+
+	exitCode := 0
+	if err != nil {
+		exitCode = 1
+		if text == "" {
+			text = err.Error()
+		}
+	}
+
+	timedOut := cctx.Err() == context.DeadlineExceeded
+	if timedOut {
+		exitCode = -1
+		text = strings.TrimSpace(text + "\ncommand timed out")
+	}
+
+	truncated := false
+	if len(text) > adminConsoleMaxOut {
+		text = text[:adminConsoleMaxOut] + "\n\n[output truncated]\n"
+		truncated = true
+	}
+
+	return adminConsoleResult{
+		CommandLine: adminCommandLine(c),
+		Output:      text,
+		ExitCode:    exitCode,
+		Duration:    duration.String(),
+		TimedOut:    timedOut,
+		Truncated:   truncated,
+		Success:     err == nil && !timedOut,
+	}
+}
+
 // adminCommandLine formats c as the shell string shown in the result UI.
 func adminCommandLine(c *adminConsoleCommand) string {
+	if c.Native {
+		return "(native) " + c.ID
+	}
 	parts := append([]string{c.Name}, c.Args...)
 	return strings.Join(parts, " ")
 }
