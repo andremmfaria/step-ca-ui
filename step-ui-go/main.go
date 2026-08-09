@@ -331,6 +331,22 @@ func main() {
 		context.Background(),
 		2*time.Duration(caBootstrapRetries)*caBootstrapInterval+30*time.Second,
 	)
+	if err := writeInlineRootCert(cfg); err != nil {
+		slog.Error("writing inline root cert failed", "err", err)
+	}
+	if err := ensureRootCert(bootstrapCtx, cfg); err != nil {
+		slog.Error("ensuring root cert failed", "err", err)
+	}
+	// Constructed only after writeInlineRootCert/ensureRootCert have had a
+	// chance to establish cfg.RootCert: ca.WithRootFile reads that file
+	// EAGERLY inside ca.NewClient (R2), so building the client any earlier
+	// would eagerly fail against a root cert that legitimately doesn't exist
+	// yet on a fresh CA_FINGERPRINT-only boot — permanently leaving caClient
+	// nil for the rest of this function (it's a one-shot local variable, not
+	// retried like Handler.caClient()'s per-request lazy cache) and silently
+	// skipping both stepca leaf issuance below and the renewer at the bottom
+	// of this function, even once the root cert becomes available moments
+	// later.
 	var caClient stepca.CA
 	if c, caErr := stepca.New(cfg); caErr != nil {
 		// Tolerate construction failure (R2): proceed to the self-signed
@@ -340,12 +356,6 @@ func main() {
 		slog.Warn("CA client construction failed during TLS bootstrap", "err", caErr)
 	} else {
 		caClient = c
-	}
-	if err := writeInlineRootCert(cfg); err != nil {
-		slog.Error("writing inline root cert failed", "err", err)
-	}
-	if err := ensureRootCert(bootstrapCtx, cfg); err != nil {
-		slog.Error("ensuring root cert failed", "err", err)
 	}
 	if err := ensureUICert(bootstrapCtx, cfg, caClient); err != nil {
 		slog.Error("ensuring UI cert failed", "err", err)
