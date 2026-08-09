@@ -239,22 +239,20 @@ The container entrypoint (`entrypoint.sh`) performs these steps in order before 
 1. **Secret files** — read `POSTGRES_PASSWORD`, `SECRET_KEY`, `PROVISIONER_PASSWORD` from `secrets/` (or plain-env fallbacks).
 2. **DATABASE\_URL construction** — assemble the connection string from `POSTGRES_*` parts if `DATABASE_URL` is not already set.
 3. **PostgreSQL wait** — derive host/port from `DATABASE_URL` and probe with `nc` up to 60 times (1 s apart). Bounded and non-fatal: if PostgreSQL is not yet reachable the Go app's own connection retry takes over. The host/port come from `DATABASE_URL` so the wait works with any backend — docker-compose service name, RDS endpoint, managed PostgreSQL, or Kubernetes service.
-4. **Provisioner password file** — write `PROVISIONER_PASSWORD` to `$PASSWORD_FILE` if the file does not yet exist. Done at this point because `UI_TLS_MODE=stepca` needs the file ready before the TLS block.
-5. **Root CA trust** — obtain or verify the step-ca root certificate (see [Root CA trust](#root-ca-trust) below). Done before TLS acquisition because `UI_TLS_MODE=stepca` calls `step ca certificate --root $ROOT_CERT`.
-6. **TLS certificate acquisition** — run the selected `UI_TLS_MODE` branch (see [TLS certificate modes](#tls-certificate-modes) below).
-7. **Go app** — `exec /opt/step-ui/step-ui`.
+4. **Provisioner password file** — write `PROVISIONER_PASSWORD` to `$PASSWORD_FILE` if the file does not yet exist. The Go app reads this file per certificate issuance, including its own TLS bootstrap below.
+5. **Go app** — `exec /opt/step-ui/step-ui`.
 
-> **Load-bearing order:** steps 4 and 5 must complete before step 6 when using `UI_TLS_MODE=stepca`. If the provisioner password or root cert is missing at TLS acquisition time, the `stepca` branch will exhaust its 30 retries and fall back to a self-signed certificate.
+Everything past that point — root CA trust and the UI's own TLS certificate — is handled **in-process** by the Go binary itself (`main.go`, `tlsbootstrap.go`), not by the entrypoint script. This runs synchronously before the HTTPS listener starts, in the same place and with the same blocking semantics the old shell-script version had — it's just Go now instead of shelled `step`/`openssl` calls.
 
 ### Root CA trust
 
-The entrypoint establishes the root CA certificate that the Go app (and `step` CLI calls) use to verify the step-ca server. The three methods are applied with this precedence (highest → lowest):
+`main.go` establishes the root CA certificate the Go app uses to verify the step-ca server, via the `github.com/smallstep/certificates/ca` library (no `step` binary involved). The three methods are applied with this precedence (highest → lowest):
 
-1. **`CA_ROOT_CERT_PEM` set** — the inline PEM is written to `$ROOT_CERT`. Use this for ECS / Kubernetes deployments where a Docker volume mount is impractical.
-2. **`CA_FINGERPRINT` set and `$ROOT_CERT` absent or empty** — `step ca root` is called to download the cert from step-ca, retried up to 30 times (1 s apart). On failure a warning is logged and startup continues; the app will surface CA connectivity errors through its own health endpoint.
+1. **`CA_ROOT_CERT_PEM` set** — the inline PEM is written to `$ROOT_CERT` (`writeInlineRootCert`). Use this for ECS / Kubernetes deployments where a Docker volume mount is impractical.
+2. **`CA_FINGERPRINT` set and `$ROOT_CERT` absent or empty** — `ensureRootCert` calls `stepca.FetchRootByFingerprint`, which wraps the library's `Client.Root(sha256Sum)` — an unauthenticated, fingerprint-verified fetch, retried up to 30 times (1 s apart). On failure a warning is logged and startup continues; the app will surface CA connectivity errors through its own health endpoint.
 3. **Neither set** — the file at `$ROOT_CERT` is assumed to be already present (e.g. mounted as a Docker volume from the step-ca container).
 
-`CA_FINGERPRINT` is the SHA-256 hex digest of the root certificate's DER encoding. It is a **public, non-secret value** — it merely authenticates which certificate to trust on download. It can be found in the step-ca startup logs or by running `step certificate fingerprint root_ca.crt`.
+`CA_FINGERPRINT` is the SHA-256 hex digest of the root certificate's DER encoding. It is a **public, non-secret value** — it merely authenticates which certificate to trust on download. It can be found in the step-ca startup logs or by running `step certificate fingerprint root_ca.crt` from a machine that has the `step` CLI installed (step-ui itself no longer needs it).
 
 ### TLS certificate modes
 
@@ -262,16 +260,16 @@ The entrypoint establishes the root CA certificate that the Go app (and `step` C
 
 | `UI_TLS_MODE` | Behaviour |
 |---|---|
-| `self-signed` (default) | Generate a 10-year self-signed RSA-2048 cert on first boot (if `$SSL_CERT` is absent). SANs include `IP:$HOST_IP`, `DNS:localhost`, and `DNS:$UI_HOSTNAME` when set. |
+| `self-signed` (default) | Generate a 10-year self-signed EC P-256 cert on first boot (if `$SSL_CERT` is absent), via `crypto/x509` (`generateSelfSignedCert`). SANs include `IP:$HOST_IP`, `DNS:localhost`, and `DNS:$UI_HOSTNAME` when set. |
 | `provided` | Do nothing — expect a cert and key to already exist at `$SSL_CERT` / `$SSL_KEY` (volume mount or init container). |
-| `stepca` | Call `step ca certificate` to obtain a signed leaf cert from the step-ca that this UI manages. Retried up to 30 times (1 s apart). On failure falls back to self-signed. After a successful issue, starts `step ca renew --daemon` in the background to keep the cert renewed automatically. |
+| `stepca` | Call `stepca.Client.IssueCertificate` to obtain a signed leaf cert from the step-ca that this UI manages. Retried up to 30 times (1 s apart). On failure falls back to self-signed. After a successful issue, starts a background renewal goroutine (`startUICertRenewer`) that re-issues at ~2/3 of the certificate's validity window. |
 
-**`UI_HOSTNAME`** sets the certificate subject (CN) and an extra DNS SAN. For `self-signed` it adds the hostname to the self-signed cert's SAN list. For `stepca` it is the CN/SAN requested from the CA (`hostname -f` is used as fallback when `UI_HOSTNAME` is empty).
+**`UI_HOSTNAME`** sets the certificate subject (CN) and an extra DNS SAN. For `self-signed` it adds the hostname to the self-signed cert's SAN list. For `stepca` it is the CN/SAN requested from the CA (the OS-reported hostname is used as fallback when `UI_HOSTNAME` is empty).
 
 **`stepca` mode caveats:**
 
-- Requires `CA_URL`, `ROOT_CERT`, and `PASSWORD_FILE` to be ready **before** the TLS block runs (the entrypoint ordering guarantees this — see [Startup sequence](#startup-sequence)).
-- The `step ca renew --daemon` background process is **unsupervised** — if it exits, it is not restarted. Cert renewal relies on the Go TLS hot-reloader (see below) picking up the refreshed files; the Go app itself (PID 1) is unaffected.
+- Requires `CA_URL`, `ROOT_CERT`, and `PASSWORD_FILE` to be ready **before** `main.go`'s bootstrap sequence runs (the startup ordering above guarantees this).
+- The renewal goroutine is a fire-and-forget, panic-safe background loop (same pattern as the Let's Encrypt auto-renewer) — not an external process, so there's nothing to supervise or restart. Cert renewal relies on the Go TLS hot-reloader (see below) picking up the refreshed files; the app itself is unaffected by a renewal failure (it logs and retries).
 
 ### TLS hot-reload
 
@@ -279,7 +277,7 @@ The Go server (`tlsreload.go`) re-stats both `SSL_CERT` and `SSL_KEY` on **every
 
 **Practical effect:** you can hot-swap the serving certificate with zero restart and zero downtime. This works for:
 
-- `step ca renew --daemon` writing renewed cert/key files (the `stepca` TLS mode).
+- The in-process renewal goroutine writing renewed cert/key files (the `stepca` TLS mode).
 - Manually replacing the cert files in the `step-ui-ssl` volume.
 - Any external cert-manager that writes updated files to the mounted path.
 
@@ -316,7 +314,7 @@ The Go server (`tlsreload.go`) re-stats both `SSL_CERT` and `SSL_KEY` on **every
 | Variable | Default | Description |
 |---|---|---|
 | `UI_TLS_MODE` | `self-signed` | Serving cert mode: `self-signed`, `provided`, or `stepca`. See [TLS certificate modes](#tls-certificate-modes). |
-| `UI_HOSTNAME` | _(empty)_ | Hostname added as DNS SAN (self-signed) or used as CN (stepca). Falls back to `hostname -f` when empty in `stepca` mode. |
+| `UI_HOSTNAME` | _(empty)_ | Hostname added as DNS SAN (self-signed) or used as CN (stepca). Falls back to the OS-reported hostname when empty in `stepca` mode. |
 | `SSL_CERT` | `/opt/step-ui/ssl/server.crt` | Path to the serving TLS certificate inside the container. |
 | `SSL_KEY` | `/opt/step-ui/ssl/server.key` | Path to the serving TLS private key inside the container. |
 | `USE_HTTPS` | _(empty — auto-detect)_ | Force TLS on (`true`) or off (`false`). When empty the Go app probes whether `$SSL_CERT` exists to decide. |
@@ -419,7 +417,7 @@ There are three approaches depending on how you obtain the certificate:
 
 **Option 2 — manual replacement (hot-swap, no restart required):** Replace the cert and key files inside the `step-ui-ssl` volume (`/opt/step-ui/ssl/server.crt` and `server.key`) with your own. The TLS hot-reloader re-stats both files on every handshake and reloads them automatically when their modification time changes — no restart needed. The cert must cover your `HOST_IP` or hostname.
 
-**Option 3 — cert from step-ca itself:** Set `UI_TLS_MODE=stepca` in `.env`. The entrypoint will request a signed leaf cert from the step-ca on startup and start `step ca renew --daemon` to keep it renewed. The hot-reloader picks up each renewed cert with zero downtime. Requires `CA_URL`, `CA_FINGERPRINT` (or a pre-populated `ROOT_CERT`), and the provisioner password to be configured.
+**Option 3 — cert from step-ca itself:** Set `UI_TLS_MODE=stepca` in `.env`. The Go app itself (not the entrypoint) will request a signed leaf cert from the step-ca on startup and keep renewing it in a background goroutine. The hot-reloader picks up each renewed cert with zero downtime. Requires `CA_URL`, `CA_FINGERPRINT` (or a pre-populated `ROOT_CERT`), and the provisioner password to be configured.
 </details>
 
 <details>
@@ -449,7 +447,7 @@ The published image is `ghcr.io/andremmfaria/step-ca-ui`.
 docker pull ghcr.io/andremmfaria/step-ca-ui:main
 ```
 
-The image is built on Alpine with the Smallstep CLI bundled. It exposes port 8443; map it to your desired host port via `UI_HTTPS_PORT`.
+The image is built on Alpine. It talks to step-ca directly via the `github.com/smallstep/certificates` Go library — no `step` CLI binary is bundled or required. `openssl` remains in the image solely for the admin console's diagnostic "OpenSSL version" command, not for TLS. It exposes port 8443; map it to your desired host port via `UI_HTTPS_PORT`.
 
 Running standalone (without Compose) requires a reachable PostgreSQL instance and a running step-ca. For most deployments, use the provided `docker-compose.yml` via `make up`.
 
