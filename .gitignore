@@ -50,3 +50,4 @@ Thumbs.db
 
 # Backup directories from update scripts
 .backup-*/
+plans/
