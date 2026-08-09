@@ -279,26 +279,33 @@ func renewUICertOnce(ctx context.Context, cfg *config.Config, caClient stepca.CA
 	if err := issueUICert(ctx, cfg, caClient, hostname); err != nil {
 		return 0, fmt.Errorf("renewing UI certificate: %w", err)
 	}
+	return nextRenewalSleep(cfg.SSLCert)
+}
 
-	raw, err := os.ReadFile(cfg.SSLCert) //nolint:gosec // G304: cfg.SSLCert is a config-derived path, not user input
+// nextRenewalSleep reads certPath and returns roughly 2/3 of its validity
+// window — shared by renewUICertOnce (after issuing) and
+// startUICertRenewer (before its first loop iteration, so it doesn't
+// immediately re-issue a cert ensureUICert just obtained seconds earlier).
+func nextRenewalSleep(certPath string) (time.Duration, error) {
+	raw, err := os.ReadFile(certPath) //nolint:gosec // G304: certPath is a config-derived path, not user input
 	if err != nil {
-		return 0, fmt.Errorf("reading renewed certificate: %w", err)
+		return 0, fmt.Errorf("reading certificate: %w", err)
 	}
 	block, _ := pem.Decode(raw)
 	if block == nil {
-		return 0, fmt.Errorf("renewed certificate file has no PEM block")
+		return 0, fmt.Errorf("certificate file has no PEM block")
 	}
 	cert, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {
-		return 0, fmt.Errorf("parsing renewed certificate: %w", err)
+		return 0, fmt.Errorf("parsing certificate: %w", err)
 	}
 
 	validity := cert.NotAfter.Sub(cert.NotBefore)
-	nextSleep := validity * 2 / 3
-	if nextSleep <= 0 {
-		nextSleep = uiCertRenewFailureBackoff
+	sleep := validity * 2 / 3
+	if sleep <= 0 {
+		sleep = uiCertRenewFailureBackoff
 	}
-	return nextSleep, nil
+	return sleep, nil
 }
 
 // startUICertRenewer wraps an infinite renewUICertOnce loop in a panic-safe
@@ -310,6 +317,15 @@ func renewUICertOnce(ctx context.Context, cfg *config.Config, caClient stepca.CA
 func startUICertRenewer(cfg *config.Config, caClient stepca.CA) {
 	handlers.SafeGoExported("ui-cert-renewer", func() {
 		slog.Info("UI cert auto-renewer started")
+		// ensureUICert (called synchronously just before this goroutine is
+		// started) already issued a fresh cert — wait until it actually
+		// needs renewal instead of immediately re-issuing a second one.
+		if firstSleep, err := nextRenewalSleep(cfg.SSLCert); err == nil {
+			time.Sleep(firstSleep)
+		} else {
+			slog.Warn("could not compute initial UI cert renewal delay — using fallback", "err", err, "retryIn", uiCertRenewFailureBackoff)
+			time.Sleep(uiCertRenewFailureBackoff)
+		}
 		for {
 			nextSleep, err := renewUICertOnce(context.Background(), cfg, caClient)
 			if err != nil {
