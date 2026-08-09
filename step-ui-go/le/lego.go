@@ -43,9 +43,9 @@ const (
 )
 
 // validDomain accepts hostnames, FQDNs, and wildcards (*.example.com); mirrors
-// validIdentifier in the step CLI wrapper.  Every label must begin and end with
-// an alphanumeric, so no separator or dot-segment can match: a value passing
-// this check is safe to join into a filesystem path.
+// validIdentifier in package handlers (handlers/identifiers.go). Every label
+// must begin and end with an alphanumeric, so no separator or dot-segment can
+// match: a value passing this check is safe to join into a filesystem path.
 var validDomain = regexp.MustCompile(`^(\*\.)?[A-Za-z0-9]([A-Za-z0-9\-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9\-]*[A-Za-z0-9])?)*$`)
 
 // certDirFor validates domain and returns its storage directory under
