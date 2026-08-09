@@ -9,7 +9,16 @@
 
 *{box-sizing:border-box;margin:0;padding:0}
 
-body:not(.admin-mode) {display:flex;height:100vh;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;overflow:hidden;transition:background .2s,color .2s}
+/* align-items/justify-content are set explicitly (not just relying on the
+ * flex defaults) to win, via this selector's higher specificity, over
+ * pages.css's unscoped `body{...align-items:center;justify-content:center}`
+ * rule — that rule is written for login.html's standalone centered-card
+ * layout only, but pages.css loads on every page, so without an explicit
+ * override here it silently un-stretches .sidebar/.main: .main ends up
+ * sized to its own content height and vertically centered instead of
+ * clipped to the viewport and internally scrollable via its
+ * overflow-y:auto below. */
+body:not(.admin-mode) {display:flex;align-items:stretch;justify-content:flex-start;height:100vh;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;overflow:hidden;transition:background .2s,color .2s}
 
 body:not(.admin-mode) .sidebar {width:228px;min-width:228px;background:var(--card);border-right:1px solid var(--border);display:flex;flex-direction:column;height:100vh;overflow-y:auto;overflow-x:hidden;transition:width .22s ease,min-width .22s ease,background .2s,border-color .2s}
 
