@@ -10,10 +10,14 @@
 # interface for le/ — tracked as a follow-up refactor wave.
 #
 # Exemptions (kept thin so the number reflects logic, not bootstrap):
-#   - main() wiring in the root package (step-ui) is excluded because it is
-#     a one-liner entrypoint that calls handlers.New + chi setup; testing it
-#     requires a live DB and port.  The root package contributes 0 statements
-#     to the profile and is therefore invisible to the gate.
+#   - None. The root package (step-ui) is NOT excluded and DOES contribute
+#     real statements to the profile — tlsreload.go's certReloader and
+#     tlsbootstrap.go's TLS-bootstrap helpers (writeInlineRootCert,
+#     ensureRootCert, generateSelfSignedCert, ensureUICert, renewUICertOnce)
+#     are all covered by root-package _test.go files. A prior version of this
+#     comment claimed the root package contributed 0 statements and was
+#     therefore invisible to the gate; that was already stale before this
+#     fix (tlsreload_test.go predates it) and is corrected here.
 #   - Generated / templated glue: none currently exists; if added, exclude via
 #     //go:build ignore or a separate module so it never enters coverage.out.
 #
