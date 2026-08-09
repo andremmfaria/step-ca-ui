@@ -31,10 +31,17 @@ setup: ## Bootstrap a fresh install: copy .env.example and generate secrets/
 	@# Create secrets directory
 	@mkdir -p $(SECRETS_DIR)
 	@chmod 700 $(SECRETS_DIR)
+	@# Secret files are 644, not 600: plain (non-Swarm) `docker compose`
+	@# bind-mounts file-based secrets preserving the host file's own
+	@# owner/mode, it does not remap them to root:root/0444 the way Swarm
+	@# secrets do. step-ui's container runs as a non-root uid (10001), so a
+	@# 600 file owned by the host user is unreadable inside the container;
+	@# host-level protection against *other host users* still comes from
+	@# $(SECRETS_DIR) itself being 700.
 	@# Generate postgres_password
 	@if [ ! -f $(SECRETS_DIR)/postgres_password ] || [ "$(FORCE)" = "1" ]; then \
 		openssl rand -base64 32 | tr -dc 'A-Za-z0-9' | head -c 32 > $(SECRETS_DIR)/postgres_password; \
-		chmod 600 $(SECRETS_DIR)/postgres_password; \
+		chmod 644 $(SECRETS_DIR)/postgres_password; \
 		echo "  created  $(SECRETS_DIR)/postgres_password"; \
 	else \
 		echo "  skipped  $(SECRETS_DIR)/postgres_password already exists (FORCE=1 to regenerate)"; \
@@ -42,7 +49,7 @@ setup: ## Bootstrap a fresh install: copy .env.example and generate secrets/
 	@# Generate secret_key
 	@if [ ! -f $(SECRETS_DIR)/secret_key ] || [ "$(FORCE)" = "1" ]; then \
 		openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | head -c 48 > $(SECRETS_DIR)/secret_key; \
-		chmod 600 $(SECRETS_DIR)/secret_key; \
+		chmod 644 $(SECRETS_DIR)/secret_key; \
 		echo "  created  $(SECRETS_DIR)/secret_key"; \
 	else \
 		echo "  skipped  $(SECRETS_DIR)/secret_key already exists (FORCE=1 to regenerate)"; \
@@ -50,7 +57,7 @@ setup: ## Bootstrap a fresh install: copy .env.example and generate secrets/
 	@# Generate ca_password
 	@if [ ! -f $(SECRETS_DIR)/ca_password ] || [ "$(FORCE)" = "1" ]; then \
 		openssl rand -base64 32 | tr -dc 'A-Za-z0-9' | head -c 32 > $(SECRETS_DIR)/ca_password; \
-		chmod 600 $(SECRETS_DIR)/ca_password; \
+		chmod 644 $(SECRETS_DIR)/ca_password; \
 		echo "  created  $(SECRETS_DIR)/ca_password"; \
 	else \
 		echo "  skipped  $(SECRETS_DIR)/ca_password already exists (FORCE=1 to regenerate)"; \
