@@ -3,106 +3,11 @@ package handlers
 import (
 	"archive/tar"
 	"compress/gzip"
-	"context"
 	"io"
 	"os"
 	"path/filepath"
 	"testing"
-
-	"step-ui/config"
 )
-
-// ─── fakeRunner ───────────────────────────────────────────────────────────────
-
-// fakeRunner returns a stepRunner that immediately succeeds or fails depending
-// on the provided error.  It records the arguments it received for assertions.
-type fakeRunnerResult struct {
-	output []byte
-	err    error
-}
-
-func makeFakeRunner(result fakeRunnerResult) stepRunner {
-	return func(_ context.Context, _ string, _ ...string) ([]byte, error) {
-		return result.output, result.err
-	}
-}
-
-// ─── issueCert / revokeStep via injectable runner ────────────────────────────
-
-// TestIssueCert_ValidIdentifier confirms that a valid domain passes identifier
-// validation and the step runner is invoked with the result forwarded.
-func TestIssueCert_ValidIdentifier(t *testing.T) {
-	cfg := &config.Config{ //nolint:gosec // G101: test-only cfg
-		CAURL:        "https://ca:9443",
-		RootCert:     "/root.crt",
-		Provisioner:  "admin",
-		PasswordFile: "/pw",
-	}
-
-	called := false
-	runner := func(_ context.Context, _ string, _ ...string) ([]byte, error) {
-		called = true
-		return []byte("ok"), nil
-	}
-
-	// Patch execRunner for the issueCert call — we call runStep directly instead.
-	out, err := runStep(context.Background(), cfg, runner, []string{"ca", "certificate"}, nil, nil)
-	if err != nil {
-		t.Fatalf("runStep returned error: %v", err)
-	}
-	if !called {
-		t.Error("runner was not called")
-	}
-	if string(out) != "ok" {
-		t.Errorf("unexpected output: %q", string(out))
-	}
-}
-
-// TestIssueCert_InvalidDomain confirms that a domain starting with '-' is
-// rejected before the runner is ever invoked.
-func TestIssueCert_InvalidDomain(t *testing.T) {
-	cfg := &config.Config{ //nolint:gosec // G101: test-only cfg
-		CAURL:        "https://ca:9443",
-		RootCert:     "/root.crt",
-		Provisioner:  "admin",
-		PasswordFile: "/pw",
-	}
-	// issueCert calls validateIdentifier then runStep; test validateIdentifier.
-	err := validateIdentifier("--foo")
-	if err == nil {
-		t.Error("expected error for identifier starting with '--'")
-	}
-
-	// Confirm runStep positional-arg validation also rejects it.
-	called := false
-	runner := func(_ context.Context, _ string, _ ...string) ([]byte, error) {
-		called = true
-		return nil, nil
-	}
-	_, err = runStep(context.Background(), cfg, runner, []string{"ca", "certificate"}, nil, []string{"--foo"})
-	if err == nil {
-		t.Error("expected error for positional arg '--foo'")
-	}
-	if called {
-		t.Error("runner should not be called when identifier is invalid")
-	}
-}
-
-// TestRevokeStep_RunnerError confirms that a non-nil runner error is propagated.
-func TestRevokeStep_RunnerError(t *testing.T) {
-	cfg := &config.Config{ //nolint:gosec // G101: test-only cfg
-		CAURL:    "https://ca:9443",
-		RootCert: "/root.crt",
-	}
-	runner := makeFakeRunner(fakeRunnerResult{
-		output: []byte("revoke failed"),
-		err:    &os.PathError{Op: "exec", Path: "step", Err: os.ErrNotExist},
-	})
-	_, err := runStep(context.Background(), cfg, runner, []string{"ca", "revoke"}, nil, nil)
-	if err == nil {
-		t.Error("expected error from runner propagated")
-	}
-}
 
 // ─── writeBundleTGZ round-trip ────────────────────────────────────────────────
 

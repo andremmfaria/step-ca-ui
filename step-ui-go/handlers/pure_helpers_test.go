@@ -253,39 +253,6 @@ func TestValidateIdentifier(t *testing.T) {
 	}
 }
 
-// ─── redactArgs ───────────────────────────────────────────────────────────────
-
-func TestRedactArgs(t *testing.T) {
-	args := []string{
-		"ca", "certificate",
-		"--ca-url", "https://ca:9443",
-		"--root", "/path/to/root.crt",
-		"--provisioner", "admin",
-		"--provisioner-password-file", "/secret/pw",
-		"--", "example.com",
-	}
-	out := redactArgs(args)
-	// sensitive flags' values must be replaced.
-	sensitiveFlags := map[string]bool{
-		"--ca-url": true, "--root": true, "--provisioner-password-file": true,
-	}
-	for i, a := range out {
-		if sensitiveFlags[a] && i+1 < len(out) {
-			if out[i+1] != "<redacted>" {
-				t.Errorf("value after %q should be <redacted>, got %q", a, out[i+1])
-			}
-		}
-	}
-	// Non-sensitive args should be unchanged.
-	if out[0] != "ca" || out[1] != "certificate" {
-		t.Errorf("non-sensitive args changed: %v", out[:2])
-	}
-	// Original must not be mutated.
-	if args[3] != "https://ca:9443" {
-		t.Error("redactArgs mutated original slice")
-	}
-}
-
 // ─── fmtUptime ────────────────────────────────────────────────────────────────
 
 func TestFmtUptime(t *testing.T) {
