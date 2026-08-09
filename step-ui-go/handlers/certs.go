@@ -191,7 +191,13 @@ func (h *Handler) IssuePost(w http.ResponseWriter, r *http.Request) {
 	}
 	certPath := filepath.Join(certDir, "certificate.crt")
 	keyPath := filepath.Join(certDir, "private.key")
-	if err := issueCert(r.Context(), domain, certPath, keyPath, policy.Duration, policy.KeyType, h.cfg); err != nil {
+	caClient, caErr := h.caClient()
+	if caErr != nil {
+		data["Msgs"] = []models.FlashMsg{{Type: "err", Text: "CA unreachable: " + caErr.Error()}}
+		h.render(w, "issue", data)
+		return
+	}
+	if err := issueCert(r.Context(), caClient, domain, certPath, keyPath, policy.Duration, policy.KeyType, h.cfg); err != nil {
 		h.notifyAsync("", "certificate.issue_failed", "error",
 			"Certificate issue failed",
 			fmt.Sprintf("Failed to issue certificate %s for %s: %s", name, domain, err.Error()),
@@ -236,7 +242,14 @@ func (h *Handler) Renew(w http.ResponseWriter, r *http.Request) {
 		if duration == "" {
 			duration = "8760h"
 		}
-		if issueErr := issueCert(r.Context(), c.Domain, c.CertPath, c.KeyPath, duration, keyType, h.cfg); issueErr == nil {
+		caClient, caErr := h.caClient()
+		var issueErr error
+		if caErr != nil {
+			issueErr = caErr
+		} else {
+			issueErr = issueCert(r.Context(), caClient, c.Domain, c.CertPath, c.KeyPath, duration, keyType, h.cfg)
+		}
+		if issueErr == nil {
 			issued, expires, serial, _ := parseCertDates(c.CertPath)
 			_ = appdb.InsertCert(h.db, &models.Certificate{
 				Name: c.Name, Domain: c.Domain, CertPath: c.CertPath, KeyPath: c.KeyPath,

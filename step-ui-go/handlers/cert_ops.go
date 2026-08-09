@@ -19,6 +19,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"step-ui/config"
 	"step-ui/models"
+	"step-ui/stepca"
 
 	appdb "step-ui/db"
 )
@@ -94,28 +95,31 @@ func normalizeIssuePolicy(template, duration, keyType, domain string) (IssuePoli
 	return policy, nil
 }
 
-func issueCert(ctx context.Context, domain, certPath, keyPath, duration, keyType string, cfg *config.Config) error {
-	extraFlags := []string{
-		"--provisioner", cfg.Provisioner,
-		"--provisioner-password-file", cfg.PasswordFile,
-		"--not-after", duration,
-		"--force",
-	}
-	if strings.HasPrefix(keyType, "EC:") {
-		extraFlags = append(extraFlags, "--kty", "EC", "--curve", strings.TrimPrefix(keyType, "EC:"))
-	} else if strings.HasPrefix(keyType, "RSA:") {
-		extraFlags = append(extraFlags, "--kty", "RSA", "--size", strings.TrimPrefix(keyType, "RSA:"))
-	}
-	// Validate domain before passing to the shell.  certPath and keyPath are
-	// server-generated paths and do not need hostname validation.
-	// We include the "--" separator so step cannot interpret domain as a flag.
+func issueCert(ctx context.Context, caClient stepca.CA, domain, certPath, keyPath, duration, keyType string, cfg *config.Config) error {
+	// Validate domain before it reaches the CA library — the same guard that
+	// previously protected against flag injection into the step CLI's argv.
 	if err := validateIdentifier(domain); err != nil {
 		return err
 	}
-	extraFlags = append(extraFlags, "--", domain, certPath, keyPath)
-	out, err := runStep(ctx, cfg, execRunner, []string{"ca", "certificate"}, extraFlags, nil)
+	dur, err := time.ParseDuration(duration)
 	if err != nil {
-		return fmt.Errorf("%w: %s", err, string(out))
+		return fmt.Errorf("invalid duration %q: %w", duration, err)
+	}
+	certPEM, keyPEM, err := caClient.IssueCertificate(ctx, stepca.IssueRequest{
+		Domain:       domain,
+		Duration:     dur,
+		KeyType:      keyType,
+		Provisioner:  cfg.Provisioner,
+		PasswordFile: cfg.PasswordFile,
+	})
+	if err != nil {
+		return fmt.Errorf("issue certificate: %w", err)
+	}
+	if err := os.WriteFile(certPath, certPEM, 0o600); err != nil {
+		return fmt.Errorf("write certificate file: %w", err)
+	}
+	if err := os.WriteFile(keyPath, keyPEM, 0o600); err != nil {
+		return fmt.Errorf("write key file: %w", err)
 	}
 	return nil
 }
