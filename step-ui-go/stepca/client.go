@@ -34,17 +34,6 @@ type ProvisionerInfo struct {
 	Type string
 }
 
-// IssueRequest is the input to Client.IssueCertificate, defined here in
-// Phase 1 (moved to issue.go, with a real implementation, in Phase 3.1) so
-// the CA interface above has a concrete parameter type from the start.
-type IssueRequest struct {
-	Domain       string
-	Duration     time.Duration
-	KeyType      string // "EC:P-256", "EC:P-384", "RSA:2048", "RSA:4096" — same vocabulary as cert_ops.go
-	Provisioner  string
-	PasswordFile string
-}
-
 // Client implements CA against a live step-ca server via ca.Client.
 type Client struct {
 	cfg *config.Config
@@ -103,16 +92,10 @@ func (c *Client) Provisioners(ctx context.Context) ([]ProvisionerInfo, error) {
 	return out, nil
 }
 
-// IssueCertificate and Revoke are stubbed here in Phase 1 only so *Client
-// satisfies the full CA interface as soon as Handler.caClient() (Phase 1.2)
-// needs to assign a *Client to a stepca.CA variable. Phase 3 replaces both
-// stubs with real implementations in the new stepca/issue.go and
-// stepca/revoke.go files and removes these bodies.
-
-func (c *Client) IssueCertificate(context.Context, IssueRequest) (certPEM, keyPEM []byte, err error) {
-	return nil, nil, errors.New("stepca: IssueCertificate not yet implemented (lands in Phase 3.1)")
-}
-
+// Revoke is stubbed here until Phase 3.3 replaces it with a real
+// implementation in the new stepca/revoke.go and removes this body.
+// (IssueCertificate's stub was replaced by the real implementation in
+// stepca/issue.go as of Phase 3.1.)
 func (c *Client) Revoke(context.Context, string, string) error {
 	return errors.New("stepca: Revoke not yet implemented (lands in Phase 3.3)")
 }
