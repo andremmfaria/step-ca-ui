@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os/exec"
-	"regexp"
 	"strings"
 	"time"
 
@@ -14,6 +13,11 @@ import (
 
 // defaultStepTimeout is the bounded execution budget for step CLI calls.
 // Callers may reduce it for tests; the timeout guards against hung CAs.
+//
+// NOTE: this file (and everything in it) is a migration remnant. Phase 3.4
+// of plans/step-cli-to-ca-lib-swap.md replaces every runStep call site with
+// the stepca package; once that lands, this whole file is deleted (along
+// with its matching tests) — see the plan's R8/Phase 6.1.
 const defaultStepTimeout = 30 * time.Second
 
 // stepRunner is the injectable execution function type.  The default
@@ -26,26 +30,6 @@ type stepRunner func(ctx context.Context, name string, args ...string) ([]byte, 
 func execRunner(ctx context.Context, name string, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
 	return cmd.CombinedOutput()
-}
-
-// validIdentifier accepts hostnames, FQDNs, and wildcards (*.example.com).
-// Anything that could be parsed as a CLI flag or contain shell metacharacters
-// is rejected.  The pattern is intentionally conservative.
-var validIdentifier = regexp.MustCompile(`^(\*\.)?[A-Za-z0-9]([A-Za-z0-9\-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9\-]*[A-Za-z0-9])?)*$`)
-
-// validateIdentifier rejects blank values, values starting with '-', and
-// anything that does not look like a hostname or wildcard hostname.
-func validateIdentifier(id string) error {
-	if id == "" {
-		return fmt.Errorf("identifier must not be empty")
-	}
-	if strings.HasPrefix(id, "-") {
-		return fmt.Errorf("identifier %q starts with '-': possible flag injection", id)
-	}
-	if !validIdentifier.MatchString(id) {
-		return fmt.Errorf("identifier %q contains disallowed characters", id)
-	}
-	return nil
 }
 
 // redactArgs returns a copy of args with the values following sensitive flags
@@ -78,17 +62,13 @@ func redactArgs(args []string) []string {
 // positionalArgs are validated via validateIdentifier and appended after "--".
 // extraFlags are inserted verbatim before "--" (the caller is responsible for
 // their contents — use only trusted, hard-coded flag/value pairs).
-//
-// NOTE: positionalArgs is intentionally kept even though current callers pass
-// nil; PR-19 test helpers will inject a fake runner and exercise domain
-// validation without a live CA.
 func runStep(
 	ctx context.Context,
 	cfg *config.Config,
 	runner stepRunner,
 	subcommand []string,
 	extraFlags []string,
-	positionalArgs []string, //nolint:unparam // PR-19 tests will pass non-nil values
+	positionalArgs []string, //nolint:unparam // remaining migration-era callers all pass nil; see file header note
 ) ([]byte, error) {
 	// Validate every positional arg before constructing the command.
 	for _, id := range positionalArgs {
