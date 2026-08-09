@@ -22,15 +22,11 @@ WORKDIR /opt/step-ui
 RUN addgroup -g 10001 -S stepui && \
     adduser -u 10001 -S -G stepui stepui
 
-# hadolint ignore=DL3018,DL4006
-RUN apk add --no-cache curl openssl ca-certificates netcat-openbsd tzdata postgresql-client && \
-    wget -q "https://github.com/smallstep/cli/releases/download/v0.30.6/step_linux_0.30.6_amd64.tar.gz" \
-         -O /tmp/step.tar.gz && \
-    echo "e44a5dc5f880a694b24a0f2941a69a81b0bc6ee053170fdfde18453d4d5816de  /tmp/step.tar.gz" | sha256sum -c - && \
-    tar -xzf /tmp/step.tar.gz -C /tmp && \
-    mv /tmp/step_0.30.6/bin/step /usr/local/bin/step && \
-    rm -rf /tmp/step* && \
-    chmod +x /usr/local/bin/step
+# openssl stays here solely for admin_console.go's "openssl.version"
+# diagnostic allowlist entry — TLS bootstrap no longer needs it (main.go
+# does root fetch/leaf issuance/self-signed generation via crypto/x509).
+# hadolint ignore=DL3018
+RUN apk add --no-cache curl openssl ca-certificates netcat-openbsd tzdata postgresql-client
 
 COPY --from=builder /build/step-ui .
 COPY templates/ templates/
