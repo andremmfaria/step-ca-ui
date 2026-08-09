@@ -2,7 +2,6 @@ package stepca
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -90,12 +89,4 @@ func (c *Client) Provisioners(ctx context.Context) ([]ProvisionerInfo, error) {
 		out = append(out, ProvisionerInfo{Name: p.GetName(), Type: p.GetType().String()})
 	}
 	return out, nil
-}
-
-// Revoke is stubbed here until Phase 3.3 replaces it with a real
-// implementation in the new stepca/revoke.go and removes this body.
-// (IssueCertificate's stub was replaced by the real implementation in
-// stepca/issue.go as of Phase 3.1.)
-func (c *Client) Revoke(context.Context, string, string) error {
-	return errors.New("stepca: Revoke not yet implemented (lands in Phase 3.3)")
 }

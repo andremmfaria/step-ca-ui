@@ -124,17 +124,14 @@ func issueCert(ctx context.Context, caClient stepca.CA, domain, certPath, keyPat
 	return nil
 }
 
-// revokeStep revokes a certificate via the step CLI and returns any error so
+// revokeStep revokes a certificate via the CA client and returns any error so
 // callers can decide whether to mark the cert as revoked in the database.
-func revokeStep(ctx context.Context, certPath, keyPath string, cfg *config.Config) error {
-	out, err := runStep(
-		ctx, cfg, execRunner,
-		[]string{"ca", "revoke"},
-		[]string{"--cert", certPath, "--key", keyPath},
-		nil,
-	)
-	if err != nil {
-		return fmt.Errorf("step ca revoke: %w: %s", err, string(out))
+// cfg is unused now that Client.Revoke carries its own cfg (RootCert) from
+// construction, but kept in the signature for symmetry with issueCert and in
+// case a future caller needs cfg-derived context here too.
+func revokeStep(ctx context.Context, caClient stepca.CA, certPath, keyPath string, _ *config.Config) error {
+	if err := caClient.Revoke(ctx, certPath, keyPath); err != nil {
+		return fmt.Errorf("revoke certificate: %w", err)
 	}
 	return nil
 }

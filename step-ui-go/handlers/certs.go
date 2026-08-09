@@ -280,7 +280,14 @@ func (h *Handler) Revoke(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if c != nil {
-		if revokeErr := revokeStep(r.Context(), c.CertPath, c.KeyPath, h.cfg); revokeErr != nil {
+		caClient, caErr := h.caClient()
+		var revokeErr error
+		if caErr != nil {
+			revokeErr = caErr
+		} else {
+			revokeErr = revokeStep(r.Context(), caClient, c.CertPath, c.KeyPath, h.cfg)
+		}
+		if revokeErr != nil {
 			h.flash(w, r, "err", "Revocation error: "+revokeErr.Error())
 			http.Redirect(w, r, "/certificates", http.StatusFound)
 			return

@@ -24,12 +24,22 @@ import (
 	stepjose "go.step.sm/crypto/jose"
 )
 
-// newTestCA runs an httptest.Server standing in for step-ca's /health,
-// /provisioners, and /sign endpoints, backed by a self-signed signing key
-// used to issue leaf certificates from whatever CSR IssueCertificate sends,
-// and returns a *config.Config pointing at it, ready to pass to
-// New()/IssueCertificate.
-func newTestCA(t *testing.T) *config.Config {
+// caFixture holds the CA signing key and provisioner credentials shared by
+// every fake-CA test in this package (issue_test.go, revoke_test.go), so
+// each test only has to register the HTTP routes it actually needs.
+type caFixture struct {
+	caCert          *x509.Certificate
+	caKey           *ecdsa.PrivateKey
+	provisionerName string
+	password        []byte
+	provPubJWK      *stepjose.JSONWebKey
+	encryptedKey    string
+}
+
+// newCAFixture generates a self-signed CA signing key and an encrypted
+// provisioner JWK (the same JWE format step-ca stores and decryptProvisionerJWK
+// parses — see stepca/doc.go), without starting any server.
+func newCAFixture(t *testing.T) *caFixture {
 	t.Helper()
 
 	const provisionerName = "admin"
@@ -74,6 +84,19 @@ func newTestCA(t *testing.T) *config.Config {
 		t.Fatalf("parse CA cert: %v", err)
 	}
 
+	return &caFixture{
+		caCert:          caCert,
+		caKey:           caKey,
+		provisionerName: provisionerName,
+		password:        password,
+		provPubJWK:      provPubJWK,
+		encryptedKey:    encryptedKey,
+	}
+}
+
+// baseMux registers /health, /provisioners, and /sign — the three endpoints
+// every fake-CA test needs regardless of what else it exercises.
+func (f *caFixture) baseMux() *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -84,9 +107,9 @@ func newTestCA(t *testing.T) *config.Config {
 		_ = json.NewEncoder(w).Encode(&api.ProvisionersResponse{
 			Provisioners: provisioner.List{&provisioner.JWK{
 				Type:         "JWK",
-				Name:         provisionerName,
-				Key:          provPubJWK,
-				EncryptedKey: encryptedKey,
+				Name:         f.provisionerName,
+				Key:          f.provPubJWK,
+				EncryptedKey: f.encryptedKey,
 			}},
 		})
 	})
@@ -96,22 +119,7 @@ func newTestCA(t *testing.T) *config.Config {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		csr := req.CsrPEM.CertificateRequest
-		notAfter := req.NotAfter.RelativeTime(time.Now())
-		leafTemplate := &x509.Certificate{
-			SerialNumber: big.NewInt(time.Now().UnixNano()),
-			Subject:      csr.Subject,
-			DNSNames:     csr.DNSNames,
-			NotBefore:    time.Now().Add(-time.Minute),
-			NotAfter:     notAfter,
-			KeyUsage:     x509.KeyUsageDigitalSignature,
-		}
-		leafDER, err := x509.CreateCertificate(rand.Reader, leafTemplate, caCert, csr.PublicKey, caKey)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		leafCert, err := x509.ParseCertificate(leafDER)
+		leafCert, err := f.issue(req.CsrPEM.CertificateRequest, req.NotAfter.RelativeTime(time.Now()))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -119,12 +127,44 @@ func newTestCA(t *testing.T) *config.Config {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(api.SignResponse{
 			ServerPEM:    api.NewCertificate(leafCert),
-			CaPEM:        api.NewCertificate(caCert),
-			CertChainPEM: []api.Certificate{api.NewCertificate(leafCert), api.NewCertificate(caCert)},
+			CaPEM:        api.NewCertificate(f.caCert),
+			CertChainPEM: []api.Certificate{api.NewCertificate(leafCert), api.NewCertificate(f.caCert)},
 		})
 	})
+	return mux
+}
 
-	srv := httptest.NewTLSServer(mux)
+// issue signs a leaf certificate for csr, valid until notAfter.
+func (f *caFixture) issue(csr *x509.CertificateRequest, notAfter time.Time) (*x509.Certificate, error) {
+	leafTemplate := &x509.Certificate{
+		SerialNumber: big.NewInt(time.Now().UnixNano()),
+		Subject:      csr.Subject,
+		DNSNames:     csr.DNSNames,
+		NotBefore:    time.Now().Add(-time.Minute),
+		NotAfter:     notAfter,
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+	}
+	leafDER, err := x509.CreateCertificate(rand.Reader, leafTemplate, f.caCert, csr.PublicKey, f.caKey)
+	if err != nil {
+		return nil, err
+	}
+	return x509.ParseCertificate(leafDER)
+}
+
+// start launches mux behind an httptest.NewTLSServer and returns a
+// *config.Config pointing at it — RootCert trusts the server's own TLS leaf
+// (self-signed, so RootFingerprintWithContext's chain-of-one verifies), and
+// PasswordFile/Provisioner match this fixture's encrypted provisioner key.
+func (f *caFixture) start(t *testing.T, mux *http.ServeMux) *config.Config {
+	t.Helper()
+
+	// RequestClientCert (not Require) so /revoke and /renew can read
+	// r.TLS.PeerCertificates when a caller presents an mTLS cert, without
+	// breaking the plain client.NewClient calls (/health, /provisioners,
+	// /sign) that never present one.
+	srv := httptest.NewUnstartedServer(mux)
+	srv.TLS = &tls.Config{ClientAuth: tls.RequestClientCert}
+	srv.StartTLS()
 	t.Cleanup(srv.Close)
 
 	dir := t.TempDir()
@@ -135,16 +175,24 @@ func newTestCA(t *testing.T) *config.Config {
 	}
 
 	passwordFile := filepath.Join(dir, "password")
-	if err := os.WriteFile(passwordFile, password, 0o600); err != nil {
+	if err := os.WriteFile(passwordFile, f.password, 0o600); err != nil {
 		t.Fatalf("write password file: %v", err)
 	}
 
 	return &config.Config{
 		CAURL:        srv.URL,
 		RootCert:     rootFile,
-		Provisioner:  provisionerName,
+		Provisioner:  f.provisionerName,
 		PasswordFile: passwordFile,
 	}
+}
+
+// newTestCA is the issue_test.go-only convenience wrapper: a fixture with
+// just /health, /provisioners, and /sign, started immediately.
+func newTestCA(t *testing.T) *config.Config {
+	t.Helper()
+	f := newCAFixture(t)
+	return f.start(t, f.baseMux())
 }
 
 // TestIssueCertificate_AllKeyTypes covers the 4 key types the UI has always
