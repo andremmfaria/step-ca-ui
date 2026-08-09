@@ -14,9 +14,9 @@ import (
 	"time"
 )
 
-// generateSelfSignedCert writes a fresh ECDSA P-256 self-signed cert+key pair
+// writeTestSelfSignedCert writes a fresh ECDSA P-256 self-signed cert+key pair
 // to certPath/keyPath.  Returns the DER serial so callers can distinguish certs.
-func generateSelfSignedCert(t *testing.T, certPath, keyPath string) *big.Int {
+func writeTestSelfSignedCert(t *testing.T, certPath, keyPath string) *big.Int {
 	t.Helper()
 
 	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -79,7 +79,7 @@ func TestCertReloader_InitialLoad(t *testing.T) {
 	certPath := dir + "/server.crt"
 	keyPath := dir + "/server.key"
 
-	serial1 := generateSelfSignedCert(t, certPath, keyPath)
+	serial1 := writeTestSelfSignedCert(t, certPath, keyPath)
 
 	r := newCertReloader(certPath, keyPath)
 	got, err := r.GetCertificate(nil)
@@ -99,7 +99,7 @@ func TestCertReloader_ReloadOnMtimeChange(t *testing.T) {
 	certPath := dir + "/server.crt"
 	keyPath := dir + "/server.key"
 
-	serial1 := generateSelfSignedCert(t, certPath, keyPath)
+	serial1 := writeTestSelfSignedCert(t, certPath, keyPath)
 
 	r := newCertReloader(certPath, keyPath)
 	got1, err := r.GetCertificate(nil)
@@ -111,7 +111,7 @@ func TestCertReloader_ReloadOnMtimeChange(t *testing.T) {
 	}
 
 	// Write a new cert with a different serial.
-	serial2 := generateSelfSignedCert(t, certPath, keyPath)
+	serial2 := writeTestSelfSignedCert(t, certPath, keyPath)
 
 	// Force mtime forward so the reloader sees a change even on coarse
 	// (1-second resolution) filesystems.
@@ -141,7 +141,7 @@ func TestCertReloader_CorruptedKeyReturnsCachedCert(t *testing.T) {
 	certPath := dir + "/server.crt"
 	keyPath := dir + "/server.key"
 
-	generateSelfSignedCert(t, certPath, keyPath)
+	writeTestSelfSignedCert(t, certPath, keyPath)
 
 	r := newCertReloader(certPath, keyPath)
 	_, err := r.GetCertificate(nil)
