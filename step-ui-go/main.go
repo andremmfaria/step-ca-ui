@@ -24,6 +24,7 @@ import (
 
 	"step-ui/config"
 	"step-ui/handlers"
+	"step-ui/stepca"
 
 	"github.com/go-chi/chi/v5"
 	chiMiddleware "github.com/go-chi/chi/v5/middleware"
@@ -319,6 +320,38 @@ func main() {
 		}
 	})
 
+	// ─── In-process TLS bootstrap ────────────────────────────────────────────
+	// Replaces entrypoint.sh's former root-cert-fetch/leaf-issuance shell
+	// blocks (Phase 5 of the step-CLI-to-ca-library migration). ensureRootCert
+	// and ensureUICert can each retry up to caBootstrapRetries×caBootstrapInterval
+	// (30×1s default) — the outer ceiling must exceed both back-to-back plus
+	// HTTP overhead, so it's derived from those same constants rather than a
+	// second hardcoded number that could drift out of sync.
+	bootstrapCtx, bootstrapCancel := context.WithTimeout(
+		context.Background(),
+		2*time.Duration(caBootstrapRetries)*caBootstrapInterval+30*time.Second,
+	)
+	var caClient stepca.CA
+	if c, caErr := stepca.New(cfg); caErr != nil {
+		// Tolerate construction failure (R2): proceed to the self-signed
+		// fallback inside ensureUICert rather than log.Fatalf — a step-ca
+		// that hasn't produced its root cert yet at UI boot must not crash
+		// the whole process.
+		slog.Warn("CA client construction failed during TLS bootstrap", "err", caErr)
+	} else {
+		caClient = c
+	}
+	if err := writeInlineRootCert(cfg); err != nil {
+		slog.Error("writing inline root cert failed", "err", err)
+	}
+	if err := ensureRootCert(bootstrapCtx, cfg); err != nil {
+		slog.Error("ensuring root cert failed", "err", err)
+	}
+	if err := ensureUICert(bootstrapCtx, cfg, caClient); err != nil {
+		slog.Error("ensuring UI cert failed", "err", err)
+	}
+	bootstrapCancel()
+
 	addr := fmt.Sprintf("0.0.0.0:%d", cfg.Port)
 
 	// useHTTPS: explicit config flag takes precedence; falls back to probing
@@ -344,7 +377,7 @@ func main() {
 	srvErr := make(chan error, 1)
 	if useHTTPS {
 		// Hot-reloading TLS: GetCertificate re-stats both files on every handshake
-		// and reloads when mtime changes.  This lets `step ca renew --daemon`
+		// and reloads when mtime changes.  This lets startUICertRenewer (below)
 		// replace the cert on disk and have it picked up with zero restart.
 		reloader := newCertReloader(cfg.SSLCert, cfg.SSLKey)
 		srv.TLSConfig = &tls.Config{
@@ -357,6 +390,10 @@ func main() {
 	} else {
 		slog.Warn("starting Step-CA UI (HTTP) — not suitable for production", "port", cfg.Port)
 		go func() { srvErr <- srv.ListenAndServe() }()
+	}
+
+	if cfg.UITLSMode == "stepca" && caClient != nil {
+		startUICertRenewer(cfg, caClient)
 	}
 
 	select {

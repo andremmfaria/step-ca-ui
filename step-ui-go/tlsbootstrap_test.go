@@ -199,6 +199,25 @@ func TestEnsureUICert_Stepca_Success(t *testing.T) {
 	}
 }
 
+func TestEnsureUICert_Stepca_NilCAClientFallsBackToSelfSigned(t *testing.T) {
+	dir := t.TempDir()
+	cfg := &config.Config{
+		UITLSMode:  "stepca",
+		SSLCert:    filepath.Join(dir, "server.crt"),
+		SSLKey:     filepath.Join(dir, "server.key"),
+		UIHostname: "ui.internal.example.com",
+		HostIP:     "127.0.0.1",
+	}
+	// A nil stepca.CA simulates R2's "CA client construction failed" case —
+	// must not panic on a nil-interface method call.
+	if err := ensureUICert(context.Background(), cfg, nil); err != nil {
+		t.Fatalf("ensureUICert: %v", err)
+	}
+	if _, err := tls.LoadX509KeyPair(cfg.SSLCert, cfg.SSLKey); err != nil {
+		t.Errorf("expected a self-signed fallback cert, got: %v", err)
+	}
+}
+
 func TestEnsureUICert_Stepca_FallsBackToSelfSigned(t *testing.T) {
 	restoreRetries, restoreInterval := caBootstrapRetries, caBootstrapInterval
 	caBootstrapRetries = 2

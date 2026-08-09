@@ -208,6 +208,12 @@ func ensureUICert(ctx context.Context, cfg *config.Config, caClient stepca.CA) e
 		return nil
 
 	case "stepca":
+		if caClient == nil {
+			// CA client construction failed (R2) — nothing in the retry loop
+			// below could possibly succeed against a nil stepca.CA.
+			slog.Warn("UI_TLS_MODE=stepca but no CA client is available — falling back to self-signed")
+			return generateSelfSignedCert(cfg.SSLCert, cfg.SSLKey, cfg.UIHostname, cfg.HostIP)
+		}
 		hostname := resolveUIHostname(cfg)
 		slog.Info("obtaining UI leaf certificate from step-ca", "hostname", hostname)
 		var lastErr error
