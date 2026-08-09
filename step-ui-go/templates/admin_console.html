@@ -35,7 +35,7 @@
           <option value="">Select a command</option>
           {{range .Commands}}
             <option value="{{.ID}}" {{if eq $.SelectedCommandID .ID}}selected{{end}}>
-              {{- .Label}} &#x2014; {{.Name}}{{range .Args}} {{.}}{{end -}}
+              {{- .Label}} &#x2014; {{if .Native}}(native){{else}}{{.Name}}{{range .Args}} {{.}}{{end}}{{end -}}
             </option>
           {{end}}
         </select>
@@ -44,7 +44,7 @@
       <div class="admin-console-command-list">
         {{range .Commands}}
           <div class="admin-console-command">
-            <code>{{.Name}}{{range .Args}} {{.}}{{end}}</code>
+            <code>{{if .Native}}(native){{else}}{{.Name}}{{range .Args}} {{.}}{{end}}{{end}}</code>
             <span>{{.Description}}</span>
           </div>
         {{end}}
