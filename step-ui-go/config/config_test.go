@@ -37,6 +37,21 @@ func TestLoad_Defaults(t *testing.T) {
 	if cfg.TrustProxy {
 		t.Error("TrustProxy: got true want false")
 	}
+	if cfg.UITLSMode != "self-signed" {
+		t.Errorf("UITLSMode: got %q want %q", cfg.UITLSMode, "self-signed")
+	}
+	if cfg.CAFingerprint != "" {
+		t.Errorf("CAFingerprint: got %q want empty", cfg.CAFingerprint)
+	}
+	if cfg.CARootCertPEM != "" {
+		t.Errorf("CARootCertPEM: got %q want empty", cfg.CARootCertPEM)
+	}
+	if cfg.UIHostname != "" {
+		t.Errorf("UIHostname: got %q want empty", cfg.UIHostname)
+	}
+	if cfg.HostIP != "127.0.0.1" {
+		t.Errorf("HostIP: got %q want %q", cfg.HostIP, "127.0.0.1")
+	}
 }
 
 // TestLoad_EnvOverrides verifies that env vars override every default.
@@ -60,6 +75,11 @@ func TestLoad_EnvOverrides(t *testing.T) {
 	t.Setenv("SECRET_KEY", "overridden-secret-key-32chars!!")
 	t.Setenv("CA_URL", "https://myca:9443")
 	t.Setenv("ROOT_CERT", "/my/root.crt")
+	t.Setenv("UI_TLS_MODE", "stepca")
+	t.Setenv("CA_FINGERPRINT", "deadbeef")
+	t.Setenv("CA_ROOT_CERT_PEM", "-----BEGIN CERTIFICATE-----\nabc\n-----END CERTIFICATE-----")
+	t.Setenv("UI_HOSTNAME", "ui.internal.example.com")
+	t.Setenv("HOST_IP", "10.0.0.5")
 
 	cfg := Load()
 
@@ -101,6 +121,21 @@ func TestLoad_EnvOverrides(t *testing.T) {
 	}
 	if cfg.RootCert != "/my/root.crt" {
 		t.Errorf("RootCert: got %q", cfg.RootCert)
+	}
+	if cfg.UITLSMode != "stepca" {
+		t.Errorf("UITLSMode: got %q want %q", cfg.UITLSMode, "stepca")
+	}
+	if cfg.CAFingerprint != "deadbeef" {
+		t.Errorf("CAFingerprint: got %q want %q", cfg.CAFingerprint, "deadbeef")
+	}
+	if cfg.CARootCertPEM != "-----BEGIN CERTIFICATE-----\nabc\n-----END CERTIFICATE-----" {
+		t.Errorf("CARootCertPEM: got %q", cfg.CARootCertPEM)
+	}
+	if cfg.UIHostname != "ui.internal.example.com" {
+		t.Errorf("UIHostname: got %q want %q", cfg.UIHostname, "ui.internal.example.com")
+	}
+	if cfg.HostIP != "10.0.0.5" {
+		t.Errorf("HostIP: got %q want %q", cfg.HostIP, "10.0.0.5")
 	}
 }
 
@@ -147,6 +182,7 @@ func clearEnvVars(t *testing.T) {
 		"OIDC_REDIRECT_URL", "OIDC_GROUP_CLAIM", "OIDC_GROUP_ADMIN",
 		"OIDC_GROUP_MANAGER", "OIDC_GROUP_VIEWER", "OIDC_DEFAULT_ROLE",
 		"OIDC_SYNC_ROLE", "LOCAL_LOGIN_ENABLED", "USE_HTTPS",
+		"UI_TLS_MODE", "CA_FINGERPRINT", "CA_ROOT_CERT_PEM", "UI_HOSTNAME", "HOST_IP",
 	}
 	for _, v := range vars {
 		t.Setenv(v, "")

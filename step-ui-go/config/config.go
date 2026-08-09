@@ -48,6 +48,14 @@ type Config struct {
 
 	// Local password login (break-glass when OIDC is primary)
 	LocalLoginEnabled bool
+
+	// In-process TLS bootstrap (Phase 5) — replaces entrypoint.sh's former
+	// root-cert-fetch/leaf-issuance/renew-daemon shell logic.
+	UITLSMode     string
+	CAFingerprint string
+	CARootCertPEM string
+	UIHostname    string
+	HostIP        string
 }
 
 // Load reads configuration from environment variables.
@@ -91,6 +99,12 @@ func Load() *Config {
 		// Set USE_HTTPS=true to force TLS; USE_HTTPS=false to force plain HTTP.
 		// The empty env case preserves the existing auto-detect behaviour.
 		UseHTTPS: getEnvBool("USE_HTTPS", false),
+
+		UITLSMode:     getEnv("UI_TLS_MODE", "self-signed"),
+		CAFingerprint: getEnv("CA_FINGERPRINT", ""),
+		CARootCertPEM: getEnv("CA_ROOT_CERT_PEM", ""),
+		UIHostname:    getEnv("UI_HOSTNAME", ""),
+		HostIP:        getEnv("HOST_IP", "127.0.0.1"),
 	}
 }
 
