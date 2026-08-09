@@ -157,6 +157,17 @@ func (h *Handler) systemInfo() SystemInfo {
 	}
 }
 
+// caHealthErr resolves the CA client (if not already cached) and calls its
+// Health method, folding client-construction failure and health-check
+// failure into a single error for preflight/caIntegrity's display text.
+func (h *Handler) caHealthErr(ctx context.Context) error {
+	caClient, err := h.caClient()
+	if err != nil {
+		return err
+	}
+	return caClient.Health(ctx)
+}
+
 func (h *Handler) preflight(ctx context.Context) ([]HealthCheck, HealthSummary) {
 	var checks []HealthCheck
 	// addCritical appends a critical health-check result (all checks here are critical).
@@ -170,8 +181,8 @@ func (h *Handler) preflight(ctx context.Context) ([]HealthCheck, HealthSummary) 
 		addCritical("PostgreSQL", "ok", "database connection is alive")
 	}
 
-	if out, err := runStep(ctx, h.cfg, execRunner, []string{"ca", "health"}, nil, nil); err != nil {
-		addCritical("Step-CA API", "err", cleanCheckOutput(out, err))
+	if err := h.caHealthErr(ctx); err != nil {
+		addCritical("Step-CA API", "err", err.Error())
 	} else {
 		addCritical("Step-CA API", "ok", "CA health endpoint is reachable")
 	}
@@ -205,8 +216,8 @@ func (h *Handler) preflight(ctx context.Context) ([]HealthCheck, HealthSummary) 
 func (h *Handler) caIntegrity(ctx context.Context) ([]HealthCheck, HealthSummary) {
 	var checks []HealthCheck
 
-	if out, err := runStep(ctx, h.cfg, execRunner, []string{"ca", "health"}, nil, nil); err != nil {
-		checks = append(checks, HealthCheck{Name: "Step-CA API", Status: "err", Detail: cleanCheckOutput(out, err), Critical: true})
+	if err := h.caHealthErr(ctx); err != nil {
+		checks = append(checks, HealthCheck{Name: "Step-CA API", Status: "err", Detail: err.Error(), Critical: true})
 	} else {
 		checks = append(checks, HealthCheck{Name: "Step-CA API", Status: "ok", Detail: "CA health endpoint is reachable", Critical: true})
 	}
@@ -486,12 +497,4 @@ func runCheck(ctx context.Context, timeout time.Duration, name string, args ...s
 		return out, fmt.Errorf("timeout after %s", timeout)
 	}
 	return out, err
-}
-
-func cleanCheckOutput(out []byte, err error) string {
-	text := strings.TrimSpace(string(out))
-	if text == "" {
-		return err.Error()
-	}
-	return text
 }
