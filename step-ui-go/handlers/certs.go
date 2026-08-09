@@ -19,9 +19,10 @@ import (
 
 // Home renders the application home/landing page.
 func (h *Handler) Home(w http.ResponseWriter, r *http.Request) {
-	// CA status: checked via step ca health
+	// CA status: checked via the stepca client's Health call.
 	caOnline := true
-	if _, err := runStep(r.Context(), h.cfg, execRunner, []string{"ca", "health"}, nil, nil); err != nil {
+	caClient, caErr := h.caClient()
+	if caErr != nil || caClient.Health(r.Context()) != nil {
 		caOnline = false
 	}
 
