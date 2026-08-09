@@ -78,9 +78,15 @@
 //   - Client.Root(sha256Sum string) (*api.RootResponse, error) and
 //     RootWithContext(ctx, sha256Sum string) both confirmed present — an
 //     unauthenticated, fingerprint-verified root-fetch primitive exists in the
-//     library exactly as the plan states. Not used by this package (Phase 5 /
-//     Change Set B's bootstrap.go consumes it); documented here only because
-//     Phase 0's job was to re-confirm every fact in one place.
+//     library exactly as the plan states, consumed by bootstrap.go's
+//     FetchRootByFingerprint (Phase 5.2). One addendum found while
+//     implementing it: RootWithContext always issues its request over its
+//     own internal newInsecureClient() (TLS InsecureSkipVerify) regardless of
+//     how the wrapping *ca.Client was configured — but ca.NewClient itself
+//     still rejects a ClientOption set with no transport/root-cert/root-sha256
+//     at all, so FetchRootByFingerprint must pass ca.WithInsecure() purely to
+//     satisfy that constructor check; it is never consulted for the actual
+//     /root/{sha256sum} call.
 //
 //   - provisioner.List is []provisioner.Interface; concrete provisioner types
 //     (e.g. *provisioner.JWK) implement GetName() string and GetType() Type,
