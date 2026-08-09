@@ -86,6 +86,16 @@ services:
       ROOT_CERT:        "/home/step/certs/root_ca.crt"
       PROVISIONER:      "${PROVISIONER:-admin}"
       PASSWORD_FILE:    "/opt/step-ui/data/provisioner_password"
+      # In-process TLS bootstrap (main.go/tlsbootstrap.go) — see .env.example.
+      # UI_TLS_MODE=stepca's CA_FINGERPRINT fetch is effectively a no-op here
+      # because step-ca-data is already mounted read-only at ROOT_CERT's
+      # parent path above, so the root cert is present before step-ui's
+      # bootstrap even runs; CA_FINGERPRINT/CA_ROOT_CERT_PEM matter for
+      # deployments that don't share that volume (ECS/Kubernetes).
+      UI_TLS_MODE:      "${UI_TLS_MODE:-self-signed}"
+      CA_FINGERPRINT:   "${CA_FINGERPRINT:-}"
+      CA_ROOT_CERT_PEM: "${CA_ROOT_CERT_PEM:-}"
+      UI_HOSTNAME:      "${UI_HOSTNAME:-}"
       PROVISIONER_PASSWORD_FILE: /run/secrets/ca_password
       SECRET_KEY_FILE:  /run/secrets/secret_key
       SESSION_SECURE:   "${SESSION_SECURE:-true}"
