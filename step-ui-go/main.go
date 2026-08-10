@@ -24,6 +24,7 @@ import (
 
 	"step-ui/config"
 	"step-ui/handlers"
+	"step-ui/models"
 	"step-ui/stepca"
 
 	"github.com/go-chi/chi/v5"
@@ -207,7 +208,9 @@ func main() {
 
 	// Authenticated routes
 	r.Group(func(r chi.Router) {
-		r.Use(mw.RequireLogin(store))
+		r.Use(mw.RequireLogin(store, func(id int) (*models.User, error) {
+			return appdb.GetUserByID(conn, id)
+		}))
 
 		r.Get("/", h.Home)
 		r.Get("/dashboard", h.Dashboard)
@@ -221,7 +224,7 @@ func main() {
 
 		// Download CA cert (admin)
 		r.Group(func(r chi.Router) {
-			r.Use(mw.RequireRole("admin", store))
+			r.Use(mw.RequireRole("admin"))
 			r.Get("/download/ca", h.DownloadCA)
 			r.Get("/download/intermediate-ca", h.DownloadIntermediateCA)
 			r.Get("/download/full-chain", h.DownloadFullChain)
@@ -229,7 +232,7 @@ func main() {
 
 		// Certificate operations (manager+)
 		r.Group(func(r chi.Router) {
-			r.Use(mw.RequireRole("manager", store))
+			r.Use(mw.RequireRole("manager"))
 			r.Get("/issue", h.IssueGet)
 			r.Post("/issue", h.IssuePost)
 			r.Post("/renew/{id}", h.Renew)
@@ -241,13 +244,13 @@ func main() {
 
 		// Revocation (admin)
 		r.Group(func(r chi.Router) {
-			r.Use(mw.RequireRole("admin", store))
+			r.Use(mw.RequireRole("admin"))
 			r.Post("/revoke/{id}", h.Revoke)
 		})
 
 		// User management (admin)
 		r.Group(func(r chi.Router) {
-			r.Use(mw.RequireRole("admin", store))
+			r.Use(mw.RequireRole("admin"))
 			// Admin namespace
 			r.Get("/admin", h.AdminGet)
 			r.Get("/admin/users", h.Users)
@@ -270,7 +273,7 @@ func main() {
 
 		// Let's Encrypt (manager+)
 		r.Group(func(r chi.Router) {
-			r.Use(mw.RequireRole("manager", store))
+			r.Use(mw.RequireRole("manager"))
 			r.Get("/le", h.LEDashboard)
 			r.Get("/le/issue", h.LEIssueGet)
 			r.Post("/le/issue", h.LEIssuePost)

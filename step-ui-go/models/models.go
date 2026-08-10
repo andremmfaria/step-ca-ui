@@ -19,6 +19,9 @@ type User struct {
 	TOTPEnabled       bool
 	TOTPSecret        string
 	TOTPPendingSecret string
+	// SessionEpoch is stamped into the session at login; a mismatch on a later
+	// request means the session was revoked server-side.
+	SessionEpoch int
 }
 
 // AuthLog is a single authentication event record.

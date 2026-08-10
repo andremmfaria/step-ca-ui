@@ -3,11 +3,17 @@ package db
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
 	"step-ui/models"
 )
+
+// ErrOIDCLocalUser reports that an OIDC login carried the username of an
+// existing local account. The row is left untouched: updating it would hand
+// the local password holder whatever role the IdP asserts (V1).
+var ErrOIDCLocalUser = errors.New("db: oidc username belongs to a local account")
 
 // ─── Users ────────────────────────────────────────────────────────────────────
 
@@ -15,12 +21,13 @@ import (
 func GetUserByUsername(d *sql.DB, username string) (*models.User, error) {
 	u := &models.User{}
 	err := d.QueryRow( //nolint:noctx // pre-existing signature
-		`SELECT id,username,password_hash,role,is_active,created_at,last_login,last_ip, 
-		COALESCE(totp_enabled,false),COALESCE(totp_secret,''),COALESCE(totp_pending_secret,'')
+		`SELECT id,username,password_hash,role,is_active,created_at,last_login,last_ip,
+		COALESCE(totp_enabled,false),COALESCE(totp_secret,''),COALESCE(totp_pending_secret,''),
+		COALESCE(session_epoch,0)
 		FROM users WHERE username=$1`, username,
 	).
 		Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.IsActive, &u.CreatedAt, &u.LastLogin, &u.LastIP,
-			&u.TOTPEnabled, &u.TOTPSecret, &u.TOTPPendingSecret)
+			&u.TOTPEnabled, &u.TOTPSecret, &u.TOTPPendingSecret, &u.SessionEpoch)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -32,14 +39,15 @@ func GetUserByID(d *sql.DB, id int) (*models.User, error) {
 	u := &models.User{}
 	var displayName, email, theme sql.NullString
 	err := d.QueryRow( //nolint:noctx // pre-existing signature
-		`SELECT id, username, password_hash, role, is_active, created_at, last_login, last_ip, 
+		`SELECT id, username, password_hash, role, is_active, created_at, last_login, last_ip,
 		COALESCE(display_name,''), COALESCE(email,''), COALESCE(theme,'dark'),
-		COALESCE(totp_enabled,false), COALESCE(totp_secret,''), COALESCE(totp_pending_secret,'')
+		COALESCE(totp_enabled,false), COALESCE(totp_secret,''), COALESCE(totp_pending_secret,''),
+		COALESCE(session_epoch,0)
 		FROM users WHERE id=$1`, id,
 	).Scan(
 		&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.IsActive,
 		&u.CreatedAt, &u.LastLogin, &u.LastIP, &displayName, &email, &theme,
-		&u.TOTPEnabled, &u.TOTPSecret, &u.TOTPPendingSecret,
+		&u.TOTPEnabled, &u.TOTPSecret, &u.TOTPPendingSecret, &u.SessionEpoch,
 	)
 	if err != nil {
 		return nil, err
@@ -79,14 +87,26 @@ func CreateUser(d *sql.DB, username, passwordHash, role string) error {
 }
 
 // UpdateUserRole operates on the updateuserrole record.
+// The epoch bump rides along in the same statement so the demoted user cannot
+// slip a request through between the two writes.
 func UpdateUserRole(d *sql.DB, id int, role string) error {
-	_, err := d.Exec(`UPDATE users SET role=$1 WHERE id=$2`, role, id) //nolint:noctx // pre-existing signature
+	_, err := d.Exec(`UPDATE users SET role=$1, session_epoch=session_epoch+1 WHERE id=$2`, role, id) //nolint:noctx // pre-existing signature
 	return err
 }
 
 // UpdateUserActive operates on the updateuseractive record.
 func UpdateUserActive(d *sql.DB, id int, active bool) error {
-	_, err := d.Exec(`UPDATE users SET is_active=$1 WHERE id=$2`, active, id) //nolint:noctx // pre-existing signature
+	if !active {
+		_, err := d.Exec(`UPDATE users SET is_active=false, session_epoch=session_epoch+1 WHERE id=$1`, id) //nolint:noctx // pre-existing signature
+		return err
+	}
+	_, err := d.Exec(`UPDATE users SET is_active=true WHERE id=$1`, id) //nolint:noctx // pre-existing signature
+	return err
+}
+
+// BumpSessionEpoch invalidates every session cookie already issued to the user.
+func BumpSessionEpoch(d *sql.DB, id int) error {
+	_, err := d.Exec(`UPDATE users SET session_epoch=session_epoch+1 WHERE id=$1`, id) //nolint:noctx // pre-existing signature
 	return err
 }
 
@@ -97,9 +117,10 @@ func UpdateUserPassword(d *sql.DB, id int, hash string) error {
 }
 
 // UpdateUserInfo operates on the updateuserinfo record.
-func UpdateUserInfo(d *sql.DB, id int, username, displayName, email string) error {
-	_, err := d.Exec(`UPDATE users SET username=$1, display_name=$2, email=$3 WHERE id=$4`, //nolint:noctx // pre-existing signature
-		username, displayName, email, id)
+// Usernames are admin-managed and deliberately absent here (V1).
+func UpdateUserInfo(d *sql.DB, id int, displayName, email string) error {
+	_, err := d.Exec(`UPDATE users SET display_name=$1, email=$2 WHERE id=$3`, //nolint:noctx // pre-existing signature
+		displayName, email, id)
 	return err
 }
 
@@ -192,13 +213,6 @@ func GetUnusedRecoveryCodes(d *sql.DB, userID int) (map[int]string, error) {
 	return out, nil
 }
 
-// UsernameExistsExceptID operates on the usernameexistsexcept record.
-func UsernameExistsExceptID(d *sql.DB, username string, id int) (bool, error) {
-	var exists bool
-	err := d.QueryRow(`SELECT EXISTS(SELECT 1 FROM users WHERE username=$1 AND id<>$2)`, username, id).Scan(&exists) //nolint:noctx // pre-existing signature
-	return exists, err
-}
-
 // UpdateUserLogin operates on the updateuserlogin record.
 func UpdateUserLogin(d *sql.DB, username, ip string) error {
 	_, err := d.Exec(`UPDATE users SET last_login=NOW(),last_ip=$1 WHERE username=$2`, ip, username) //nolint:noctx // pre-existing signature
@@ -225,37 +239,49 @@ func DeleteUser(d *sql.DB, id int) error {
 // cannot be used for password login regardless of LOCAL_LOGIN_ENABLED.
 // When syncRole is true the role column is updated on every login so the
 // IdP groups remain authoritative.
+// The DO UPDATE is confined to rows this function owns; a collision with a
+// local account affects nothing and returns ErrOIDCLocalUser.
 func UpsertOIDCUser(d *sql.DB, username, displayName, role string, syncRole bool) (*models.User, error) {
 	if d == nil {
 		return nil, fmt.Errorf("db: nil connection")
 	}
+	var (
+		res sql.Result
+		err error
+	)
 	if syncRole {
-		_, err := d.Exec( //nolint:noctx // pre-existing signature
-			` 
-			INSERT INTO users (username, password_hash, display_name, role, is_active)
-			VALUES ($1, 'oidc:jumpcloud', $2, $3, true)
+		res, err = d.Exec( //nolint:noctx // pre-existing signature
+			`
+			INSERT INTO users (username, password_hash, display_name, role, is_active, auth_source)
+			VALUES ($1, 'oidc:jumpcloud', $2, $3, true, 'oidc')
 			ON CONFLICT (username) DO UPDATE
 				SET display_name = EXCLUDED.display_name,
 				    role         = EXCLUDED.role,
-				    last_login   = NOW()`,
+				    last_login   = NOW()
+				WHERE users.auth_source = 'oidc'`,
 			username, displayName, role,
 		)
-		if err != nil {
-			return nil, err
-		}
 	} else {
-		_, err := d.Exec( //nolint:noctx // pre-existing signature
-			` 
-			INSERT INTO users (username, password_hash, display_name, role, is_active)
-			VALUES ($1, 'oidc:jumpcloud', $2, $3, true)
+		res, err = d.Exec( //nolint:noctx // pre-existing signature
+			`
+			INSERT INTO users (username, password_hash, display_name, role, is_active, auth_source)
+			VALUES ($1, 'oidc:jumpcloud', $2, $3, true, 'oidc')
 			ON CONFLICT (username) DO UPDATE
 				SET display_name = EXCLUDED.display_name,
-				    last_login   = NOW()`,
+				    last_login   = NOW()
+				WHERE users.auth_source = 'oidc'`,
 			username, displayName, role,
 		)
-		if err != nil {
-			return nil, err
-		}
+	}
+	if err != nil {
+		return nil, err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return nil, fmt.Errorf("oidc upsert rows affected: %w", err)
+	}
+	if n == 0 {
+		return nil, ErrOIDCLocalUser
 	}
 	return GetUserByUsername(d, username)
 }
@@ -312,10 +338,12 @@ func ListTempUsers(db *sql.DB) ([]TempUserRow, error) {
 }
 
 // ExpireOverdueTempUsers sets is_active=false for accounts past their expiry.
+// The epoch bump is what makes the expiry immediate: without it an expired
+// temporary admin keeps admin until its cookie ages out (V5).
 func ExpireOverdueTempUsers(db *sql.DB) (int, error) {
 	res, err := db.Exec( //nolint:noctx // pre-existing signature; context adoption tracked in P3-8
 		`UPDATE users
-		SET is_active = false
+		SET is_active = false, session_epoch = session_epoch + 1
 		WHERE is_temporary = true
 		  AND is_active = true
 		  AND expires_at IS NOT NULL

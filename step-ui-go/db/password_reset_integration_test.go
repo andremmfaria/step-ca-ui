@@ -45,7 +45,7 @@ func TestIntegration_GetUserByLoginOrEmail(t *testing.T) {
 	if u == nil {
 		t.Fatal("user not found after create")
 	}
-	if err := UpdateUserInfo(conn, u.ID, username, "Test User", email); err != nil {
+	if err := UpdateUserInfo(conn, u.ID, "Test User", email); err != nil {
 		t.Fatalf("UpdateUserInfo: %v", err)
 	}
 

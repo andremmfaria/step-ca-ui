@@ -2,13 +2,45 @@ package middleware
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	"step-ui/models"
+
 	"github.com/gorilla/sessions"
 )
+
+// errNoSuchUser stands in for the sql.ErrNoRows a real loader returns for a
+// deleted account.
+var errNoSuchUser = errors.New("no such user")
+
+// activeUser builds an active user row with the zero session epoch.
+func activeUser(id int, role string) *models.User {
+	return &models.User{ID: id, Username: "u", Role: role, IsActive: true}
+}
+
+// fakeLoader serves the given users by ID and reports every other ID missing.
+func fakeLoader(users ...*models.User) UserLoader {
+	byID := make(map[int]*models.User, len(users))
+	for _, u := range users {
+		byID[u.ID] = u
+	}
+	return func(id int) (*models.User, error) {
+		u, ok := byID[id]
+		if !ok {
+			return nil, errNoSuchUser
+		}
+		return u, nil
+	}
+}
+
+// withUser puts a user in the request context the way RequireLogin does.
+func withUser(req *http.Request, u *models.User) *http.Request {
+	return req.WithContext(context.WithValue(req.Context(), ctxKeyUser, u))
+}
 
 // newTestStore returns a CookieStore suitable for tests.
 func newTestStore() *sessions.CookieStore {
@@ -148,7 +180,7 @@ func TestSecurityHeaders_NoXXSSProtection(t *testing.T) {
 
 func TestRequireLogin_NoSession_Redirects(t *testing.T) {
 	store := newTestStore()
-	handler := RequireLogin(store)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	handler := RequireLogin(store, fakeLoader())(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	req := newReq("GET", "/protected")
@@ -170,7 +202,7 @@ func TestRequireLogin_WithValidSession_Passes(t *testing.T) {
 		"last_activity": time.Now().Unix(),
 	})
 
-	handler := RequireLogin(store)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	handler := RequireLogin(store, fakeLoader(activeUser(1, "viewer")))(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	req := newReq("GET", "/protected")
@@ -195,7 +227,7 @@ func TestRequireLogin_AbsoluteLifetimeExpired(t *testing.T) {
 		"last_activity":      time.Now().Unix(), // recently active — must still be rejected
 	})
 
-	handler := RequireLogin(store)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	handler := RequireLogin(store, fakeLoader(activeUser(42, "viewer")))(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	req := newReq("GET", "/protected")
@@ -221,7 +253,7 @@ func TestRequireLogin_FreshSession_AbsoluteLifetimeNotExpired(t *testing.T) {
 		"last_activity":      time.Now().Unix(),
 	})
 
-	handler := RequireLogin(store)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	handler := RequireLogin(store, fakeLoader(activeUser(99, "viewer")))(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	req := newReq("GET", "/protected")
@@ -242,7 +274,7 @@ func TestRequireLogin_ExpiredSession_Redirects(t *testing.T) {
 		"last_activity": expired,
 	})
 
-	handler := RequireLogin(store)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	handler := RequireLogin(store, fakeLoader(activeUser(42, "viewer")))(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	req := newReq("GET", "/protected")
@@ -258,18 +290,12 @@ func TestRequireLogin_ExpiredSession_Redirects(t *testing.T) {
 // ─── RequireRole ───────────────────────────────────────────────────────────────
 
 func TestRequireRole_SufficientRole_Passes(t *testing.T) {
-	store := newTestStore()
-	cookies := injectSessionMiddleware(t, store, map[interface{}]interface{}{
-		"role": "admin",
-	})
-
 	for _, minRole := range []string{"viewer", "manager", "admin"} {
 		t.Run("admin_satisfies_"+minRole, func(t *testing.T) {
-			handler := RequireRole(minRole, store)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			handler := RequireRole(minRole)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(http.StatusOK)
 			}))
-			req := newReq("GET", "/")
-			applyRequestCookies(req, cookies)
+			req := withUser(newReq("GET", "/"), activeUser(1, "admin"))
 			rr := httptest.NewRecorder()
 			handler.ServeHTTP(rr, req)
 			if rr.Code != http.StatusOK {
@@ -280,7 +306,6 @@ func TestRequireRole_SufficientRole_Passes(t *testing.T) {
 }
 
 func TestRequireRole_InsufficientRole_Forbidden(t *testing.T) {
-	store := newTestStore()
 	cases := []struct {
 		role    string
 		minRole string
@@ -291,14 +316,10 @@ func TestRequireRole_InsufficientRole_Forbidden(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.role+"_vs_"+tc.minRole, func(t *testing.T) {
-			cookies := injectSessionMiddleware(t, store, map[interface{}]interface{}{
-				"role": tc.role,
-			})
-			handler := RequireRole(tc.minRole, store)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			handler := RequireRole(tc.minRole)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(http.StatusOK)
 			}))
-			req := newReq("GET", "/")
-			applyRequestCookies(req, cookies)
+			req := withUser(newReq("GET", "/"), activeUser(1, tc.role))
 			rr := httptest.NewRecorder()
 			handler.ServeHTTP(rr, req)
 			if rr.Code != http.StatusForbidden {
@@ -309,16 +330,10 @@ func TestRequireRole_InsufficientRole_Forbidden(t *testing.T) {
 }
 
 func TestRequireRole_EmptyRole_Forbidden(t *testing.T) {
-	store := newTestStore()
-	// Session exists but has no role key — empty string maps to level 0.
-	cookies := injectSessionMiddleware(t, store, map[interface{}]interface{}{
-		"user_id": 99,
-	})
-	handler := RequireRole("viewer", store)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	handler := RequireRole("viewer")(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
-	req := newReq("GET", "/")
-	applyRequestCookies(req, cookies)
+	req := withUser(newReq("GET", "/"), activeUser(99, ""))
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 	if rr.Code != http.StatusForbidden {
@@ -327,15 +342,10 @@ func TestRequireRole_EmptyRole_Forbidden(t *testing.T) {
 }
 
 func TestRequireRole_UnknownRole_Forbidden(t *testing.T) {
-	store := newTestStore()
-	cookies := injectSessionMiddleware(t, store, map[interface{}]interface{}{
-		"role": "superuser", // not in the level map
-	})
-	handler := RequireRole("viewer", store)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	handler := RequireRole("viewer")(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
-	req := newReq("GET", "/")
-	applyRequestCookies(req, cookies)
+	req := withUser(newReq("GET", "/"), activeUser(1, "superuser"))
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 	if rr.Code != http.StatusForbidden {
@@ -343,11 +353,24 @@ func TestRequireRole_UnknownRole_Forbidden(t *testing.T) {
 	}
 }
 
+// TestRequireRole_NoUserInContext_Forbidden covers the fail-closed branch taken
+// when RequireRole is mounted outside a RequireLogin group.
+func TestRequireRole_NoUserInContext_Forbidden(t *testing.T) {
+	handler := RequireRole("viewer")(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, newReq("GET", "/"))
+	if rr.Code != http.StatusForbidden {
+		t.Errorf("no user in context: expected 403, got %d", rr.Code)
+	}
+}
+
 // TestRequireLogin_BadCookie confirms a tampered / unreadable cookie causes a
 // redirect to /login (the session decode-failure branch).
 func TestRequireLogin_BadCookie_Redirects(t *testing.T) {
 	store := newTestStore()
-	handler := RequireLogin(store)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	handler := RequireLogin(store, fakeLoader())(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	req := newReq("GET", "/protected")
@@ -362,18 +385,133 @@ func TestRequireLogin_BadCookie_Redirects(t *testing.T) {
 	}
 }
 
-// TestRequireRole_BadCookie confirms a tampered cookie causes a redirect.
-func TestRequireRole_BadCookie_Redirects(t *testing.T) {
+// ─── Session revocation (V3, V5, V8) ──────────────────────────────────────────
+
+// TestRequireLogin_StaleEpoch_Rejected covers a cookie captured before the
+// user's session epoch was bumped (logout, password change, role change).
+func TestRequireLogin_StaleEpoch_Rejected(t *testing.T) {
 	store := newTestStore()
-	handler := RequireRole("viewer", store)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	cookies := injectSessionMiddleware(t, store, map[interface{}]interface{}{
+		"user_id":       7,
+		"session_epoch": 3,
+		"last_activity": time.Now().Unix(),
+	})
+
+	user := activeUser(7, "admin")
+	user.SessionEpoch = 4
+
+	handler := RequireLogin(store, fakeLoader(user))(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
-	req := newReq("GET", "/")
-	//nolint:gosec // G124: test-only cookie intentionally missing Secure/HttpOnly attributes
-	req.AddCookie(&http.Cookie{Name: "step-ui", Value: "not-a-valid-encoded-session"})
+	req := newReq("GET", "/protected")
+	applyRequestCookies(req, cookies)
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
+
 	if rr.Code != http.StatusFound {
-		t.Errorf("expected 302 on bad cookie for RequireRole, got %d", rr.Code)
+		t.Errorf("stale epoch: expected 302, got %d", rr.Code)
+	}
+	if loc := rr.Header().Get("Location"); loc != "/login" {
+		t.Errorf("expected redirect to /login, got %q", loc)
+	}
+}
+
+// TestRequireLogin_MatchingEpoch_Passes is the control for the test above.
+func TestRequireLogin_MatchingEpoch_Passes(t *testing.T) {
+	store := newTestStore()
+	cookies := injectSessionMiddleware(t, store, map[interface{}]interface{}{
+		"user_id":       7,
+		"session_epoch": 4,
+		"last_activity": time.Now().Unix(),
+	})
+
+	user := activeUser(7, "admin")
+	user.SessionEpoch = 4
+
+	handler := RequireLogin(store, fakeLoader(user))(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	req := newReq("GET", "/protected")
+	applyRequestCookies(req, cookies)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("matching epoch: expected 200, got %d", rr.Code)
+	}
+}
+
+// TestRequireLogin_DeactivatedUser_Rejected covers V5: is_active=false must end
+// the session on the next request, not at cookie expiry.
+func TestRequireLogin_DeactivatedUser_Rejected(t *testing.T) {
+	store := newTestStore()
+	cookies := injectSessionMiddleware(t, store, map[interface{}]interface{}{
+		"user_id":       11,
+		"last_activity": time.Now().Unix(),
+	})
+
+	user := activeUser(11, "admin")
+	user.IsActive = false
+
+	handler := RequireLogin(store, fakeLoader(user))(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	req := newReq("GET", "/protected")
+	applyRequestCookies(req, cookies)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusFound {
+		t.Errorf("deactivated user: expected 302, got %d", rr.Code)
+	}
+}
+
+// TestRequireLogin_DeletedUser_Rejected covers the deleted-account half of V5:
+// the row is gone, so the loader errors.
+func TestRequireLogin_DeletedUser_Rejected(t *testing.T) {
+	store := newTestStore()
+	cookies := injectSessionMiddleware(t, store, map[interface{}]interface{}{
+		"user_id":       404,
+		"last_activity": time.Now().Unix(),
+	})
+
+	handler := RequireLogin(store, fakeLoader())(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	req := newReq("GET", "/protected")
+	applyRequestCookies(req, cookies)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusFound {
+		t.Errorf("deleted user: expected 302, got %d", rr.Code)
+	}
+}
+
+// TestRequireRole_FollowsDemotion asserts the role gate reads the live user row:
+// a cookie minted while the user was an admin loses admin routes as soon as the
+// database says viewer.
+func TestRequireRole_FollowsDemotion(t *testing.T) {
+	store := newTestStore()
+	cookies := injectSessionMiddleware(t, store, map[interface{}]interface{}{
+		"user_id":       5,
+		"role":          "admin",
+		"last_activity": time.Now().Unix(),
+	})
+
+	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	// UpdateUserRole bumps the epoch too, but the session predates that column
+	// for pre-existing cookies, so the role check must stand on its own.
+	handler := RequireLogin(store, fakeLoader(activeUser(5, "viewer")))(RequireRole("admin")(inner))
+
+	req := newReq("GET", "/admin")
+	applyRequestCookies(req, cookies)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Errorf("demoted user on an admin route: expected 403, got %d", rr.Code)
 	}
 }

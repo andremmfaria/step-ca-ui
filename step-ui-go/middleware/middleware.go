@@ -3,12 +3,26 @@
 package middleware
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"time"
 
+	"step-ui/models"
+
 	"github.com/gorilla/sessions"
 )
+
+// UserLoader returns the current database row for a session's user_id.
+// RequireLogin takes it as a parameter rather than a *sql.DB so this package
+// stays free of a database dependency and testable without one.
+type UserLoader func(id int) (*models.User, error)
+
+type ctxKey int
+
+// ctxKeyUser holds the user RequireLogin loaded, so that middleware further
+// down the chain does not query the database again.
+const ctxKeyUser ctxKey = iota
 
 // SessionTimeout is the idle (sliding-window) timeout.  A session that has
 // not been active for this long is invalidated regardless of creation time.
@@ -52,7 +66,7 @@ func SecurityHeaders(enableHSTS bool) func(http.Handler) http.Handler {
 }
 
 // RequireLogin checks that the user is authenticated
-func RequireLogin(store *sessions.CookieStore) func(http.Handler) http.Handler {
+func RequireLogin(store *sessions.CookieStore, loadUser UserLoader) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			sess, err := store.Get(r, "step-ui")
@@ -93,27 +107,51 @@ func RequireLogin(store *sessions.CookieStore) func(http.Handler) http.Handler {
 				}
 			}
 			sess.Values["last_activity"] = now.Unix()
+			// The cookie store is client-side, so the checks above cannot see a
+			// user who was deactivated, deleted or had their sessions revoked
+			// since the cookie was minted. Re-read the row on every request.
+			id, _ := userID.(int)
+			user, err := loadUser(id)
+			if err != nil || user == nil || !user.IsActive {
+				slog.Warn("session rejected: user missing or inactive", "user_id", id, "err", err)
+				rejectSession(w, r, sess)
+				return
+			}
+			epoch, _ := sess.Values["session_epoch"].(int)
+			if epoch != user.SessionEpoch {
+				slog.Warn("session rejected: stale epoch", "user_id", id, "session_epoch", epoch, "user_epoch", user.SessionEpoch)
+				rejectSession(w, r, sess)
+				return
+			}
 			_ = sess.Save(r, w)
-			next.ServeHTTP(w, r)
+			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), ctxKeyUser, user)))
 		})
 	}
 }
 
-// RequireRole checks the user's role (viewer=1, manager=2, admin=3)
-func RequireRole(minRole string, store *sessions.CookieStore) func(http.Handler) http.Handler {
+// rejectSession clears the session and sends the client back to the login page.
+func rejectSession(w http.ResponseWriter, r *http.Request, sess *sessions.Session) {
+	sess.Values = map[interface{}]interface{}{}
+	_ = sess.Save(r, w)
+	http.Redirect(w, r, "/login", http.StatusFound)
+}
+
+// RequireRole checks the user's role (viewer=1, manager=2, admin=3).
+// The role comes from the user RequireLogin loaded, not from the session, so a
+// demotion takes effect on the very next request.
+func RequireRole(minRole string) func(http.Handler) http.Handler {
 	roleLevel := map[string]int{"viewer": 1, "manager": 2, "admin": 3}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			sess, err := store.Get(r, "step-ui")
-			if err != nil {
-				slog.Warn("session decode failed; redirecting to login", "remote", r.RemoteAddr, "host", r.Host, "path", r.URL.Path, "err", err)
-				sess.Options.MaxAge = -1
-				_ = sess.Save(r, w)
-				http.Redirect(w, r, "/login", http.StatusFound)
+			user, ok := r.Context().Value(ctxKeyUser).(*models.User)
+			if !ok || user == nil {
+				// Only reachable if this middleware is mounted outside a
+				// RequireLogin group, which is a routing bug: refuse.
+				slog.Error("RequireRole reached with no authenticated user in context", "path", r.URL.Path)
+				http.Error(w, "403 Forbidden", http.StatusForbidden)
 				return
 			}
-			role, _ := sess.Values["role"].(string)
-			if roleLevel[role] < roleLevel[minRole] {
+			if roleLevel[user.Role] < roleLevel[minRole] {
 				http.Error(w, "403 Forbidden", http.StatusForbidden)
 				return
 			}

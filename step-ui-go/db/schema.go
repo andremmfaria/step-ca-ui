@@ -125,6 +125,23 @@ func InitSchema(d *sql.DB) error {
 		return err
 	}
 
+	// -- migration: users.auth_source (V1): an OIDC upsert may only touch rows
+	// it owns, otherwise it promotes a local account whose password still works.
+	if _, err := d.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_source VARCHAR(10) NOT NULL DEFAULT 'local'`); err != nil { //nolint:noctx // pre-existing signature
+		return fmt.Errorf("migration users.auth_source: %w", err)
+	}
+	// Rows predating the column carry the OIDC sentinel hash; the 'local' guard
+	// keeps the backfill idempotent.
+	if _, err := d.Exec(`UPDATE users SET auth_source='oidc' WHERE auth_source='local' AND password_hash='oidc:jumpcloud'`); err != nil { //nolint:noctx // pre-existing signature
+		return fmt.Errorf("migration users.auth_source backfill: %w", err)
+	}
+
+	// -- migration: users.session_epoch (V3, V5, V8): bumping it revokes every
+	// session cookie issued before the bump.
+	if _, err := d.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS session_epoch INTEGER NOT NULL DEFAULT 0`); err != nil { //nolint:noctx // pre-existing signature
+		return fmt.Errorf("migration users.session_epoch: %w", err)
+	}
+
 	// Create admin user if no users exist
 	var count int
 	if err := d.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&count); err != nil { //nolint:noctx // pre-existing signature

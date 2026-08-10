@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/mail"
 	"strconv"
@@ -125,6 +126,9 @@ func (h *Handler) UsersPost(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 		_ = appdb.UpdateUserPassword(h.db, uid, security.HashPassword(newPW))
+		if err := appdb.BumpSessionEpoch(h.db, uid); err != nil {
+			slog.Error("bumping session epoch after admin password reset failed", "uid", uid, "err", err)
+		}
 		pwTarget, _ := appdb.GetUserByID(h.db, uid)
 		if pwTarget != nil {
 			h.auditSecurity(r, fmt.Sprintf("user.reset_password target=%s uid=%d", pwTarget.Username, uid))
@@ -207,14 +211,8 @@ func (h *Handler) ProfilePost(w http.ResponseWriter, r *http.Request) {
 		return
 
 	case "update_info":
-		username := trimStr(r.FormValue("username"))
 		displayName := trimStr(r.FormValue("display_name"))
 		email := trimStr(r.FormValue("email"))
-		if username == "" {
-			h.flash(w, r, "err", "Username cannot be empty")
-			http.Redirect(w, r, "/profile", http.StatusFound)
-			return
-		}
 		if email != "" {
 			parsed, err := mail.ParseAddress(email)
 			if err != nil {
@@ -224,22 +222,11 @@ func (h *Handler) ProfilePost(w http.ResponseWriter, r *http.Request) {
 			}
 			email = parsed.Address
 		}
-		// Check that the username is not taken by another user
-		exists, _ := appdb.UsernameExistsExceptID(h.db, username, si.UserID)
-		if exists {
-			h.flash(w, r, "err", "A user with that username already exists")
-			http.Redirect(w, r, "/profile", http.StatusFound)
-			return
-		}
-		if err := appdb.UpdateUserInfo(h.db, si.UserID, username, displayName, email); err != nil {
+		if err := appdb.UpdateUserInfo(h.db, si.UserID, displayName, email); err != nil {
 			h.flash(w, r, "err", "Update error: "+err.Error())
 			http.Redirect(w, r, "/profile", http.StatusFound)
 			return
 		}
-		// Update username in session
-		s := h.sess(r)
-		s.Values["username"] = username
-		_ = s.Save(r, w)
 		h.flash(w, r, "ok", "Profile updated")
 		http.Redirect(w, r, "/profile", http.StatusFound)
 		return
@@ -266,6 +253,16 @@ func (h *Handler) ProfilePost(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		_ = appdb.UpdateUserPassword(h.db, si.UserID, security.HashPassword(newPW))
+		// Revokes the user's other sessions (V8). The acting session is
+		// re-stamped so changing a password does not log the user out of the
+		// page they are standing on.
+		if err := appdb.BumpSessionEpoch(h.db, si.UserID); err != nil {
+			slog.Error("bumping session epoch after password change failed", "user_id", si.UserID, "err", err)
+		} else if fresh, err := appdb.GetUserByID(h.db, si.UserID); err == nil && fresh != nil {
+			s := h.sess(r)
+			s.Values["session_epoch"] = fresh.SessionEpoch
+			_ = s.Save(r, w)
+		}
 		h.flash(w, r, "ok", "Password changed successfully")
 		http.Redirect(w, r, "/profile", http.StatusFound)
 		return

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"strconv"
@@ -194,6 +195,7 @@ func (h *Handler) completeLogin(w http.ResponseWriter, r *http.Request, user *mo
 	s.Values["user_id"] = user.ID
 	s.Values["username"] = user.Username
 	s.Values["role"] = user.Role
+	s.Values["session_epoch"] = user.SessionEpoch
 	s.Values["last_activity"] = time.Now().Unix()
 	s.Values["csrf_token"] = security.GenerateToken()
 	_ = s.Save(r, w)
@@ -204,6 +206,11 @@ func (h *Handler) completeLogin(w http.ResponseWriter, r *http.Request, user *mo
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	si := h.sessionInfo(r)
 	if si.UserID != 0 {
+		// Dropping the browser's copy of a client-side cookie is not
+		// revocation; the epoch bump is what kills a captured one (V3).
+		if err := appdb.BumpSessionEpoch(h.db, si.UserID); err != nil {
+			slog.Error("bumping session epoch on logout failed", "user_id", si.UserID, "err", err)
+		}
 		_ = appdb.LogAuth(h.db, si.Username, r.RemoteAddr, true, "Logout")
 	}
 	s := h.sess(r)

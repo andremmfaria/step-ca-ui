@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"log"
 	"net/http"
 
@@ -194,6 +195,12 @@ func (h *Handler) OIDCCallback(w http.ResponseWriter, r *http.Request) {
 
 	// --- upsert user ---
 	user, err := appdb.UpsertOIDCUser(h.db, username, displayName, role, h.cfg.OIDCSyncRole)
+	if errors.Is(err, appdb.ErrOIDCLocalUser) {
+		_ = appdb.LogAuth(h.db, username, ip, false, "OIDC: username collides with a local account")
+		h.flash(w, r, "err", "Access denied: that username belongs to a local account. Contact an administrator.")
+		http.Redirect(w, r, "/login", http.StatusFound)
+		return
+	}
 	if err != nil || user == nil {
 		// DB errors may surface internal details; log server-side, store a fixed reason.
 		if err != nil {

@@ -11,6 +11,7 @@ import (
 
 	"step-ui/config"
 	"step-ui/middleware"
+	"step-ui/models"
 	"step-ui/security"
 
 	"github.com/gorilla/sessions"
@@ -221,13 +222,13 @@ func TestPending2FAUserID_NotSet(t *testing.T) {
 // ─── RBAC via RequireRole middleware ──────────────────────────────────────────
 
 // TestRequireRole_AdminCanAccessAdminRoute confirms the middleware integration
-// tested end-to-end: admin session → 200; viewer session → 403.
+// tested end-to-end: admin session → 200; viewer session → 403.  The role comes
+// from the user RequireLogin loads, so the fake loader is the source of truth.
 func TestRequireRole_AdminCanAccessAdminRoute(t *testing.T) {
 	store := testStore()
 	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
-	handler := middleware.RequireRole("admin", store)(inner)
 
 	for _, tc := range []struct {
 		role string
@@ -239,8 +240,14 @@ func TestRequireRole_AdminCanAccessAdminRoute(t *testing.T) {
 		{"", http.StatusForbidden},
 	} {
 		t.Run("role_"+tc.role, func(t *testing.T) {
+			loader := func(id int) (*models.User, error) {
+				return &models.User{ID: id, Username: "u", Role: tc.role, IsActive: true}, nil
+			}
+			handler := middleware.RequireLogin(store, loader)(middleware.RequireRole("admin")(inner))
 			cookies := injectSession(t, store, map[interface{}]interface{}{
-				"role": tc.role,
+				"user_id":       1,
+				"role":          tc.role,
+				"last_activity": time.Now().Unix(),
 			})
 			req := httptest.NewRequestWithContext(context.Background(), "GET", "/admin", nil)
 			for _, c := range cookies {

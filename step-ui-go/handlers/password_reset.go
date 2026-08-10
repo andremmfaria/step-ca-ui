@@ -195,6 +195,12 @@ func (h *Handler) ResetPasswordPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// A reset is the recovery path for a compromised account, so every session
+	// predating it dies (V8).
+	if err := appdb.BumpSessionEpoch(h.db, user.ID); err != nil {
+		slog.Error("bumping session epoch after password reset failed", "user_id", user.ID, "err", err)
+	}
+
 	// Invalidate on use: mark this token used AND invalidate any others for the user.
 	_ = appdb.MarkPasswordResetTokenUsed(h.db, resetToken.ID)
 	_ = appdb.InvalidatePasswordResetTokens(h.db, user.ID)
