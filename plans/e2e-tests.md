@@ -13,7 +13,7 @@ Status: 2026-08-10. Verified against `step-ui-go/` at `a7b59b8`.
 | [3. Test suites](#3-test-suites) | 3.0 Conventions and execution order · 3.1 Bootstrap · 3.2 Auth · 3.3 RBAC · 3.4 Certificates · 3.5 Provisioners · 3.6 History and security log · 3.7 Admin · 3.8 Backup · 3.9 Health · 3.10 UI-cert renewal · 3.11 CSRF · 3.12 Config and static · 3.13 Temporary users · 3.14 Let's Encrypt · 3.15 Notifications |
 | [4. Automation and CI](#4-automation-and-ci) | 4.1 Tooling · 4.2 Topology · 4.3 Jobs · 4.4 Existing workflows · 4.5 Secrets · 4.6 Artifacts · 4.7 Flake policy |
 | [5. Traceability](#5-traceability) | 5.1 Acceptance criteria · 5.2 Risk register · 5.3 Coverage by area · 5.4 Source file to test |
-| [6. Application findings](#6-application-findings) | V1 to V10, five fixed on 2026-08-10, and what the suite asserts about each |
+| [6. Application findings](#6-application-findings) | V1 to V12, all closed on 2026-08-10, and what the suite asserts about each |
 | [Appendix A](#appendix-a-test-index) | Test index, all 79, sorted by ID |
 | [Appendix B](#appendix-b-workflow-file) | The workflow file |
 
@@ -56,7 +56,7 @@ The suite was seeded from `plans/step-cli-to-ca-lib-swap.md`. Section 5 traces w
 - Certificate issuance producing material a real `openssl`/`tls.LoadX509KeyPair` can parse, with SANs, duration and key type matching what was requested. This is Risk R4's "what would have to be true for this plan to fail silently": the locally-built CSR's shape must match `step ca certificate`'s, not merely "issuance succeeded".
 - Revocation actually rejected CA-side on reuse (Risk R7). `Revoke()` returning `nil` is not proof.
 - Fresh-volume `docker compose up` behaviour, which unit tests structurally cannot exercise.
-- The full configuration-switch and response-header matrix. Nine environment keys change runtime behaviour, and a response header is only observable on the wire. Section 3.12 enumerates all nine and says which test covers each.
+- The full configuration-switch and response-header matrix. Eleven environment keys change runtime behaviour, and a response header is only observable on the wire. Section 3.12 enumerates all eleven and says which test covers each.
 - Let's Encrypt (`le/`, `handlers/le_renewer.go`). Eleven routes behind a manager gate, a second certificate-issuance backend with its own downloads and its own renewal goroutine. It is in scope, behind an env flag with skip-with-reason, on the same discipline this suite applies to OIDC.
 
 **What e2e does NOT cover** (already gated elsewhere, do not duplicate):
@@ -91,15 +91,14 @@ The PR tier blocks both pull requests and pushes to `main`. There is no main-onl
 
 ### 1.2 Tests that cannot be green today
 
-Three tests depend on something that has not been done. The V1, V2, V3, V5 and V8 fixes landed on 2026-08-10, so E2E-AUTH-12, E2E-AUTH-13, E2E-AUTH-14, E2E-AUTH-15, E2E-TEMP-02 and E2E-LE-04 now assert the fixed behaviour and are expected green.
+**Every application finding in Section 6 is closed as of 2026-08-10.** Two tests remain blocked, and neither is waiting on a security defect.
 
 | Test | Blocker | Unblocked by |
 |---|---|---|
 | E2E-SEC-06 | `Cache-Control: no-store` is absent on all five routes | a one-line addition to `mw.SecurityHeaders` or a per-route middleware |
 | E2E-RENEW-01 | `uiIssueDuration` is a package constant | the `UI_CERT_DURATION` prerequisite in Section 2.7.4. If it is not made, delete the test |
-| E2E-CERT-12 | V6, no X.509 name policy exists | a team decision. The test asserts whichever outcome is chosen |
 
-E2E-CFG-02 is not blocked. It asserts V4, which is still open, and it is expected to keep passing until `TRUST_PROXY` gains a trusted-proxy allowlist, at which point it inverts alongside E2E-CFG-03.
+Nothing else in Section 3 is expected red. In particular E2E-AUTH-11 through E2E-AUTH-15, E2E-TEMP-01, E2E-TEMP-02, E2E-CERT-12, E2E-CFG-02, E2E-CFG-03, E2E-ADM-08 and E2E-LE-04 all assert fixed behaviour and are expected green.
 
 ### 1.3 Tier rosters
 
@@ -207,13 +206,14 @@ Three of those six rows end in a self-signed certificate, and all three log a me
 | `UI_TLS_MODE`, `CA_FINGERPRINT`, `CA_ROOT_CERT_PEM`, `UI_HOSTNAME`, `HOST_IP`, `UI_HTTPS_PORT` | yes | `.env` |
 | `SESSION_SECURE`, `ENABLE_HSTS`, `PUBLIC_BASE_URL`, `STEPUI_ADMIN_PASSWORD` | yes | `.env` |
 | `PROVISIONER`, `TZ`, `STEP_CA_IMAGE`, `STEPCA_DEFAULT_TLS_CERT_DURATION`, `STEPCA_MAX_TLS_CERT_DURATION` | yes | `.env`, then restart the affected service |
+| `ALLOWED_DOMAIN_SUFFIXES` | yes | `.env`, then restart `step-ui`. Comma-separated; empty means unrestricted |
 | `SECRET_KEY_FILE` | yes, but hardcoded to `/run/secrets/secret_key` (`:100`) | not settable |
 | `SECRET_KEY` | **no** key exists in the block at all | write the value into `secrets/secret_key` |
 | `ROOT_CERT` | **no**, literal at `:86` | `compose.e2e-fingerprint.yml` |
 | `CA_URL` | **no**, literal at `:85` | compose override |
 | `PASSWORD_FILE` | **no**, literal at `:88` | compose override |
 | all ten `OIDC_*` | **no**, absent | `compose.e2e-oidc.yml` |
-| `TRUST_PROXY`, `LOCAL_LOGIN_ENABLED` | **no**, absent | `compose.e2e-oidc.yml` |
+| `TRUST_PROXY`, `TRUSTED_PROXY_CIDRS`, `LOCAL_LOGIN_ENABLED` | **no**, absent | `compose.e2e-oidc.yml`. `TRUST_PROXY=true` without a usable `TRUSTED_PROXY_CIDRS` is fatal at boot |
 | `USE_HTTPS` | **no**, absent | `compose.e2e-config.yml` |
 | `SSL_CERT`, `SSL_KEY` | **no**, and not env vars in the code either | write to the fixed paths in `step-ui-ssl` |
 
@@ -247,7 +247,7 @@ Nothing in Section 3 is runnable until this list is built. Every item is referen
 | `compose.e2e-image.yml` | replaces `step-ui`'s `build:` block with `image: step-ca-ui:e2e` | every CI job. Without it each job pays its own `up -d --build` |
 | `compose.e2e-fingerprint.yml` | drops the `step-ca-data:/home/step:ro` mount, sets `ROOT_CERT: /opt/step-ui/data/root_ca.crt` on a writable volume | E2E-BOOT-01, E2E-BOOT-05, E2E-BOOT-06, E2E-BOOT-09 |
 | `compose.e2e-nodeps.yml` | removes `step-ui`'s `depends_on` conditions on `step-ca` and `postgres` | E2E-BOOT-02, E2E-BOOT-07 case (c) |
-| `compose.e2e-oidc.yml` | adds `ghcr.io/navikt/mock-oauth2-server` and passes through all ten `OIDC_*` keys plus `LOCAL_LOGIN_ENABLED` and `TRUST_PROXY` | E2E-AUTH-08, E2E-AUTH-13, E2E-CFG-01's `LOCAL_LOGIN_ENABLED` row, E2E-CFG-02, E2E-CFG-03 |
+| `compose.e2e-oidc.yml` | adds `ghcr.io/navikt/mock-oauth2-server` and passes through all ten `OIDC_*` keys plus `LOCAL_LOGIN_ENABLED`, `TRUST_PROXY` and `TRUSTED_PROXY_CIDRS` | E2E-AUTH-08, E2E-AUTH-13, E2E-CFG-01's `LOCAL_LOGIN_ENABLED` row, E2E-CFG-02, E2E-CFG-03 |
 | `compose.e2e-mail.yml` | adds `axllent/mailpit`, SMTP on 1025 and HTTP API on 8025 | E2E-AUTH-09, E2E-NOTIF-01 |
 | `compose.e2e-le.yml` | adds a local ACME server and a challenge responder, gated on `E2E_LE_ENABLED=1` | E2E-LE-01 through E2E-LE-04, and the `/le/*` rows of E2E-RBAC-01 |
 | `compose.e2e-config.yml` | passes through `USE_HTTPS` | E2E-CFG-01's `USE_HTTPS` row |
@@ -348,7 +348,7 @@ Every test that depends on a flagged stack **skips with an explicit reason** whe
 
 1. **Fixtures.** Create `viewer_user`, `manager_user` and the dedicated 2FA subject. Seed `cert_history` for E2E-HIST-01.
 2. **E2E-AUTH-01, E2E-AUTH-11, E2E-CSRF-01, E2E-CSRF-05, E2E-RBAC-01 to E2E-RBAC-03, E2E-STATIC-01, E2E-SEC-06.** These need a working login and nothing else. E2E-CSRF-05 needs two independent sessions established in the same step.
-3. **E2E-CERT-01 through E2E-CERT-13.** E2E-CERT-04 and E2E-CERT-05 must operate on **different** certificate ids, since revocation and renewal interfere. E2E-CERT-07 issues its own material rather than borrowing E2E-CERT-01's, because a revoked certificate keeps both its file and its row and a scan therefore finds nothing. E2E-CERT-11 restarts `step-ca` twice and takes the barrier. E2E-CERT-13 destroys `e2e-server-ec-p256`, so it runs after every test that reads it.
+3. **E2E-CERT-01 through E2E-CERT-13.** E2E-CERT-04 and E2E-CERT-05 must operate on **different** certificate ids, since revocation and renewal interfere. E2E-CERT-07 issues its own material rather than borrowing E2E-CERT-01's, because a revoked certificate keeps both its file and its row and a scan therefore finds nothing. E2E-CERT-11 restarts `step-ca` twice and E2E-CERT-12 restarts `step-ui` once, so both take the barrier. E2E-CERT-13 destroys `e2e-server-ec-p256`, so it runs after every test that reads it.
 4. **E2E-PROV-01 then E2E-PROV-02**, adjacent and in that order. The first is the second's positive control.
 5. **E2E-HIST-01 to E2E-HIST-03, E2E-SEC-01.**
 6. **E2E-ADM-01 to E2E-ADM-05, E2E-ADM-07, E2E-ADM-08, then E2E-SEC-02.** E2E-SEC-02 asserts E2E-ADM-01's `console.run` row and must follow it.
@@ -366,7 +366,7 @@ Every test that depends on a flagged stack **skips with an explicit reason** whe
 
 Every test that stops, restarts or kills a container runs behind a shared **start-and-wait-healthy barrier**, never in parallel with issuance, and must restore the service and wait for healthy before releasing it. This is the canonical list, and the individual tests carry only the tag:
 
-E2E-PROV-02, E2E-ADM-03, E2E-CERT-11, E2E-HLTH-01, E2E-HLTH-03, E2E-HLTH-04, E2E-HLTH-05, E2E-HLTH-06, E2E-AUTH-09 (which restarts `step-ui` to clear its reset budget), and E2E-AUTH-03's teardown fallback.
+E2E-PROV-02, E2E-ADM-03, E2E-CERT-11, E2E-CERT-12, E2E-CFG-01, E2E-HLTH-01, E2E-HLTH-03, E2E-HLTH-04, E2E-HLTH-05, E2E-HLTH-06, E2E-AUTH-09 (which restarts `step-ui` to clear its reset budget), and E2E-AUTH-03's teardown fallback.
 
 #### 3.0.5 Log-absence isolation
 
@@ -380,7 +380,7 @@ These IDs are not in use. They are recorded so that an external reference to one
 |---|---|
 | E2E-AUTH-10 | session idle timeout and absolute lifetime. Asserted in `middleware/middleware_test.go` |
 | E2E-ADM-06 | admin-console allowlist size. A unit assertion over the `adminConsoleCommands` slice, not a count of rendered `<option>` elements |
-| E2E-CSRF-02, -03, -04 | subsumed by E2E-CSRF-01, whose route list is derived from the router and therefore covers all twenty-two POST routes |
+| E2E-CSRF-02, -03, -04 | subsumed by E2E-CSRF-01, whose route list is derived from the router and therefore covers all twenty-three POST routes |
 | E2E-RBAC-N+1, -N+2 | renumbered to E2E-RBAC-02 and E2E-RBAC-03 |
 | E2E-RBAC-N+3 | subsumed by E2E-AUTH-14, which asserts privilege changes reaching a live session |
 
@@ -575,7 +575,7 @@ The last two assertions are the point of the test. Without them it passes agains
 
 *Tier:* PR (bootstrap matrix, scenario `fatals`).
 
-*Objective:* Pin the three intended `log.Fatal` paths, so that "never fatal on CA failure" is asserted against a known set of fatals that are intended.
+*Objective:* Pin the five intended `log.Fatal` paths, so that "never fatal on CA failure" is asserted against a known set of fatals that are intended.
 
 *Preconditions:* Fresh volumes for cases (b) and (c). Each case is a separate `up` of `step-ui` alone with the rest of the stack already healthy. Unlike every other bootstrap scenario, `scenario.sh fatals` does **not** set `STEPUI_ADMIN_PASSWORD` for case (b), which needs it absent.
 
@@ -583,9 +583,11 @@ The last two assertions are the point of the test. Without them it passes agains
 
 | Case | Injected condition | Expected |
 |---|---|---|
-| (a) weak `SECRET_KEY` | write the literal `change-me-in-production-32chars!` into `secrets/secret_key`, then repeat with a string shorter than 32 bytes | Container exits non-zero. Logs contain `FATAL: SECRET_KEY is the default or shorter than 32 chars` (`main.go:128`). Both sub-cases tested |
+| (a) weak `SECRET_KEY` | write the literal `change-me-in-production-32chars!` into `secrets/secret_key`, then repeat with a string shorter than 32 bytes | Container exits non-zero. Logs contain `FATAL: SECRET_KEY is the default or shorter than 32 chars` (`main.go:132`). Both sub-cases tested |
 | (b) empty users table with no admin password | fresh `postgres-data`, `STEPUI_ADMIN_PASSWORD` unset | Container exits non-zero and `restart: unless-stopped` puts it in a visible restart loop. Logs contain `No admin user exists and STEPUI_ADMIN_PASSWORD is not set` (`db/schema.go:133-144`) |
-| (c) database unreachable | `docker compose stop postgres`, plus `compose.e2e-nodeps.yml` | Container exits non-zero. Logs contain `Cannot connect to database:` (`main.go:137`). Bound the wait at **90s**: `entrypoint.sh:70-77` runs a 60-iteration one-second wait-for-PostgreSQL loop before exec'ing the binary, so the fatal is delayed by up to 60s and is preceded by `PostgreSQL not reachable ... continuing; the app will retry.` |
+| (c) database unreachable | `docker compose stop postgres`, plus `compose.e2e-nodeps.yml` | Container exits non-zero. Logs contain `Cannot connect to database:` (`main.go:161`). Bound the wait at **90s**: `entrypoint.sh:70-77` runs a 60-iteration one-second wait-for-PostgreSQL loop before exec'ing the binary, so the fatal is delayed by up to 60s and is preceded by `PostgreSQL not reachable ... continuing; the app will retry.` |
+| (d) `TRUST_PROXY=true` with no usable CIDR list | `TRUST_PROXY=true`, `TRUSTED_PROXY_CIDRS` unset, then again with `not-a-cidr` | Container exits non-zero. Logs contain `FATAL: TRUST_PROXY=true requires a usable TRUSTED_PROXY_CIDRS` (`main.go:142-145`). E2E-CFG-03 covers the same two cases from the configuration side |
+| (e) bad `OIDC_DEFAULT_ROLE` with OIDC on | `OIDC_ENABLED=true`, `OIDC_DEFAULT_ROLE=nonsense` | Container exits non-zero. Logs contain `is not one of viewer, manager, admin` (`main.go:151-153`). The value is operator-supplied and reaches a role field without passing either `UsersPost` check, so it was a second route around the V9 invariant |
 
 The `SECRET_KEY` mechanism in case (a) is not interchangeable with an `.env` edit. `docker-compose.yml:100` passes only `SECRET_KEY_FILE`, and there is no `SECRET_KEY` key in the `step-ui` environment block, so setting it in `.env` is the silent no-op described in Section 2.5. The value has to reach `secrets/secret_key`.
 
@@ -645,7 +647,7 @@ For every case, assert `docker inspect --format '{{.State.ExitCode}}' step-ui` i
 
 Shared preconditions unless noted: long-lived stack up, admin seeded, harness running as a container on `step-net` so that each test can own its source IP, and a second non-admin user created via `POST /admin/users` (Section 3.3 covers that endpoint).
 
-**Ordering constraints for this section, which are load-bearing.** `security.RL` keys on the client IP and `IsBlocked` is consulted *before* credential verification (`handlers/auth.go:63-69`), so E2E-AUTH-02 and E2E-AUTH-03 poison their source IP for roughly five minutes for every subsequent login from it. Two remedies, and the suite uses both: give those two tests their own harness container with its own address, and run them last within the section. E2E-AUTH-04 through E2E-AUTH-07 leave TOTP enabled on their subject, so they use a dedicated user and a mandatory disable teardown. E2E-AUTH-09 consumes its own 3-per-15-minute budget and is bounded by `docker compose restart step-ui`, which clears both process-local limiter maps.
+**Ordering constraints for this section, which are load-bearing.** `security.RL` keys on the client IP and `IsBlocked` is consulted *before* credential verification (`handlers/auth.go:64-70`), so E2E-AUTH-02 and E2E-AUTH-03 poison their source IP for roughly five minutes for every subsequent login from it. Two remedies, and the suite uses both: give those two tests their own harness container with its own address, and run them last within the section. E2E-AUTH-04 through E2E-AUTH-07 leave TOTP enabled on their subject, so they use a dedicated user and a mandatory disable teardown. E2E-AUTH-09 consumes its own 3-per-15-minute budget and is bounded by `docker compose restart step-ui`, which clears both process-local limiter maps.
 
 Session idle timeout and absolute lifetime are not re-tested here. `middleware/middleware_test.go` already asserts them directly (`TestRequireLogin_AbsoluteLifetimeExpired`, `TestRequireLogin_ExpiredSession_Redirects`, `TestRequireLogin_FreshSession_AbsoluteLifetimeNotExpired`), and `SessionTimeout=8h`/`SessionMaxLifetime=24h` are Go constants (`middleware/middleware.go:15,20`) that no environment variable can shorten.
 
@@ -662,7 +664,7 @@ Session idle timeout and absolute lifetime are not re-tested here. `middleware/m
 
 *Assertions:*
 - Step 2 returns `302` with `Location: /`.
-- `T_post != T_pre`. `completeLogin` resets `s.Values` and assigns a freshly generated CSRF token (`handlers/auth.go:190-200`).
+- `T_post != T_pre`. `completeLogin` resets `s.Values` and assigns a freshly generated CSRF token (`handlers/auth.go:192-202`).
 - Step 4 is **rejected**: `303` to `/profile` with the flash `Session error. Please refresh the page.` The pre-login token must not validate against the post-login session.
 - An `auth_log` row exists with `success=true` and an empty reason, visible at `/admin/security` with label `Login`.
 
@@ -675,14 +677,16 @@ Do **not** assert "the session cookie value changed". `securecookie` encrypts wi
 
 *Tier:* PR. Runs on its own harness IP, near the end of the section.
 
-*Steps:* `POST /login` five times with a valid `username`, a wrong `password` and a valid `csrf_token`, from a single source IP, capturing the flash each time. Then `GET /admin/security` from a separate admin session on a different IP.
+*Steps:* `POST /login` five times with a valid `username`, a wrong `password` and a valid `csrf_token`, from a single source IP. After each POST, follow the redirect to `GET /login` and capture the rendered page. Then `GET /admin/security` from a separate admin session on a different IP.
 
 *Assertions:*
-- The flashes on attempts 1 through 4 are, in order, `Invalid username or password. Attempts remaining: 4`, then `3`, then `2`, then `1`. Asserting only the first message pins a compile-time constant (`security.LimitCount = 5`, `security/security.go:111`) and passes against a counter that never decrements. The descending sequence is what tests the counter.
-- The flash on attempt 5 is `Too many attempts. Please wait 15 minutes.`
-- Every attempt returns `302` to `/login`. The wrong-credential branch redirects with a flash (`handlers/auth.go:99`). This is not the shape of the blocked branch that E2E-AUTH-03 exercises, which renders inline at `200`, nor of the CSRF and policy paths, which also render inline.
+- Attempts 1 through 4 each carry a flash, and the four texts in order are `Invalid username or password. Attempts remaining: 4`, then `3`, then `2`, then `1`. Asserting only the first message pins a compile-time constant (`security.LimitCount = 5`, `security/security.go:111`) and passes against a counter that never decrements. The descending sequence is what tests the counter.
+- **Attempt 5 carries no flash.** The message arrives on the *following* `GET /login` as `.Error`, because `LoginGet`'s `IsBlocked` branch renders it and the fifth-attempt flash was deliberately removed so the page does not show two error boxes (`handlers/auth.go:98-101`, and see Section 6.12). Assert that the page after attempt 5 contains exactly **one** occurrence of `Too many attempts. Please wait 15 minutes.` A test that looks for a flash here fails, and a test that counts occurrences loosely would have passed against the duplicated rendering this replaced.
+- Every attempt returns `302` to `/login`. The wrong-credential branch redirects (`handlers/auth.go:102`). This is not the shape of the blocked branch that E2E-AUTH-03 exercises, which renders inline at `200`, nor of the CSRF and policy paths, which also render inline.
 - A `notifyAsync` event of kind `auth.failed_burst` at severity `warn` is recorded.
 - `/admin/security` contains five rows for this username with `success=false`, all labelled `Denied`. E2E-SEC-01 does not assert these rows, because it runs before this test.
+
+**Flash delivery is load-bearing for this test and roughly thirty others.** `models.FlashMsg` went unregistered with `gob` until 2026-08-10, so `sess.Save` failed and every flash was discarded (Section 6.11). Attempts 1 through 4 above are the suite's most direct check that the mechanism works at all.
 
 
 #### E2E-AUTH-03: a correct password is rejected while the IP is blocked
@@ -692,13 +696,14 @@ Do **not** assert "the session cookie value changed". `securecookie` encrypts wi
 *Steps:* `POST /login` with the **correct** credentials and a valid `csrf_token` from the blocked IP.
 
 *Assertions:*
-- **`200` with the page rendered inline**, not a redirect. The `IsBlocked` branch sets `data["Error"]` and `data["Blocked"] = true` and calls `h.render` (`handlers/auth.go:63-69`). There is no flash and no `Location` header.
-- The rendered page contains `Too many attempts. Please wait 15 minutes.`
+- **`200` with the page rendered inline**, not a redirect. The `IsBlocked` branch sets `data["Error"]` and `data["Blocked"] = true` and calls `h.render` (`handlers/auth.go:64-70`). There is no flash and no `Location` header.
+- The rendered page contains `Too many attempts. Please wait 15 minutes.` exactly once, from the `.Error` channel. `login.html` renders `.Error` and `.Msgs` in separate blocks, and this text must reach only the first.
+- The submit buttons render disabled, since `data["Blocked"]` drives that too.
 - No new session cookie, and no `auth_log` row for this attempt. `LoginPost` consults `security.RL.IsBlocked` before it reads the username or verifies the credential, so a correct password cannot pass a blocked IP. That ordering is the security property and it is the only part of the lockout observable over HTTP.
 
 *Not covered:* when the block actually clears. `clean()` consults only `LimitWindow = 5 * time.Minute` (`security/security.go:112`), while the user-facing copy says fifteen minutes and `security.BlockTime = 15 * time.Minute` (`:113`) is referenced nowhere outside its own declaration. The team owes a decision here, either a copy fix to five minutes or an implementation of `BlockTime`. It is a unit-level timing question and belongs in `security/security_test.go`, where the clock can be controlled. Observing it over HTTP costs six minutes of CI and races the five-minute boundary.
 
-*Teardown:* the block is cleared over HTTP, not by waiting. `POST /admin/users` as admin with `action=unblock_ip` and `target_ip=<the blocked ip>` calls `security.RL.Clear` (`handlers/users.go:112-118`). Assert that a subsequent correct login from that IP now succeeds. E2E-ADM-08 covers the same action from the administration side. `make e2e-restart-ui` is the fallback if the admin session is unavailable.
+*Teardown:* the block is cleared over HTTP, not by waiting. `POST /admin/users` as admin with `action=unblock_ip` and `target_ip=<the blocked ip>` calls `security.RL.Clear` (`handlers/users.go:125-131`). Assert that a subsequent correct login from that IP now succeeds. E2E-ADM-08 covers the same action from the administration side. `make e2e-restart-ui` is the fallback if the admin session is unavailable.
 
 
 #### E2E-AUTH-04: TOTP enrollment
@@ -735,10 +740,10 @@ Do **not** assert "the session cookie value changed". `securecookie` encrypts wi
 5. Establish a second, independent pending-2FA session in jar B for the same user, and `POST /login` there with the **same** code.
 
 *Assertions:*
-- Step 1 returns `302` to `/login`, not `/`. `user.TOTPEnabled` routes into the pending-2FA branch (`handlers/auth.go:115-122`), which stores `pending_2fa_user_id` in the session.
+- Step 1 returns `302` to `/login`, not `/`. `user.TOTPEnabled` routes into the pending-2FA branch (`handlers/auth.go:117-123`), which stores `pending_2fa_user_id` in the session.
 - Step 2 renders the TOTP and recovery-code fields (`templates/login.html:37,49`).
 - Step 4 returns `302` to `/`.
-- Step 5 is **rejected**: `302` to `/login` with flash `Invalid 2FA or recovery code` (`handlers/auth.go:150-155`). `validateTOTPWithReplayCtx` records the consumed step and refuses a repeat (`handlers/totp.go:206-230`). The window gate in step 3 makes this deterministic. Without it a code computed at second 29 expires between the two submissions and the test passes for the wrong reason.
+- Step 5 is **rejected**: `302` to `/login` with flash `Invalid 2FA or recovery code` (`handlers/auth.go:150-156`). `validateTOTPWithReplayCtx` records the consumed step and refuses a repeat (`handlers/totp.go:206-230`). The window gate in step 3 makes this deterministic. Without it a code computed at second 29 expires between the two submissions and the test passes for the wrong reason.
 
 
 #### E2E-AUTH-06: login with a recovery code
@@ -749,7 +754,7 @@ Do **not** assert "the session cookie value changed". `securecookie` encrypts wi
 
 *Steps:* reach the pending-2FA state as in E2E-AUTH-05, then `POST /login` with `recovery_code=<code>` instead of `totp_code` (field name at `templates/login.html:49`, matched case-insensitively at `handlers/totp.go:183`). Then repeat with the same code on a fresh pending-2FA session.
 
-*Assertions:* the first attempt returns `302` to `/` and writes an `auth_log` row with reason `Login with recovery code` (`handlers/auth.go:159`). The second attempt with the same code returns `302` to `/login` with flash `Invalid 2FA or recovery code`, since `appdb.UseRecoveryCode` marked it used. The remaining count of unused codes is 7.
+*Assertions:* the first attempt returns `302` to `/` and writes an `auth_log` row with reason `Login with recovery code` (`handlers/auth.go:161`). The second attempt with the same code returns `302` to `/login` with flash `Invalid 2FA or recovery code`, since `appdb.UseRecoveryCode` marked it used. The remaining count of unused codes is 7.
 
 
 #### E2E-AUTH-07: disabling 2FA requires the password and a fresh code
@@ -770,7 +775,7 @@ Do **not** assert "the session cookie value changed". `securecookie` encrypts wi
 *Preconditions:* stack composed with `compose.e2e-oidc.yml`, which supplies `ghcr.io/navikt/mock-oauth2-server` and passes through all ten `OIDC_*` variables plus `LOCAL_LOGIN_ENABLED`. `OIDC_ENABLED=true`. The harness must run on `step-net`, because the issuer URL in the discovery document has to resolve identically for the app and for the client. `h.initOIDC()` calls `gooidc.NewProvider` during `Handler` construction and `log.Fatalf`s on discovery failure (`handlers/handler.go:81-96`), so an unreachable issuer stops the whole application rather than just OIDC. Skip with an explicit reason, never silently, when the override is unavailable.
 
 *Steps:*
-1. `GET /auth/oidc/login`, registered only when `cfg.OIDCEnabled` (`main.go:203-206`). Follow the redirect to the IdP, capturing `state`, `nonce` and the PKCE challenge.
+1. `GET /auth/oidc/login`, registered only when `cfg.OIDCEnabled` (`main.go:226-229`). Follow the redirect to the IdP, capturing `state`, `nonce` and the PKCE challenge.
 2. Complete authentication at the mock IdP as a subject whose group claim matches `OIDC_GROUP_MANAGER`.
 3. Follow the callback to `/auth/oidc/callback`.
 4. Repeat, tampering with `state` on the callback.
@@ -817,19 +822,29 @@ Do **not** assert "the session cookie value changed". `securecookie` encrypts wi
 - The new password works at `/login` and the old one does not.
 
 
-#### E2E-AUTH-11: logout ends the session for the client that performed it
+#### E2E-AUTH-11: logout is a POST, and a GET to the same path logs nobody out
 
 *Tier:* PR.
 
-*Objective:* A session that has been logged out no longer authorises requests from the client that held it.
+*Objective:* A session that has been logged out no longer authorises requests from the client that held it, and logout cannot be triggered cross-site.
 
-*Steps:* log in as admin into jar A. `GET /` and confirm `200`. `GET /logout`. `GET /` again on the same jar. `GET /admin` on the same jar.
+*Steps:*
+1. Log in as admin into jar A and confirm `GET /` returns `200`.
+2. `GET /logout` on jar A.
+3. `GET /` on jar A.
+4. `POST /logout` on jar A with no `csrf_token`.
+5. `GET /` on jar A.
+6. `POST /logout` on jar A with the `csrf_token` scraped from the page's inline logout form.
+7. `GET /` and `GET /admin` on jar A.
 
-*Assertions:* `GET /logout` returns `302` to `/login`. Both subsequent requests return `302` to `/login`, not `403`. `RequireLogin` redirects rather than forbidding, and the difference between the two is itself a regression surface.
+*Assertions:*
+- **Step 2 returns `302` to `/login` and ends nothing.** Step 3 still returns `200`. `LogoutGet` is a bare redirect (`handlers/auth.go:209-211`, routed at `main.go:224`), kept so an old bookmark degrades rather than breaking. This is the assertion that would catch a regression back to the V10 shape, and it is worth more than the happy path.
+- **Step 4 returns `303` to `/`** with the session-error flash and ends nothing. Step 5 still returns `200`. `Logout` sits behind `requireCSRF` with `/` as its redirect target (`handlers/auth.go:215-217`).
+- Step 6 returns `302` to `/login`, and both requests in step 7 return `302` to `/login`, not `403`. `RequireLogin` redirects rather than forbidding, and the difference between the two is itself a regression surface.
+- The response to step 6 carries a session cookie with `Max-Age=-1`, and an `auth_log` row with reason `Logout`.
+- Both `base.html` and `admin_base.html` render an inline logout form with a `csrf_token`, so the POST is reachable from every authenticated page.
 
-E2E-AUTH-12 covers the stronger property, that a **copy** of the cookie taken before logout is also revoked.
-
-**This test pins `/logout` as a `GET` with no CSRF token** (`main.go:202`), which is Section 6.10's V10. Since logout now bumps `session_epoch`, a forced logout terminates every session that user holds rather than dropping one browser's cookie. If logout becomes a `POST` with a `csrf_token`, this test's method and the CSRF sweep's route list both change in that same commit.
+E2E-AUTH-12 covers the stronger property, that a **copy** of the cookie taken before logout is also revoked. `/logout` is one of the twenty-three routes E2E-CSRF-01 sweeps.
 
 
 #### E2E-AUTH-12: logout revokes a cookie captured before it
@@ -846,7 +861,7 @@ E2E-AUTH-12 covers the stronger property, that a **copy** of the cookie taken be
 
 *Assertions:*
 - Step 2 returns `200`. This is the positive control. Without it, step 4's rejection is satisfied by a cookie that never worked in the first place.
-- Step 4 returns `302` to `/login`. `Logout` bumps `session_epoch` (`handlers/auth.go:211`), and `RequireLogin` re-reads the user row on every request and rejects a cookie whose stamped epoch no longer matches (`middleware/middleware.go:120-125`).
+- Step 4 returns `302` to `/login`. `Logout` bumps `session_epoch` (`handlers/auth.go:222`), and `RequireLogin` re-reads the user row on every request and rejects a cookie whose stamped epoch no longer matches (`middleware/middleware.go:120-125`).
 - The response to step 4 also clears the session cookie, since `rejectSession` empties `sess.Values` and saves before redirecting (`middleware/middleware.go:133-137`).
 
 
@@ -868,7 +883,7 @@ E2E-AUTH-12 covers the stronger property, that a **copy** of the cookie taken be
 
 *Assertions:*
 - **Gate one, the rename.** Step 1 returns `302` to `/profile` with flash `Profile updated`, and step 2 shows the display name changed and the **username unchanged**. `ProfilePost action=update_info` no longer reads a `username` field at all, so the submitted value is ignored rather than rejected. Assert the username is still `victim-viewer`, not that an error was shown.
-- **Gate two, the upsert.** Step 4 does not log in. It returns `302` to `/login` with flash `Access denied: that username belongs to a local account. Contact an administrator.` `UpsertOIDCUser` carries `WHERE users.auth_source = 'oidc'` on both `DO UPDATE` branches, so the collision updates nothing, `RowsAffected()` is 0, and the call returns `appdb.ErrOIDCLocalUser` (`db/users.go:255-284`).
+- **Gate two, the upsert.** Step 4 does not log in. It returns `302` to `/login` with flash `Access denied: that username belongs to a local account. Contact an administrator.` `UpsertOIDCUser` carries `WHERE users.auth_source = 'oidc'` on both `DO UPDATE` branches, so the collision updates nothing, `RowsAffected()` is 0, and the call returns `appdb.ErrOIDCLocalUser` (`db/users.go:266-309`).
 - **The local row is untouched.** Step 5 shows `oidc-admin` still has role `viewer`, still has `auth_source='local'`, and still has its original `password_hash`. A silent promotion is exactly what this test exists to catch, so assert the role explicitly rather than inferring it from the denial.
 - **The denial is recorded.** Step 5's `/admin/security` contains a row for `oidc-admin` with `success=false` and reason `OIDC: username collides with a local account` (`handlers/oidc.go:198-199`).
 - Step 6 logs in as a **viewer** and `GET /admin` returns `403`.
@@ -889,8 +904,8 @@ E2E-AUTH-12 covers the stronger property, that a **copy** of the cookie taken be
 | delete | `POST /admin/users action=delete` | `GET /issue` |
 
 *Assertions:*
-- **Deactivate:** `302` to `/login`. `SetUserActive` bumps the epoch in the same statement that clears the flag (`db/users.go:100`), and `RequireLogin` additionally rejects any user whose row reports `IsActive` false (`middleware/middleware.go:115`).
-- **Demote:** `GET /` returns `200` and `GET /issue` returns `403` with body `403 Forbidden\n`. This is the one round that is **not** a logout. `UpdateUserRole` bumps the epoch (`db/users.go:93`), so the old session is rejected and the user must sign in again; on that new session `RequireRole` reads the role from the user row `RequireLogin` cached in the request context rather than from the cookie (`middleware/middleware.go:142-160`). Assert the `403` after re-login, and assert the `302` to `/login` on the first request after the demotion.
+- **Deactivate:** `302` to `/login`. `SetUserActive` bumps the epoch in the same statement that clears the flag (`db/users.go:122`), and `RequireLogin` additionally rejects any user whose row reports `IsActive` false (`middleware/middleware.go:115`).
+- **Demote:** `GET /` returns `200` and `GET /issue` returns `403` with body `403 Forbidden\n`. This is the one round that is **not** a logout. `UpdateUserRole` bumps the epoch (`db/users.go:115`), so the old session is rejected and the user must sign in again; on that new session `RequireRole` reads the role from the user row `RequireLogin` cached in the request context rather than from the cookie (`middleware/middleware.go:142-160`). Assert the `403` after re-login, and assert the `302` to `/login` on the first request after the demotion.
 - **Delete:** `302` to `/login`, and **not** a `500`. The row is gone, so `loadUser` returns no user and `RequireLogin` rejects on the existence check before the epoch comparison is reached.
 - In all three rounds, the response carries a cleared session cookie.
 
@@ -907,9 +922,9 @@ E2E-AUTH-12 covers the stronger property, that a **copy** of the cookie taken be
 5. Repeat the whole sequence for an administrator's `POST /admin/users action=reset_password` against a third session, and for a completed `POST /reset-password` token flow.
 
 *Assertions:*
-- Step 3 returns `200`. The acting session survives its own password change, because the handler re-stamps the session with the freshly bumped epoch straight after bumping it (`handlers/users.go:259-266`). A user who changes their password is not thrown out of the page they used to do it.
+- Step 3 returns `200`. The acting session survives its own password change, because the handler re-stamps the session with the freshly bumped epoch straight after bumping it (`handlers/users.go:272-279`). A user who changes their password is not thrown out of the page they used to do it.
 - Step 4 returns `302` to `/login`. Every other session the user holds is revoked.
-- Step 5 gives the same eviction for the other two password-write paths (`handlers/users.go:129`, `handlers/password_reset.go:200`). Neither of those has an acting session to preserve, so all sessions for the target user are revoked.
+- Step 5 gives the same eviction for the other two password-write paths (`handlers/users.go:142`, `handlers/password_reset.go:200`). Neither of those has an acting session to preserve, so all sessions for the target user are revoked.
 
 ### 3.3 RBAC boundaries
 
@@ -952,8 +967,9 @@ The table below is exhaustive against `main.go`'s router as of `a7b59b8`. A rout
 | `/ready` | GET | 200 or 503, always a JSON body, never a redirect |
 | `/login` | GET / POST | 200 / 302 or 200 |
 | `/forgot-password`, `/reset-password` | GET / POST | 200 |
-| `/logout` | GET | 302 to `/login`. Registered at `main.go:202`, outside the `RequireLogin` group |
-| `/static/*` | GET | 200. Registered at `main.go:306`, on the root router |
+| `/logout` | GET | 302 to `/login`, ending no session (`main.go:224`) |
+| `/logout` | POST | 303 to `/` with no session, since `requireCSRF` runs first (`main.go:225`) |
+| `/static/*` | GET | 200. Registered at `main.go:331`, on the root router |
 | `/auth/oidc/login`, `/auth/oidc/callback` | GET | 302 when `OIDC_ENABLED=true`, 404 when not registered |
 
 
@@ -983,7 +999,7 @@ The table below is exhaustive against `main.go`'s router as of `a7b59b8`. A rout
 
 *Steps:* as viewer, `GET /certificates/{id}` then `GET /download/key/{id}`.
 
-*Assertions:* `200` with the certificate's metadata rendered, then `403`. `CertificateDetails` carries no role gate beyond `RequireLogin`, while `DownloadCert` and `DownloadKey` sit inside the `manager` group (`main.go:231-240`). The pair is the boundary and neither half states it alone.
+*Assertions:* `200` with the certificate's metadata rendered, then `403`. `CertificateDetails` carries no role gate beyond `RequireLogin`, while `DownloadCert` and `DownloadKey` sit inside the `manager` group (`main.go:256-265`). The pair is the boundary and neither half states it alone.
 
 ### 3.4 Certificate lifecycle
 
@@ -1014,7 +1030,7 @@ The table below is exhaustive against `main.go`'s router as of `a7b59b8`. A rout
 | duration axis | `e2e-dur-8760h` | `server` | `e2e-dur.example.com` | `8760h` | `EC:P-256` |
 | duration axis | `e2e-dur-87600h` | `server` | `e2e-dur.example.com` | `87600h` | `EC:P-256` |
 
-The seven-combination cross preserves both axes. The cut from sixteen to seven is **not** a runtime optimisation: an RSA-4096 keygen costs a median of well under two seconds even on a small runner, and all sixteen would add roughly twenty seconds. The reasons to cut are tail risk against the server's 60-second `WriteTimeout` (`main.go:379`) and repeated load on a CA that other tests in the same job depend on being responsive.
+The seven-combination cross preserves both axes. The cut from sixteen to seven is **not** a runtime optimisation: an RSA-4096 keygen costs a median of well under two seconds even on a small runner, and all sixteen would add roughly twenty seconds. The reasons to cut are tail risk against the server's 60-second `WriteTimeout` (`main.go:404`) and repeated load on a CA that other tests in the same job depend on being responsive.
 
 The duration axis is separate and is the only reason a duration regression is detectable at all. `allowedIssueDurations` is `720h`, `4380h`, `8760h`, `87600h` (`handlers/cert_ops.go:69-71`), but three of the four templates default to `8760h` and only `internal` defaults to anything else (`:62-67`). A cross product over templates therefore requests just two distinct durations, so a build with a hardcoded duration passes twelve of sixteen combinations, and the four that would catch it are the ones sitting exactly on the CA's maximum. Four `server` certificates at four distinct durations is independent of both the template and the CA maximum.
 
@@ -1192,19 +1208,41 @@ Without steps 1 to 4 this test passes identically when the CA's request logging 
 - Step 2 **fails**, rendered inline at `200` with `Error:` followed by the CA's `requested duration of %v is more than the authorized maximum certificate duration of %v`. The CA rejects rather than clamping, which is the same behaviour Section 2.7.4 relies on. Restore `STEPCA_MAX_TLS_CERT_DURATION` and restart `step-ca` in teardown, which is sufficient because `scripts/step-ca-bootstrap.sh` re-patches the claim on every start.
 
 
-#### E2E-CERT-12: issuance for a domain the operator does not control
+#### E2E-CERT-12: the domain-suffix policy is unrestricted by default and binds both issue and renew
 
-*Tier:* PR.
+*Tier:* PR. Restarts `step-ui` between phases, so it takes the Section 3.0.4 barrier.
 
-*Objective:* Turn Section 6's finding V6 from an omission into a decision. There is no X.509 name policy anywhere in this application, so any manager can have the CA sign a certificate for any name.
+*Objective:* Section 6.6. `ALLOWED_DOMAIN_SUFFIXES` is a mechanism whose default reproduces the old behaviour, so both halves need asserting: that an empty key restricts nothing, and that a set key is enforced everywhere a name reaches the CA.
 
-*Steps:* as `manager_user`, `POST /issue` with `domain=login.microsoftonline.com`, template `server`.
+*Preconditions:* run in two phases against the long-lived stack, restarting `step-ui` between them.
 
-*Assertions:* whichever outcome the team has chosen.
-- **If accepted as designed** (the CA is internal, its root is not in any public trust store, and issuing for a foreign name has no effect outside the organisation): assert `302` with the success flash and a certificate whose SAN is `login.microsoftonline.com`. The test then documents the accepted risk and fails if a name policy is added without updating it.
-- **If rejected as a policy violation:** assert `200` with an inline `Policy error:` naming the disallowed domain, and no certificate on disk.
+*Phase 1, key unset.*
+1. As `manager_user`, `POST /issue` with `domain=login.microsoftonline.com`, template `server`.
+2. Read the startup log.
 
-The test asserts a decision. What it must not do is stay unwritten, which is the state that leaves nobody able to say whether the current behaviour is intentional.
+*Assertions:*
+- Step 1 returns `302` with the success flash and a certificate whose SAN is `login.microsoftonline.com`. Unrestricted is the documented default, and this asserts that an upgrade changes no behaviour until an operator opts in.
+- The log contains `ALLOWED_DOMAIN_SUFFIXES is unset: certificate issuance is unrestricted and any manager can have the CA sign any name` exactly once (`main.go:154-156`). An operator running without the key is told so.
+
+*Phase 2, `ALLOWED_DOMAIN_SUFFIXES=example.com`.*
+
+| # | Request | Expected |
+|---|---|---|
+| 1 | `POST /issue` `domain=example.com` | succeeds. An exact match is inside the policy |
+| 2 | `POST /issue` `domain=a.b.example.com` | succeeds. A subdomain at any depth is inside |
+| 3 | `POST /issue` `domain=*.example.com` | succeeds. A wildcard is judged by the name under its `*.` prefix |
+| 4 | `POST /issue` `domain=evil-example.com` | **refused.** The label-boundary check is the point: `HasSuffix(name, "."+suffix)` does not match, so a lookalike registered by somebody else cannot pass |
+| 5 | `POST /issue` `domain=login.microsoftonline.com` | refused |
+| 6 | `POST /renew/{id}` for the certificate issued in phase 1 | **refused.** This is the assertion that matters most |
+
+*Assertions for phase 2:*
+- Refusals return **`200` with the error rendered inline**, containing `Error: domain "…" is not covered by ALLOWED_DOMAIN_SUFFIXES (example.com)`. `checkDomainPolicy` is reached from `issueCert` (`handlers/cert_ops.go:126`), so its error surfaces on `IssuePost`'s generic issuance-failure branch.
+- Row 6 is the regression guard for the placement decision. The check sits in `issueCert` rather than in `normalizeIssuePolicy` because `Renew` never calls the latter, so a check in the obvious-looking place would have left renewal as an open bypass. Assert that the renewal of a now-out-of-policy certificate is refused and that the on-disk certificate is unchanged.
+- Row 4 must be asserted explicitly rather than folded into row 5. A naive `strings.HasSuffix(name, suffix)` passes rows 1, 2, 3 and 5 and fails only row 4.
+
+*Teardown:* restore `ALLOWED_DOMAIN_SUFFIXES` to empty and restart `step-ui`.
+
+**Not covered:** anything a caller who bypasses the UI can do. This key constrains what the application asks the CA to sign, not what the CA will sign. A holder of the provisioner password talking to step-ca directly is bound only by an x509 `allow`/`deny` block in `ca.json`, which is step-ca configuration and outside this application.
 
 
 #### E2E-CERT-13: an import name collision destroys the existing certificate
@@ -1457,13 +1495,13 @@ Nothing else about these outputs is asserted. "Sane output" for a date, a hostna
 | `change_role` | promote the subject viewer to manager, re-read `/admin/users` | the listed role changed. `UpdateUserRole` also bumps `session_epoch`, so the subject's live sessions are revoked; E2E-AUTH-14 asserts that half |
 | `toggle_active` | deactivate, re-read, reactivate | the active flag flips both ways and the row survives |
 | `reset_password` | reset the subject's password, then log in as the subject with the new value | login succeeds with the new password and fails with the old one |
-| `unblock_ip` | with `target_ip` set to a currently-blocked address | `security.RL.Clear` runs (`handlers/users.go:112-118`) and a login from that address succeeds immediately |
+| `unblock_ip` | with `target_ip` set to a currently-blocked address | `security.RL.Clear` runs (`handlers/users.go:125-131`) and a login from that address succeeds immediately |
 | `delete` | delete the subject, re-read `/admin/users` | the row is gone and a login attempt as that user fails |
 | `create` with an invalid role | `role=nonsense` | see below |
 
 Run the `delete` case last, since it destroys the subject.
 
-**The invalid-role case asserts current behaviour.** `POST /admin/users` with `action=create` and `role=nonsense` succeeds. The account is created with a role string that matches no `roleLevel` key, so every role-gated route returns `403` while the account can still log in, and the administrator who created it sees no error. `handlers/admin_temp.go:107-109` validates the same field and falls back to `viewer`, so the two paths disagree. Section 6.9 records this as V9. If the field is validated, invert this row to a rejection.
+**The invalid-role case.** `POST /admin/users` with `action=create` and `role=nonsense` is refused. `UsersPost` checks `appdb.ValidRole` before it hashes anything (`handlers/users.go:52`) and flashes `Role must be one of: viewer, manager, admin`. Assert three things: no row is created, **the message renders on `/admin/users` itself**, and the same rejection applies to `action=change_role` (`:92`). The second of those is the live check on Section 6.12's `admin_base.html` fix, since before it this error appeared on whatever non-admin page the administrator visited next. `db/users.go` enforces the same allowlist under the handlers, in `CreateUser`, `UpdateUserRole` and `UpsertOIDCUser`, so a future caller that skips the handler check still cannot write a bad role.
 
 ### 3.8 Backup
 
@@ -1550,7 +1588,7 @@ Do not "immediately GET" after `docker compose start`. step-ca's healthcheck has
 
 *Assertions:*
 - `503` with `db == "unreachable"` in the parsed body, within the 2-second `PingContext` bound (`handlers/health.go:36-40`).
-- **Every authenticated request is now refused with `302` to `/login` while the database is down.** `RequireLogin` re-reads the user row on every request and treats a load error as a rejected session (`middleware/middleware.go:113-119`), so a database outage logs everyone out rather than serving stale sessions. That is fail-closed by design and this is the test that observes it. Assert it explicitly, so that a future change to serve stale sessions during an outage has to change this line.
+- **Every authenticated request is now refused with `302` to `/login` while the database is down.** `RequireLogin` re-reads the user row on every request and treats a load error as a rejected session (`middleware/middleware.go:114-119`), so a database outage logs everyone out rather than serving stale sessions. That is fail-closed by design and this is the test that observes it. Assert it explicitly, so that a future change to serve stale sessions during an outage has to change this line.
 - Sessions come back on the next request once postgres is healthy, without a re-login, provided the cookie has not aged past its idle or absolute limits.
 
 step-ui's own healthcheck also starts failing around this point, because `GET /login` renders a page whose base data touches the database. Capture that interaction rather than treating it as noise.
@@ -1602,14 +1640,14 @@ Asserting instead that "the other checks stay ok" asserts an environment fact ra
 
 Every state-changing `POST` route validates `csrf_token` with `subtle.ConstantTimeCompare` against the session-stored value (`csrfOK`, `handlers/handler.go:316-323`). Two response shapes exist and both are asserted:
 
-- Nineteen routes use `requireCSRF`, which flashes `Session error. Please refresh the page.` and redirects with **`303 See Other`** (`handlers/handler.go:325-332`).
-- Three routes call `csrfOK` directly and render inline at **`200`**: `POST /login` sets `data["Error"] = "Session error. Please refresh the page."` (`handlers/auth.go:71-76`), `POST /reset-password` does the same (`handlers/password_reset.go:154-157`), and `POST /forgot-password` uses the slightly different text `Session error. Please refresh the page and try again.` (`handlers/password_reset.go:49-53`).
+- Twenty routes use `requireCSRF`, which flashes `Session error. Please refresh the page.` and redirects with **`303 See Other`** (`handlers/handler.go:325-332`).
+- Three routes call `csrfOK` directly and render inline at **`200`**: `POST /login` sets `data["Error"] = "Session error. Please refresh the page."` (`handlers/auth.go:72-77`), `POST /reset-password` does the same (`handlers/password_reset.go:154-157`), and `POST /forgot-password` uses the slightly different text `Session error. Please refresh the page and try again.` (`handlers/password_reset.go:49-53`).
 
 #### E2E-CSRF-01: every POST route rejects a missing and a wrong token
 
 *Tier:* PR.
 
-*Coverage:* all twenty-two POST routes registered in `main.go`: `/login`, `/forgot-password`, `/reset-password`, `/issue`, `/renew/{id}`, `/import`, `/revoke/{id}`, `/admin/users`, `/admin/users-temp`, `/admin/console`, `/admin/backup/download`, `/admin/notifications`, `/admin/notifications/test`, `/profile`, `/profile/2fa/start`, `/profile/2fa/confirm`, `/profile/2fa/disable`, `/le/issue`, `/le/{id}/renew`, `/le/{id}/delete`, `/le/{id}/autorenew`, `/le/settings`.
+*Coverage:* all twenty-three POST routes registered in `main.go`: `/login`, `/logout`, `/forgot-password`, `/reset-password`, `/issue`, `/renew/{id}`, `/import`, `/revoke/{id}`, `/admin/users`, `/admin/users-temp`, `/admin/console`, `/admin/backup/download`, `/admin/notifications`, `/admin/notifications/test`, `/profile`, `/profile/2fa/start`, `/profile/2fa/confirm`, `/profile/2fa/disable`, `/le/issue`, `/le/{id}/renew`, `/le/{id}/delete`, `/le/{id}/autorenew`, `/le/settings`.
 
 The route list is derived from the router at test time rather than hardcoded, so a new POST route without CSRF protection fails this test on the day it is added.
 
@@ -1628,6 +1666,7 @@ The route list is derived from the router at test time rather than hardcoded, so
 | `/admin/console` | no `console.run` **and** no `console.denied` row in `auth_log` with an id greater than the maximum recorded immediately before the attempt. The id bound is required, because E2E-ADM-01 and E2E-ADM-05 already wrote such rows, so an unbounded query either fails spuriously or passes vacuously depending on execution order |
 | `/revoke/{id}` | the row's `status` is unchanged and the CA was never contacted for a revocation, verified against the CA log with an offset |
 | `/admin/backup/download` | the response body is not a gzip stream |
+| `/logout` | the session survives. Follow with `GET /` on the same jar, which must still return `200`. `requireCSRF` sends this one to `/`, not to `/login` (`handlers/auth.go:215-217`) |
 
 #### E2E-CSRF-05: a token from a different session is rejected
 
@@ -1641,7 +1680,7 @@ The property is stated over two independent sessions, so no single-session bug a
 
 ### 3.12 Configuration switches, headers and static assets
 
-Nine environment keys change runtime behaviour. This is the complete list and where each is covered.
+Eleven environment keys change runtime behaviour. This is the complete list and where each is covered.
 
 | Key | Effect | Covered by |
 |---|---|---|
@@ -1649,7 +1688,9 @@ Nine environment keys change runtime behaviour. This is the complete list and wh
 | `SESSION_SECURE` | `Secure` flag on the session cookie, and one preflight check | E2E-CFG-01 |
 | `LOCAL_LOGIN_ENABLED` | whether `POST /login` verifies a credential or redirects to OIDC | E2E-CFG-01, nightly row |
 | `USE_HTTPS` | overrides the `os.Stat` TLS auto-detection | E2E-CFG-01, nightly row |
-| `TRUST_PROXY` | whether `chi.RealIP` keys the rate limiter and audit log off a client header | E2E-CFG-02, E2E-CFG-03 |
+| `TRUST_PROXY` | whether `middleware.RealIP` is installed at all | E2E-CFG-02, E2E-CFG-03 |
+| `TRUSTED_PROXY_CIDRS` | which socket peers may set a forwarding header. Fatal at boot when `TRUST_PROXY=true` and it is empty or unparseable | E2E-CFG-02, E2E-CFG-03 |
+| `ALLOWED_DOMAIN_SUFFIXES` | which names the UI will ask the CA to sign. Empty means unrestricted | E2E-CERT-12 |
 | `UI_TLS_MODE` | the UI's own certificate source | Section 3.1 in full |
 | `CA_FINGERPRINT` | root-cert provisioning by fingerprint fetch | E2E-BOOT-01, E2E-BOOT-05 |
 | `CA_ROOT_CERT_PEM` | root-cert provisioning inline | E2E-BOOT-06 |
@@ -1670,49 +1711,64 @@ Nine environment keys change runtime behaviour. This is the complete list and wh
 | `ENABLE_HSTS=true` | `Strict-Transport-Security: max-age=31536000; includeSubDomains` (`:31`) |
 | `ENABLE_HSTS=false` | `Strict-Transport-Security: max-age=0` (`:33`). The header is present with a zero max-age, not absent |
 | `SESSION_SECURE=true` | the session cookie carries `Secure`, and `GET /admin` reports the `Session cookie` preflight check as `ok` |
-| `SESSION_SECURE=false` | the cookie has no `Secure` flag, the preflight check reports `warn`, and the startup log contains `SESSION_SECURE=false: session cookies will not carry the Secure flag` (`main.go:131`) |
+| `SESSION_SECURE=false` | the cookie has no `Secure` flag, the preflight check reports `warn`, and the startup log contains `SESSION_SECURE=false: session cookies will not carry the Secure flag` (`main.go:135`) |
 | `LOCAL_LOGIN_ENABLED=false` with OIDC on | `POST /login` redirects to `/auth/oidc/login` instead of verifying a credential (`handlers/auth.go:50-53`). Needs the OIDC override |
-| `USE_HTTPS=true` with no cert on disk | the process binds the TLS listener and does not exit, and every handshake fails. The flag takes precedence over the `os.Stat` auto-detection (`main.go:369-373`), so `ListenAndServeTLS` starts with `certReloader.GetCertificate`, which has no last-good certificate to fall back on (`tlsreload.go:38-45`) and errors on every call. Assert that the container stays up and that `openssl s_client` fails, not that anything is served |
+| `USE_HTTPS=true` with no cert on disk | the process binds the TLS listener and does not exit, and every handshake fails. The flag takes precedence over the `os.Stat` auto-detection (`main.go:394-398`), so `ListenAndServeTLS` starts with `certReloader.GetCertificate`, which has no last-good certificate to fall back on (`tlsreload.go:38-45`) and errors on every call. Assert that the container stays up and that `openssl s_client` fails, not that anything is served |
 
 `ENABLE_HSTS` and `SESSION_SECURE` reach the container through `.env`. `LOCAL_LOGIN_ENABLED` needs `compose.e2e-oidc.yml` and `USE_HTTPS` needs `compose.e2e-config.yml`, per Section 2.5.
 
 *Teardown:* restore `ENABLE_HSTS` and `SESSION_SECURE` to the job-level values and restart `step-ui`.
 
-#### E2E-CFG-02: `TRUST_PROXY=true` makes the rate limiter attacker-controlled
+#### E2E-CFG-02: a forwarding header is believed only from a trusted peer
 
-*Tier:* nightly (`oidc-mail` leg). Needs `compose.e2e-oidc.yml`, which is the override that passes `TRUST_PROXY` through. Skips with reason when the flag is unset.
+*Tier:* nightly (`oidc-mail` leg). Needs `compose.e2e-oidc.yml`, which is the override that passes `TRUST_PROXY` and `TRUSTED_PROXY_CIDRS` through. Skips with reason when the flag is unset.
 
-*Objective:* Section 6, finding V4. With `TRUST_PROXY=true`, `main.go:189` installs `chiMiddleware.RealIP`, which has no trusted-proxy allowlist. `clientIP` then keys both `security.RL` and `LogAuth` off a client-supplied header.
+*Objective:* Section 6.4. The rate limiter and the audit log must key off an address the client cannot choose.
 
-*Steps:* with `TRUST_PROXY=true`, issue twenty failed logins for a valid username, rotating `X-Forwarded-For` through twenty distinct addresses. Then `GET /admin/security`.
+*Preconditions:* `TRUST_PROXY=true`. `TRUSTED_PROXY_CIDRS` set to a block that does **not** contain the harness container's address. The harness therefore connects as an untrusted peer, which is the case that mattered.
 
-*Assertions, stated as the vulnerability:* none of the twenty is ever blocked, so the five-attempt lockout is bypassed entirely, and `/admin/security` records twenty different forged source addresses. A password, TOTP or reset-token guessing attack is unbounded under this configuration.
+*Steps:*
+1. Issue twenty failed logins for a valid username, rotating `X-Forwarded-For` through twenty distinct addresses.
+2. Repeat with `X-Real-IP`, then with `True-Client-IP`.
+3. `GET /admin/security`.
+4. Re-run step 1 with `TRUSTED_PROXY_CIDRS` widened to include the harness's address, and with `X-Forwarded-For: 203.0.113.7, <harness address>`.
 
-#### E2E-CFG-03: `TRUST_PROXY=false` is the mirror control
+*Assertions:*
+- The lockout fires on the **fifth** attempt in every one of the three header variants in steps 1 and 2. `clientFromHeaders` returns early unless the socket peer is itself inside a trusted block (`middleware/realip.go:56-59`), so none of the headers is read.
+- Every `/admin/security` row from steps 1 and 2 records the **harness's real socket address**, not any forged value.
+- Step 4, where the peer *is* trusted, attributes the attempts to `203.0.113.7`. `X-Forwarded-For` is walked right to left with trusted hops skipped, so the first untrusted address wins (`:62-70`). This is the positive control: without it, the assertions above are satisfied by a middleware that ignores headers unconditionally, which would break every real deployment behind a proxy.
+- A fifth failed attempt in step 4 blocks `203.0.113.7` and leaves the harness's own address unblocked, proving the limiter really is keyed on the forwarded value.
+
+#### E2E-CFG-03: a misconfigured trusted-proxy list is fatal at boot
 
 *Tier:* nightly (`oidc-mail` leg).
 
-*Steps:* identical to E2E-CFG-02 with `TRUST_PROXY=false`.
+*Objective:* The V4 fix fails closed rather than silently reverting to trusting everything. E2E-CFG-02's negative half now carries the mirror-control role that this test used to hold, so this entry covers the configuration failure mode instead.
 
-*Assertions:* the lockout fires on the fifth attempt regardless of the header, and every `/admin/security` row records the real source address. This is the control that makes E2E-CFG-02 a statement about `TRUST_PROXY` rather than about the harness.
+*Steps:* start `step-ui` three times: with `TRUST_PROXY=true` and `TRUSTED_PROXY_CIDRS` unset; with `TRUST_PROXY=true` and `TRUSTED_PROXY_CIDRS=not-a-cidr`; and with `TRUST_PROXY=false` and `TRUSTED_PROXY_CIDRS` unset.
+
+*Assertions:*
+- The first two exit non-zero with `FATAL: TRUST_PROXY=true requires a usable TRUSTED_PROXY_CIDRS` in the log (`main.go:142-145`). A malformed entry is an error rather than a skipped entry, because a typo that silently shrank the allowlist would leave a header-forging client looking like a trusted hop.
+- The third starts healthy. `TRUST_PROXY=false` installs no `RealIP` middleware at all, so the list is irrelevant and its absence must not be fatal.
+- With the third stack up, a forged `X-Forwarded-For` header changes nothing: the lockout fires on the fifth attempt and `/admin/security` records the socket peer.
 
 #### E2E-STATIC-01: static assets are served with correct MIME types and resist traversal
 
 *Tier:* PR.
 
-*Objective:* `mimeByExt` exists (`main.go:41-63`) because the distribution `mime.types` in a minimal image maps `.css` to `text/plain`. A regression there leaves every page returning `200` with correct-looking bytes while the browser refuses to apply the stylesheet, and no status-code assertion anywhere in this suite would notice.
+*Objective:* `mimeByExt` exists (`main.go:46-65`) because the distribution `mime.types` in a minimal image maps `.css` to `text/plain`. A regression there leaves every page returning `200` with correct-looking bytes while the browser refuses to apply the stylesheet, and no status-code assertion anywhere in this suite would notice.
 
 *Steps:* `curl -sI` for one asset of each served extension. Then request `/static/../main.go`, `/static/%2e%2e/main.go` and `/static/....//main.go`.
 
-*Assertions:* the `Content-Type` for each asset equals the value `mimeByExt` maps its extension to, exactly. Every traversal attempt returns `404` or `400`, never `200`, and never any file outside the embedded sub-FS. The handler serves from `fs.Sub(embeddedAssets, "static")` (`main.go:301-306`), so a traversal escape would be a serious regression.
+*Assertions:* the `Content-Type` for each asset equals the value `mimeByExt` maps its extension to, exactly. Every traversal attempt returns `404` or `400`, never `200`, and never any file outside the embedded sub-FS. The handler serves from `fs.Sub(embeddedAssets, "static")` (`main.go:326-331`), so a traversal escape would be a serious regression.
 
 ### 3.13 Temporary users
 
-#### E2E-TEMP-01: a temporary user expires on the 60-second ticker
+#### E2E-TEMP-01: a temporary user is handed over by one-shot token and expires on the ticker
 
 *Tier:* PR.
 
-*Objective:* the temp-user expiry goroutine (`main.go:312-321`) is the second background goroutine in the application and the only one whose period is short enough to observe in real time. It has no coverage.
+*Objective:* the temp-user expiry goroutine (`main.go:338-347`) is the second background goroutine in the application and the only one whose period is short enough to observe in real time. It has no coverage.
 
 *Steps:*
 1. `POST /admin/users-temp` as admin with a role, a note and the shortest available expiry.
@@ -1726,7 +1782,13 @@ Nine environment keys change runtime behaviour. This is the complete list and wh
 - Within 90s of step 4, the row is reported expired and `docker compose logs step-ui` contains `temp users expired` with a `count` of at least 1.
 - The bound is 90s rather than 60s because the ticker's phase relative to step 4 is arbitrary.
 
-*Note on the credential-handover mechanism, which the test records rather than asserts:* the generated username and password are handed to the browser as a cleartext `username|password` value in a cookie scoped to `Path=/` with a 120-second lifetime. See Section 6, finding V7.
+*Assertions on the credential handover* (Section 6.7):
+- The POST returns **`303 See Other`** to `/admin/users-temp?cred=<token>`. Post/redirect/get is preserved, so re-issuing the GET does not create a second temporary user. Assert the user count is unchanged after a refresh.
+- **No `new_temp_cred` cookie is set**, and neither the generated password nor the token appears in any `Set-Cookie` header. Positive control for that absence: the session cookie *is* present on the same response, so the header was read.
+- The redirected GET renders the username and password exactly once. **A second GET of the identical URL renders neither**, because `take` deletes the entry before it checks the expiry (`handlers/temp_creds.go:49-65`). Assert the second response contains the username of the new temporary user in the list table but not its password.
+- A GET with a fabricated `?cred=` value renders no credential and does not error.
+- Neither the token nor the generated password appears in `docker compose logs step-ui`, in `auth_log`, or in the `users` row. E2E-SEC-04's canary sweep covers the artifact side of the same property.
+- The error paths of `POST /admin/users-temp` render their flash on `/admin/users-temp` itself. Section 6.12 records that this page previously popped the flash twice and showed nothing on three of them.
 
 #### E2E-TEMP-02: an expired temporary admin loses access immediately
 
@@ -1738,7 +1800,7 @@ Nine environment keys change runtime behaviour. This is the complete list and wh
 
 *Assertions:*
 - The pre-expiry request returns `200`. Positive control.
-- The post-expiry request returns `302` to `/login`. `ExpireOverdueTempUsers` sets `is_active = false` and `session_epoch = session_epoch + 1` in one statement (`db/users.go:346`), so `RequireLogin` rejects the live session on both its inactive-user check and its epoch check.
+- The post-expiry request returns `302` to `/login`. `ExpireOverdueTempUsers` sets `is_active = false` and `session_epoch = session_epoch + 1` in one statement (`db/users.go:371`), so `RequireLogin` rejects the live session on both its inactive-user check and its epoch check.
 - The rejection is observed on the **first** request after the ticker fires, not after a further delay.
 
 ### 3.14 Let's Encrypt
@@ -1974,14 +2036,14 @@ The suite is larger than the migration, and this table is the map for all of it,
 | Authentication | TOTP enrollment, use, replay rejection, recovery codes, disable | E2E-AUTH-04 to E2E-AUTH-07 | PR `e2e-main` |
 | Authentication | federated login, group mapping, role sync | E2E-AUTH-08 | nightly `oidc-mail` |
 | Authentication | password reset end to end, no user enumeration, single-use tokens, reset rate limiting | E2E-AUTH-09 | nightly `oidc-mail` |
-| Authentication | session revocation via `session_epoch`: logout, deactivation, demotion, deletion, password change | E2E-AUTH-11, E2E-AUTH-12, E2E-AUTH-14, E2E-AUTH-15 | PR `e2e-main` |
+| Authentication | logout is a CSRF-protected POST, and session revocation via `session_epoch` on logout, deactivation, demotion, deletion and password change | E2E-AUTH-11, E2E-AUTH-12, E2E-AUTH-14, E2E-AUTH-15 | PR `e2e-main` |
 | Authorization | the full route-by-role matrix, both directions | E2E-RBAC-01, E2E-RBAC-02, E2E-RBAC-03 | PR `e2e-main` |
 | Identity provisioning | self-rename is impossible and an OIDC upsert cannot take over a local row | E2E-AUTH-13 | nightly `oidc-mail` |
 | Certificates | issuance, renewal, revocation, chain and key-pair validation | E2E-CERT-01, E2E-CERT-04, E2E-CERT-05, E2E-CERT-10 | PR `e2e-main`, full matrix nightly `cert-matrix-full` |
 | Certificates | input validation, policy normalisation, duration handling | E2E-CERT-02, E2E-CERT-03, E2E-CERT-11 | PR `e2e-main` |
 | Certificates | import by upload, scan and manual path, including traversal and collision | E2E-CERT-06, E2E-CERT-07, E2E-CERT-08, E2E-CERT-13 | PR `e2e-main` |
 | Certificates | downloads and chain assembly | E2E-CERT-09 | PR `e2e-main` |
-| Certificates | name policy, as an explicit decision | E2E-CERT-12 | PR `e2e-main` |
+| Certificates | the domain-suffix policy: unrestricted default, enforced on issue and renew | E2E-CERT-12 | PR `e2e-main` |
 | Provisioners | the CA config is rendered faithfully and degrades without failing | E2E-PROV-01, E2E-PROV-02 | PR `e2e-main` |
 | Listings | pagination and filtering, asserted in both directions | E2E-HIST-01, E2E-HIST-02, E2E-HIST-03, E2E-SEC-01 | PR `e2e-main` |
 | Audit | privileged actions are recorded with the right payload | E2E-SEC-02 | PR `e2e-main` |
@@ -1992,9 +2054,9 @@ The suite is larger than the migration, and this table is the map for all of it,
 | Health | liveness, readiness, recovery, integrity | E2E-HLTH-01 to E2E-HLTH-06 | PR `e2e-main` |
 | CSRF | every POST route, plus cross-session token rejection | E2E-CSRF-01, E2E-CSRF-05 | PR `e2e-main` |
 | Configuration | headers, HSTS and session flags | E2E-CFG-01 | PR `e2e-main`, two rows nightly `oidc-mail` |
-| Configuration | `TRUST_PROXY` and its consequences for rate limiting and audit | E2E-CFG-02, E2E-CFG-03 | nightly `oidc-mail` |
+| Configuration | forwarding headers are believed only from a trusted peer, and a bad proxy list is fatal | E2E-CFG-02, E2E-CFG-03 | nightly `oidc-mail` |
 | Static assets | MIME correctness and traversal resistance | E2E-STATIC-01 | PR `e2e-main` |
-| Temporary users | creation, the expiry ticker, and post-expiry access | E2E-TEMP-01, E2E-TEMP-02 | PR `e2e-main` |
+| Temporary users | creation, the one-shot credential handoff, the expiry ticker, and post-expiry access | E2E-TEMP-01, E2E-TEMP-02 | PR `e2e-main` |
 | Let's Encrypt | settings, issuance, lifecycle, credential handling including E2E-LE-04's canary | E2E-LE-01 to E2E-LE-04 | nightly `le` |
 | Notifications | settings round-trip and test delivery | E2E-NOTIF-01 | nightly `oidc-mail` |
 
@@ -2011,8 +2073,9 @@ Reverse index. If you changed a file on the left, the tests on the right are the
 | `main.go` (temp-user ticker) | E2E-TEMP-01 |
 | `tlsbootstrap.go` | E2E-BOOT-01 to E2E-BOOT-06, E2E-BOOT-09, E2E-RENEW-01 |
 | `tlsreload.go` | E2E-RENEW-01, E2E-CFG-01's `USE_HTTPS` row |
-| `config/config.go` | E2E-CFG-01, E2E-BOOT-04 |
+| `config/config.go` | E2E-CFG-01, E2E-BOOT-04, E2E-BOOT-07 cases (d) and (e) |
 | `middleware/middleware.go` (`SecurityHeaders`) | E2E-CFG-01, E2E-SEC-06 |
+| `middleware/realip.go` | E2E-CFG-02, E2E-CFG-03, E2E-BOOT-07 case (d) |
 | `middleware/middleware.go` (`RequireLogin`, `RequireRole`, `UserLoader`) | E2E-RBAC-01 to E2E-RBAC-03, E2E-AUTH-11, E2E-AUTH-12, E2E-AUTH-14, E2E-AUTH-15, E2E-TEMP-02, E2E-HLTH-05 |
 | `security/security.go` | E2E-AUTH-02, E2E-AUTH-03, E2E-ADM-08, E2E-CFG-02, E2E-CFG-03 |
 | `stepca/bootstrap.go` | E2E-BOOT-01, E2E-BOOT-05 |
@@ -2025,8 +2088,12 @@ Reverse index. If you changed a file on the left, the tests on the right are the
 | `handlers/password_reset.go` | E2E-AUTH-09 |
 | `handlers/users.go` | E2E-ADM-08, E2E-AUTH-13, E2E-AUTH-14, E2E-AUTH-15 |
 | `handlers/admin_temp.go` | E2E-TEMP-01, E2E-TEMP-02 |
+| `models/models.go` (`gob.Register(FlashMsg{})`) | every test asserting flash text, most directly E2E-AUTH-02 |
+| `templates/base.html`, `templates/admin_base.html` | E2E-AUTH-02, E2E-AUTH-11, E2E-ADM-08, E2E-TEMP-01 |
 | `handlers/certs.go` | E2E-CERT-01 to E2E-CERT-09, E2E-CERT-13 |
 | `handlers/cert_ops.go` | E2E-CERT-01, E2E-CERT-02, E2E-CERT-03, E2E-CERT-06, E2E-CERT-07, E2E-CERT-11 |
+| `handlers/cert_ops.go` (`checkDomainPolicy`) | E2E-CERT-12 |
+| `handlers/temp_creds.go` | E2E-TEMP-01 |
 | `handlers/cert_details.go` | E2E-CERT-10, E2E-CERT-13 |
 | `handlers/identifiers.go` | E2E-CERT-03 |
 | `handlers/pathsafe.go` | E2E-CERT-01, E2E-CERT-08 |
@@ -2040,6 +2107,7 @@ Reverse index. If you changed a file on the left, the tests on the right are the
 | `handlers/provisioners.go` | E2E-PROV-01, E2E-PROV-02 |
 | `handlers/notifications.go` | E2E-NOTIF-01, E2E-AUTH-09 |
 | `handlers/le.go` (`parseLESettingsFields`) | E2E-LE-01, E2E-LE-04 |
+| `handlers/le_renewer.go` (domain policy) | E2E-CERT-12, by inspection only |
 | `handlers/le.go` (issuance, lifecycle) | E2E-LE-02, E2E-LE-03 |
 | `handlers/handler.go` (`csrfOK`, `requireCSRF`) | E2E-CSRF-01, E2E-CSRF-05 |
 | `db/schema.go` (admin seed) | E2E-BOOT-07 case (b) |
@@ -2052,33 +2120,35 @@ Reverse index. If you changed a file on the left, the tests on the right are the
 | `entrypoint.sh` | E2E-BOOT-01, E2E-BOOT-07 case (c) |
 | `scripts/step-ca-bootstrap.sh` | E2E-CERT-11, E2E-PROV-01 |
 | `docker-compose.yml` | every bootstrap scenario |
-| `handlers/le_renewer.go` | **no e2e observer.** Its 24h ticker is a unit concern |
+| `handlers/le_renewer.go` (24h ticker) | **no e2e observer.** The ticker itself is a unit concern |
 | `handlers/safego.go` | **no e2e observer** beyond the goroutines it wraps |
 
 ## 6. Application findings
 
 These are findings about the product, not about the tests. Several of them determine whether a test in Section 3 can be green at all.
 
-| ID | Severity | Finding | Status | Covering test |
-|---|---|---|---|---|
-| V1 | High | privilege escalation from viewer to admin | **fixed 2026-08-10** | E2E-AUTH-13 |
-| V2 | High | DNS-provider credentials echoed in cleartext | **fixed 2026-08-10** | E2E-LE-04 |
-| V3 | Medium | logout does not invalidate a captured cookie | **fixed 2026-08-10** | E2E-AUTH-12 |
-| V4 | Medium | `TRUST_PROXY=true` hands the rate limiter to the client | open, reported, not reproduced | E2E-CFG-02, E2E-CFG-03 |
-| V5 | Medium | deactivation, deletion and temp expiry do not evict sessions | **fixed 2026-08-10** | E2E-AUTH-14, E2E-TEMP-02 |
-| V6 | Medium, design | no X.509 name policy | open, reported, not reproduced | E2E-CERT-12 |
-| V7 | Low | temporary credentials in a cleartext cookie | open, reported, not reproduced | E2E-TEMP-01 |
-| V8 | Low | password change does not evict other sessions | **fixed 2026-08-10** | E2E-AUTH-15 |
-| V9 | Low | `action=create` does not validate `role` | open, reported, not reproduced | E2E-ADM-08 |
-| V10 | Low | `GET /logout` carries no CSRF token | open | E2E-AUTH-11 |
+**Every finding below is closed.** All twelve were fixed on 2026-08-10. The write-ups are kept because they are the rationale for the tests that now assert the fixed behaviour, and each carries a *Fixed* paragraph naming the mechanism.
 
-The five fixed findings keep their write-ups, because those are the rationale for the tests that now assert the fixed behaviour. Each carries a *Fixed* paragraph naming the mechanism.
+| ID | Severity | Finding | Covering test |
+|---|---|---|---|
+| V1 | High | privilege escalation from viewer to admin | E2E-AUTH-13 |
+| V2 | High | DNS-provider credentials echoed in cleartext | E2E-LE-04 |
+| V3 | Medium | logout did not invalidate a captured cookie | E2E-AUTH-12 |
+| V4 | Medium | `TRUST_PROXY=true` handed the rate limiter to the client | E2E-CFG-02 |
+| V5 | Medium | deactivation, deletion and temp expiry did not evict sessions | E2E-AUTH-14, E2E-TEMP-02 |
+| V6 | Medium, design | no X.509 name policy | E2E-CERT-12 |
+| V7 | Low | temporary credentials in a cleartext cookie | E2E-TEMP-01 |
+| V8 | Low | password change did not evict other sessions | E2E-AUTH-15 |
+| V9 | Low | `action=create` did not validate `role` | E2E-ADM-08 |
+| V10 | Low | `GET /logout` carried no CSRF token | E2E-AUTH-11, E2E-CSRF-01 |
+| V11 | High, correctness | flash messages were never delivered | every test in Section 3 that asserts flash text |
+| V12 | Medium, correctness | three flash-rendering defects, masked by V11 | E2E-AUTH-02, E2E-ADM-08, E2E-TEMP-01 |
 
-"Reported, not reproduced" means the evidence below is cited but the behaviour has not been observed against a running stack. Confirm before treating any of the open findings as an incident.
+V11 is the one with the widest reach into this document. Around thirty assertions in Section 3 check flash text, and until it was fixed every one of them would have failed against otherwise-correct code.
 
 ### 6.1 V1 High, fixed: privilege escalation from viewer to admin
 
-*Evidence.* `POST /profile` with `action=update_info` lets any authenticated user rename themselves to any username not currently taken (`handlers/users.go:209-234`). The handler is gated by `RequireLogin` only and performs no role check. Separately, `UpsertOIDCUser` executes `ON CONFLICT (username) DO UPDATE` setting `role = EXCLUDED.role` and **does not touch `password_hash`** (`db/users.go:232-245`).
+*Evidence.* `POST /profile` with `action=update_info` lets any authenticated user rename themselves to any username not currently taken (`handlers/users.go:226-247`). The handler is gated by `RequireLogin` only and performs no role check. Separately, `UpsertOIDCUser` executes `ON CONFLICT (username) DO UPDATE` setting `role = EXCLUDED.role` and **does not touch `password_hash`** (`db/users.go:266-309`).
 
 *Impact.* A viewer renames themselves to the `preferred_username` of an OIDC administrator who has not yet logged in. That administrator's first single sign-on promotes the attacker's existing row to `admin` while leaving the attacker's own bcrypt hash in place. The attacker then signs in locally as an administrator. End state is the CA's root and intermediate private keys via `POST /admin/backup/download`. No non-default setting is required beyond OIDC being enabled with a group mapping, which is the intended production configuration.
 
@@ -2107,57 +2177,115 @@ The five fixed findings keep their write-ups, because those are the rationale fo
 
 *Fixed, 2026-08-10, by a session epoch.* A new `users.session_epoch INTEGER NOT NULL DEFAULT 0` column is the server-side handle the cookie store lacks.
 
-- `completeLogin` stamps the user's current epoch into the session (`handlers/auth.go:198`).
-- `RequireLogin` now takes a `UserLoader` (`middleware/middleware.go:19,69`). After its existing cookie, absolute-lifetime and idle checks it re-reads the user row and rejects the session when the user is missing, is inactive, or carries an epoch that does not match the cookie's (`:113-125`). Rejection clears the session and redirects to `/login` (`rejectSession`, `:133`).
+- `completeLogin` stamps the user's current epoch into the session (`handlers/auth.go:199`).
+- `RequireLogin` now takes a `UserLoader` (`middleware/middleware.go:19,69`). After its existing cookie, absolute-lifetime and idle checks it re-reads the user row and rejects the session when the user is missing, is inactive, or carries an epoch that does not match the cookie's (`:114-125`). Rejection clears the session and redirects to `/login` (`rejectSession`, `:133`).
 - The loaded user is cached in the request context, and **`RequireRole` now reads the role from that cached user rather than from the session** (`:142-160`), so a demotion takes effect on the very next request. It fails closed with `403` if it is ever mounted outside a `RequireLogin` group.
-- The epoch is bumped on logout (`handlers/auth.go:211`), profile password change (`handlers/users.go:259`), admin password reset (`handlers/users.go:129`), completed password reset (`handlers/password_reset.go:200`), deactivation and role change (`db/users.go:93,100`), and temp-user expiry (`db/users.go:346`).
+- The epoch is bumped on logout (`handlers/auth.go:222`), profile password change (`handlers/users.go:272`), admin password reset (`handlers/users.go:142`), completed password reset (`handlers/password_reset.go:200`), deactivation and role change (`db/users.go:115,122`), and temp-user expiry (`db/users.go:371`).
 - A profile password change re-stamps the acting session immediately afterwards, so a user who has just changed their own password is not bounced out of the page they are standing on.
 
 This closes V3, V5 and V8 together. E2E-AUTH-12, E2E-AUTH-14, E2E-AUTH-15 and E2E-TEMP-02 are its acceptance criteria and all four now assert the revocation rather than its absence.
 
 **Two consequences a reader will hit.** `RequireLogin` issues one database query per authenticated request, which is a real cost on every page. And a database outage now logs everyone out rather than serving stale sessions, because an unreadable user row is treated as a rejected session. Both are fail-closed by design. E2E-HLTH-05 stops postgres and is the place that interaction is observed.
 
-### 6.4 V4 Medium: `TRUST_PROXY=true` hands the rate limiter and the audit log to the client
+### 6.4 V4 Medium, fixed: `TRUST_PROXY=true` handed the rate limiter and the audit log to the client
 
-*Evidence.* `main.go:189` installs `chiMiddleware.RealIP` when `cfg.TrustProxy` is set. That middleware has no trusted-proxy allowlist, and `clientIP` keys both `security.RL` and `LogAuth` off its result.
+*Evidence.* `chiMiddleware.RealIP` was installed whenever `cfg.TrustProxy` was set. It has no trusted-proxy allowlist, and `clientIP` keys both `security.RL` and `LogAuth` off its result.
 
-*Impact.* Rotating `X-Forwarded-For` gives unlimited password, TOTP and reset-token guessing, and writes forged source addresses into the audit log, which is the record an incident responder would rely on.
+*Impact.* Rotating `X-Forwarded-For` gave unlimited password, TOTP and reset-token guessing, and wrote forged source addresses into the audit log, which is the record an incident responder relies on.
 
-*What the suite does.* E2E-CFG-02 and its mirror control E2E-CFG-03. The remedy is an allowlist of trusted proxy addresses rather than an unconditional boolean.
+*Fixed, 2026-08-10,* by replacing it with `middleware/realip.go`.
+
+- A forwarding header is believed **only when the socket peer's own address falls inside a block in the new `TRUSTED_PROXY_CIDRS` key** (`clientFromHeaders`, `middleware/realip.go:55-59`). A client connecting directly can set any header it likes and none of them are read.
+- `X-Forwarded-For` is walked **right to left with trusted hops skipped**, so the first untrusted address wins (`:62-70`). Entries an attacker prepends sit to the left of the real client and are never reached.
+- `X-Real-IP` and `True-Client-IP` are consulted only after `X-Forwarded-For` yields nothing, under the same peer rule (`:12`, `:71-75`).
+- A malformed CIDR is an error rather than a skipped entry (`ParseTrustedProxies`, `:19-36`), and `TRUST_PROXY=true` with an empty or unparseable list is **fatal at boot** (`main.go:142-145`), alongside the existing `SECRET_KEY` check.
+
+*What the suite does.* E2E-CFG-02 asserts that a forged header from an untrusted peer is ignored and that the audit log records the socket peer.
 
 ### 6.5 V5 Medium, fixed: deactivation, deletion and temporary-user expiry did not terminate sessions
 
 Same root cause as V3, and sharper: the temporary-user feature's entire purpose is time-boxed access, and an expired temporary **admin** kept admin for up to 24 hours.
 
-*Fixed, 2026-08-10,* by the session epoch in Section 6.3. `UpdateUserRole` and the deactivation path bump it inline (`db/users.go:93,100`), `ExpireOverdueTempUsers` bumps it as part of the same statement that deactivates the row (`db/users.go:346`), and a deleted user fails `RequireLogin`'s existence check rather than its epoch check. Asserted by E2E-AUTH-14 and E2E-TEMP-02.
+*Fixed, 2026-08-10,* by the session epoch in Section 6.3. `UpdateUserRole` and the deactivation path bump it inline (`db/users.go:115,122`), `ExpireOverdueTempUsers` bumps it as part of the same statement that deactivates the row (`db/users.go:371`), and a deleted user fails `RequireLogin`'s existence check rather than its epoch check. Asserted by E2E-AUTH-14 and E2E-TEMP-02.
 
-### 6.6 V6 Medium, design: no X.509 name policy anywhere
+### 6.6 V6 Medium, design, fixed: no X.509 name policy anywhere
 
-Any manager can have the CA sign a certificate for any name, including one belonging to somebody else. This is defensible as accepted risk for an internal CA whose root is in no public trust store, but it is currently undocumented and unasserted, which means nobody can say whether it is a decision or an omission. E2E-CERT-12 asserts whichever outcome the team chooses.
+Any manager could have the CA sign a certificate for any name, including one belonging to somebody else. Defensible as accepted risk for an internal CA whose root is in no public trust store, but undocumented and unasserted, so nobody could say whether it was a decision or an omission.
 
-### 6.7 V7 Low: temporary credentials handed out in a cleartext cookie
+*Fixed, 2026-08-10, as a mechanism whose default is the old behaviour.* A new `ALLOWED_DOMAIN_SUFFIXES` key.
 
-The generated username and password are returned to the browser as a `username|password` value in the `new_temp_cred` cookie, scoped to `Path=/` with a 120-second lifetime (`handlers/admin_temp.go:82-90,158-166`). Short-lived and admin-only, but it puts a live credential in a cookie jar and in any intermediary that logs headers. E2E-TEMP-01 records the mechanism.
+- **Empty means unrestricted**, which is exactly what the application did before, and the process logs one startup warning saying so (`main.go:154-156`). Upgrading changes no behaviour until an operator opts in.
+- When set, a requested name must equal an entry or be a subdomain of one, matched on **label boundaries** via `name == suffix || strings.HasSuffix(name, "."+suffix)` (`checkDomainPolicy`, `handlers/cert_ops.go:105-116`), so `evil-example.com` does not satisfy `example.com`. A wildcard is judged by the name under its `*.` prefix.
+- Enforced in `issueCert` rather than in `normalizeIssuePolicy` (`handlers/cert_ops.go:126`). `Renew` never calls the latter, so putting the check there would have left renewal open, which is the whole shape of the bypass.
+- Also enforced on the Let's Encrypt side: `LEIssuePost` (`handlers/le.go:61`), `LERenew` (`:127`), and the background renewer (`handlers/le_renewer.go:54`), which logs the skip to both `slog` and the LE log page and carries on with the remaining certificates rather than aborting the run.
+
+**Scope, and this matters.** The key constrains what the **UI** asks the CA to sign. It is not an x509 name policy in `ca.json`, so a caller holding the provisioner password and bypassing the UI is bound by nothing here. Closing that requires a `x509` `allow`/`deny` block on the provisioner, which is a step-ca configuration change and is out of this application's reach.
+
+*What the suite does.* E2E-CERT-12 asserts the unrestricted default and the enforcement on both the issue and the renew paths.
+
+### 6.7 V7 Low, fixed: temporary credentials handed out in a cleartext cookie
+
+The generated username and password were returned to the browser as a `username|password` value in a `new_temp_cred` cookie scoped to `Path=/`. Short-lived and admin-only, but it put a live credential in a cookie jar and in any intermediary that logs headers.
+
+*Fixed, 2026-08-10,* by a one-shot server-side handoff. `AdminUsersTempPost` mints a token with `security.GenerateToken`, files the credential in a process-local mutex-guarded store with a two-minute TTL, and redirects with the token in the query string (`handlers/admin_temp.go:140-145`). The GET spends the token on read and renders the credential once (`:18-25`).
+
+Three properties fall out of `handlers/temp_creds.go` and each is worth asserting:
+
+- **Display-once** survives, because `take` deletes the entry before it even checks the expiry (`:49-65`), so a refresh finds nothing whether or not the TTL has run out.
+- **Post/redirect/get** is preserved, so refreshing the result page no longer creates a second temporary user.
+- **Expired entries are evicted on every access** (`evictExpired`, `:67-73`), so an uncollected credential cannot accumulate in memory.
+
+The store is deliberately process-local and unpersisted. Losing an uncollected credential to a restart is the right direction to fail.
+
+*What the suite does.* E2E-TEMP-01 asserts the token flow and the absence of the cookie.
 
 ### 6.8 V8 Low, fixed: a password change did not invalidate other sessions
 
 Same root cause as V3.
 
-*Fixed, 2026-08-10,* by the session epoch. All three password-write paths bump it: the user's own change (`handlers/users.go:259`), an administrator's reset (`handlers/users.go:129`), and a completed reset-token flow (`handlers/password_reset.go:200`). The first re-stamps the acting session so the user is not logged out of the page they just used. Asserted by E2E-AUTH-15.
+*Fixed, 2026-08-10,* by the session epoch. All three password-write paths bump it: the user's own change (`handlers/users.go:272`), an administrator's reset (`handlers/users.go:142`), and a completed reset-token flow (`handlers/password_reset.go:200`). The first re-stamps the acting session so the user is not logged out of the page they just used. Asserted by E2E-AUTH-15.
 
-### 6.9 V9 Low: `UsersPost action=create` does not validate `role`
+### 6.9 V9 Low, fixed: `UsersPost action=create` did not validate `role`
 
-`UsersPost`'s `create` branch passes `r.FormValue("role")` straight to `appdb.CreateUser` with no validation (`handlers/users.go:38-55`). A typo produces an account whose role matches no key in `roleLevel` (`middleware/middleware.go:104`), so `roleLevel[role]` is zero and every role-gated route returns `403`. The account can still log in, and no error is shown to the administrator who created it. `handlers/admin_temp.go:107-109` validates the same field and falls back to `viewer`, so the two paths are inconsistent. Covered by the last row of E2E-ADM-08.
+`UsersPost`'s `create` branch passed `r.FormValue("role")` straight to `appdb.CreateUser`. A typo produced an account whose role matched no key in `roleLevel`, so every role-gated route returned `403`, the account could still log in, and the administrator who created it saw no error.
 
-### 6.10 V10 Low, open: `GET /logout` carries no CSRF token
+*Fixed, 2026-08-10,* by making the allowlist an invariant of the data layer rather than a habit of one handler. `ValidRole` and `ErrInvalidRole` live in `db/users.go:21-28` and are enforced in `CreateUser` (`:100`), `UpdateUserRole` (`:112`) and `UpsertOIDCUser` (`:270`). The `create` and `change_role` handlers check first so the operator gets `Role must be one of: viewer, manager, admin` rather than a database error (`handlers/users.go:52,92`).
 
-*Evidence.* Logout is registered as `r.Get("/logout", h.Logout)` (`main.go:202`), outside the `RequireLogin` group and with no token check. Any page that can cause the browser to issue that GET can log the user out.
+`OIDC_DEFAULT_ROLE` was a second route around the same invariant, since it is operator-supplied and lands in a role field without passing through either handler. The process now refuses to boot on a bad value when OIDC is enabled (`main.go:151-153`).
 
-*What changed.* The weakness is pre-existing, but its blast radius grew with the V3 fix. Before, a forced logout dropped one browser's cookie and the user signed back in. Now it bumps `session_epoch`, so it terminates **every** session that user holds, on every device, including any long-running one on another machine. That is still only denial of service and no data is exposed, which is why it stays Low.
+### 6.10 V10 Low, fixed: `GET /logout` carried no CSRF token
 
-*Remedy.* Make logout a `POST` with a `csrf_token`, matching every other state-changing route in the application. E2E-AUTH-11 asserts the current `GET` shape and would need its method updated in the same change.
+*Evidence.* Logout was `r.Get("/logout", h.Logout)`, outside the `RequireLogin` group and with no token check, so any page that could make the browser issue that GET could log the user out. The weakness was pre-existing, but its blast radius grew with the V3 fix: once logout bumps `session_epoch` it terminates every session that user holds on every device, rather than dropping one browser's cookie.
 
-### 6.11 Reviewed, no action
+*Fixed, 2026-08-10.* Logout is now `r.Post("/logout", h.Logout)` behind `requireCSRF` (`main.go:225`, `handlers/auth.go:215`), offered as an inline form in both `base.html` and `admin_base.html`. `r.Get("/logout", h.LogoutGet)` is kept as a safe redirect to `/login` that logs nobody out (`main.go:224`, `handlers/auth.go:209-211`), so an old bookmark degrades rather than breaking.
+
+*What the suite does.* E2E-AUTH-11 asserts both halves, and `/logout` is now one of the twenty-three routes in E2E-CSRF-01's sweep.
+
+### 6.11 V11 High, correctness, fixed: flash messages were never delivered
+
+*Evidence.* `models.FlashMsg` was never registered with `gob`. `gorilla/sessions` gob-encodes `sess.Values`, so `sess.Save` failed with `gob: type not registered for interface` and wrote **no cookie at all**. Every flash message in the application had been silently discarded for as long as the code has existed, and because `h.flash` ignores the save error there was nothing in the logs to show for it.
+
+*Impact on this specification.* Around thirty assertions in Section 3 check flash text. Until this was fixed, every one of them would have failed against otherwise-correct code. That makes V11 the single most consequential finding for the suite, and it is the reason a flash assertion is worth writing at all rather than being noise.
+
+*Fixed, 2026-08-10.* `gob.Register(FlashMsg{})` in `models`' own `init` (`models/models.go:79`) as well as in `main` (`main.go:126`). Registering only in `main` would have left the type unregistered under `go test ./models/...` and every other package test, which is precisely the configuration in which the defect would keep hiding.
+
+*What the suite does.* Every flash assertion in Section 3 is now a live check. The three that changed shape as a result are named in V12.
+
+### 6.12 V12 Medium, correctness, fixed: three flash-rendering defects, masked by V11
+
+Registering the flash type exposed three rendering defects that were unreachable while the delivery mechanism was dead.
+
+| Defect | Consequence | Fix |
+|---|---|---|
+| `admin_base.html` had no flash region | every message raised from an admin page, including V9's new invalid-role error, surfaced later on whatever non-admin page the administrator happened to visit next | flash region added (`templates/admin_base.html:285-287`) |
+| `admin_users_temp` popped the flash twice | three of its error paths showed nothing at all | single pop |
+| the login page rendered the lockout message twice, once from `.Error` and once from `.Msgs` | duplicate error boxes on the fifth failed attempt | the fifth-attempt flash removed (`handlers/auth.go:98-101`). `LoginGet`'s `Blocked` branch is now the only channel for that text |
+
+The duplicate flash blocks in `admin_notifications.html` and `admin_console.html` were removed at the same time, so the new base region does not double up.
+
+*What the suite does.* E2E-AUTH-02 asserts the lockout text arrives on the following `GET /login` as `.Error` and **not** as a flash. E2E-ADM-08 asserts the invalid-role error renders on `/admin/users` itself. E2E-TEMP-01 asserts the temp-user error paths render their messages.
+
+### 6.13 Reviewed, no action
 
 Reviewed against source with no action required: the path-containment helpers (`containedPath`, `containedAbsPath`, `safeName`), `csrfOK`'s constant-time comparison and empty-token guard, the OIDC state, nonce and PKCE handling, `resetLink`'s refusal to derive an origin from the request, password-reset token storage, single use and TTL, the provisioner password being read per call, the admin console's argv being wholly server-side, `pg_dump` receiving its password through `PGPASSFILE`, uniformly parameterised SQL, the static handler's embedded sub-FS boundary, the TOTP replay guard, and the Let's Encrypt domain validation.
 ## Appendix A: test index
@@ -2182,7 +2310,7 @@ All 79 tests, sorted by ID. "Stack" is the CI job or nightly leg that runs it.
 | E2E-AUTH-07 | disabling 2FA requires the password and a fresh code | PR | `e2e-main` | 3.2 |
 | E2E-AUTH-08 | OIDC login against a mock IdP | nightly | nightly `oidc-mail` | 3.2 |
 | E2E-AUTH-09 | password reset request and completion | nightly | nightly `oidc-mail` | 3.2 |
-| E2E-AUTH-11 | logout ends the session for the client that performed it | PR | `e2e-main` | 3.2 |
+| E2E-AUTH-11 | logout is a POST, and a GET to the same path logs nobody out | PR | `e2e-main` | 3.2 |
 | E2E-AUTH-12 | logout revokes a cookie captured before it | PR | `e2e-main` | 3.2 |
 | E2E-AUTH-13 | the viewer-to-admin escalation chain is refused at both gates | nightly | nightly `oidc-mail` | 3.2 |
 | E2E-AUTH-14 | deactivation, demotion and deletion take effect on the next request | PR | `e2e-main` | 3.2 |
@@ -2209,11 +2337,11 @@ All 79 tests, sorted by ID. "Stack" is the CI job or nightly leg that runs it.
 | E2E-CERT-09 | downloads | PR | `e2e-main` | 3.4 |
 | E2E-CERT-10 | the certificate-detail page's own validations | PR | `e2e-main` | 3.4 |
 | E2E-CERT-11 | duration normalisation and the CA's maximum | PR | `e2e-main` | 3.4 |
-| E2E-CERT-12 | issuance for a domain the operator does not control | PR | `e2e-main` | 3.4 |
+| E2E-CERT-12 | the domain-suffix policy is unrestricted by default and binds both issue and renew | PR | `e2e-main` | 3.4 |
 | E2E-CERT-13 | an import name collision destroys the existing certificate | PR | `e2e-main` | 3.4 |
 | E2E-CFG-01 | the response-header and config-switch matrix | PR | `e2e-main`, two rows nightly `oidc-mail` | 3.12 |
-| E2E-CFG-02 | `TRUST_PROXY=true` makes the rate limiter attacker-controlled | nightly | nightly `oidc-mail` | 3.12 |
-| E2E-CFG-03 | `TRUST_PROXY=false` is the mirror control | nightly | nightly `oidc-mail` | 3.12 |
+| E2E-CFG-02 | a forwarding header is believed only from a trusted peer | nightly | nightly `oidc-mail` | 3.12 |
+| E2E-CFG-03 | a misconfigured trusted-proxy list is fatal at boot | nightly | nightly `oidc-mail` | 3.12 |
 | E2E-CSRF-01 | every POST route rejects a missing and a wrong token | PR | `e2e-main` | 3.11 |
 | E2E-CSRF-05 | a token from a different session is rejected | PR | `e2e-main` | 3.11 |
 | E2E-HIST-01 | history pagination | PR | `e2e-main` | 3.6 |
@@ -2243,7 +2371,7 @@ All 79 tests, sorted by ID. "Stack" is the CI job or nightly leg that runs it.
 | E2E-SEC-05 | the backup bundle is CA-key-equivalent and gated accordingly | PR | `e2e-main` | 3.6 |
 | E2E-SEC-06 | sensitive pages are not cacheable | PR | `e2e-main` | 3.6 |
 | E2E-STATIC-01 | static assets are served with correct MIME types and resist traversal | PR | `e2e-main` | 3.12 |
-| E2E-TEMP-01 | a temporary user expires on the 60-second ticker | PR | `e2e-main` | 3.13 |
+| E2E-TEMP-01 | a temporary user is handed over by one-shot token and expires on the ticker | PR | `e2e-main` | 3.13 |
 | E2E-TEMP-02 | an expired temporary admin loses access immediately | PR | `e2e-main` | 3.13 |
 
 ## Appendix B: workflow file
