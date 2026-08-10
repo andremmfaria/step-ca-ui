@@ -81,6 +81,27 @@ func containedPath(root, candidate string) (string, error) {
 	return absCandidate, nil
 }
 
+// containedAbsPath verifies that an already-built path resolves strictly inside
+// root and returns it cleaned and absolute.  Unlike containedPath, the
+// candidate is a path built elsewhere (a stored DB value) rather than an
+// untrusted relative component, so a tampered row cannot steer a write out of
+// the directory the application manages.
+func containedAbsPath(root, candidate string) (string, error) {
+	absRoot, err := filepath.Abs(root)
+	if err != nil {
+		return "", fmt.Errorf("resolving root %q: %w", root, err)
+	}
+	absCandidate, err := filepath.Abs(candidate)
+	if err != nil {
+		return "", fmt.Errorf("resolving candidate %q: %w", candidate, err)
+	}
+	// Separator boundary, so "/opt/certs-old" is not accepted for "/opt/certs".
+	if !strings.HasPrefix(absCandidate, absRoot+string(os.PathSeparator)) {
+		return "", fmt.Errorf("path %q is outside %q", candidate, root)
+	}
+	return absCandidate, nil
+}
+
 // safeNameRe allows only characters that are safe in a filename on all
 // target platforms.  Forward slashes, back-slashes, null bytes, and path
 // separators are all excluded.

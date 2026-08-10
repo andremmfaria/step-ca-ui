@@ -105,6 +105,16 @@ func issueCert(ctx context.Context, caClient stepca.CA, domain, certPath, keyPat
 	if err != nil {
 		return fmt.Errorf("invalid duration %q: %w", duration, err)
 	}
+	// Renew reaches here with paths loaded from the database, so both are
+	// re-checked against the managed directory before anything is written.
+	safeCertPath, err := containedAbsPath(cfg.CertsDir, certPath)
+	if err != nil {
+		return fmt.Errorf("certificate path: %w", err)
+	}
+	safeKeyPath, err := containedAbsPath(cfg.CertsDir, keyPath)
+	if err != nil {
+		return fmt.Errorf("key path: %w", err)
+	}
 	certPEM, keyPEM, err := caClient.IssueCertificate(ctx, stepca.IssueRequest{
 		Domain:       domain,
 		Duration:     dur,
@@ -115,10 +125,14 @@ func issueCert(ctx context.Context, caClient stepca.CA, domain, certPath, keyPat
 	if err != nil {
 		return fmt.Errorf("issue certificate: %w", err)
 	}
-	if err := os.WriteFile(certPath, certPEM, 0o600); err != nil {
+	//nolint:gosec // G703: containedAbsPath above proved the path is inside
+	// cfg.CertsDir; gosec's taint analysis cannot see that sanitiser, so
+	// TestIssueCert_PathOutsideCertsDir asserts the invariant instead.
+	if err := os.WriteFile(safeCertPath, certPEM, 0o600); err != nil {
 		return fmt.Errorf("write certificate file: %w", err)
 	}
-	if err := os.WriteFile(keyPath, keyPEM, 0o600); err != nil {
+	//nolint:gosec // G703: see the certificate write above
+	if err := os.WriteFile(safeKeyPath, keyPEM, 0o600); err != nil {
 		return fmt.Errorf("write key file: %w", err)
 	}
 	return nil

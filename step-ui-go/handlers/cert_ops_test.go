@@ -37,6 +37,7 @@ func TestIssueCert_ValidDomain(t *testing.T) {
 	ca.IssueResult.Key = []byte("key-bytes")
 
 	err := issueCert(context.Background(), ca, "example.com", certPath, keyPath, "8760h", "EC:P-256", &config.Config{
+		CertsDir:     dir,
 		Provisioner:  "admin",
 		PasswordFile: "/pw",
 	})
@@ -46,11 +47,11 @@ func TestIssueCert_ValidDomain(t *testing.T) {
 	if ca.issueCalls != 1 {
 		t.Fatalf("expected exactly 1 IssueCertificate call, got %d", ca.issueCalls)
 	}
-	got, err := os.ReadFile(certPath)
+	got, err := os.ReadFile(certPath) //nolint:gosec // G304: t.TempDir()-derived path
 	if err != nil || string(got) != "cert-bytes" {
 		t.Errorf("certPath contents = %q, %v; want %q, nil", got, err, "cert-bytes")
 	}
-	got, err = os.ReadFile(keyPath)
+	got, err = os.ReadFile(keyPath) //nolint:gosec // G304: t.TempDir()-derived path
 	if err != nil || string(got) != "key-bytes" {
 		t.Errorf("keyPath contents = %q, %v; want %q, nil", got, err, "key-bytes")
 	}
@@ -72,6 +73,27 @@ func TestIssueCert_InvalidDomain(t *testing.T) {
 	}
 	if ca.issueCalls != 0 {
 		t.Errorf("expected 0 IssueCertificate calls, got %d", ca.issueCalls)
+	}
+}
+
+// TestIssueCert_PathOutsideCertsDir confirms a cert path that escapes
+// cfg.CertsDir — a tampered or legacy database row on the Renew path — is
+// refused before anything is written to disk.
+func TestIssueCert_PathOutsideCertsDir(t *testing.T) {
+	dir := t.TempDir()
+	outside := filepath.Join(t.TempDir(), "escape.crt")
+
+	ca := &countingFakeCA{}
+	ca.IssueResult.Cert = []byte("cert-bytes")
+	ca.IssueResult.Key = []byte("key-bytes")
+
+	err := issueCert(context.Background(), ca, "example.com", outside, filepath.Join(dir, "private.key"),
+		"8760h", "EC:P-256", &config.Config{CertsDir: dir})
+	if err == nil {
+		t.Fatal("expected error for a certificate path outside CertsDir")
+	}
+	if _, statErr := os.Stat(outside); statErr == nil {
+		t.Error("issueCert wrote outside CertsDir")
 	}
 }
 
