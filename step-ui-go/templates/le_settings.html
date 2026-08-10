@@ -51,8 +51,8 @@
                     <label>API Token</label>
                     <input type="password"
                            name="cf_token"
-                           placeholder="Cloudflare API Token"
-                           value="{{if .LESettings}}{{.LESettings.CFToken}}{{end}}">
+                           placeholder="leave blank to keep existing"
+                           autocomplete="new-password">
                     <div class="muted-fs7-mt4">Permissions: Zone &mdash; DNS &mdash; Edit</div>
                 </div>
                 <div class="form-full">
@@ -87,8 +87,8 @@
                     <label>Secret Access Key</label>
                     <input type="password"
                            name="r53_secret"
-                           placeholder="AWS Secret Access Key"
-                           value="{{if .LESettings}}{{.LESettings.R53SecretKey}}{{end}}">
+                           placeholder="leave blank to keep existing"
+                           autocomplete="new-password">
                 </div>
             </div>
             <button type="submit"

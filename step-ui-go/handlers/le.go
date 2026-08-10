@@ -232,18 +232,13 @@ func (h *Handler) LESettingsPost(w http.ResponseWriter, r *http.Request) {
 	if !h.requireCSRF(w, r, "/le/settings") {
 		return
 	}
-	settings := &models.LESettings{
-		Email:        trimStr(r.FormValue("email")),
-		Provider:     r.FormValue("provider"),
-		CFToken:      trimStr(r.FormValue("cf_token")),
-		CFZoneID:     trimStr(r.FormValue("cf_zone_id")),
-		R53KeyID:     trimStr(r.FormValue("r53_key_id")),
-		R53SecretKey: trimStr(r.FormValue("r53_secret")),
-		R53Region:    trimStr(r.FormValue("r53_region")),
+	current, err := appdb.GetLESettings(r.Context(), h.db)
+	if err != nil {
+		h.flash(w, r, "err", "Load error: "+err.Error())
+		http.Redirect(w, r, "/le/settings", http.StatusFound)
+		return
 	}
-	if settings.R53Region == "" {
-		settings.R53Region = "us-east-1"
-	}
+	settings := parseLESettingsFields(r, current)
 	if err := appdb.SaveLESettings(r.Context(), h.db, settings); err != nil {
 		h.flash(w, r, "err", "Save error: "+err.Error())
 	} else {
@@ -254,6 +249,38 @@ func (h *Handler) LESettingsPost(w http.ResponseWriter, r *http.Request) {
 		h.flash(w, r, "ok", "Settings saved")
 	}
 	http.Redirect(w, r, "/le/settings", http.StatusFound)
+}
+
+// parseLESettingsFields extracts the ACME settings form fields from r into a
+// new LESettings. current is the live DB row and supplies the provider secrets
+// when their fields come back blank.
+func parseLESettingsFields(r *http.Request, current *models.LESettings) *models.LESettings {
+	s := &models.LESettings{
+		Email:     trimStr(r.FormValue("email")),
+		Provider:  r.FormValue("provider"),
+		CFZoneID:  trimStr(r.FormValue("cf_zone_id")),
+		R53KeyID:  trimStr(r.FormValue("r53_key_id")),
+		R53Region: trimStr(r.FormValue("r53_region")),
+	}
+	if s.R53Region == "" {
+		s.R53Region = "us-east-1"
+	}
+
+	// Secret-preserve-on-blank: only update when a new non-empty value is
+	// submitted. The form no longer echoes these back (V2), so blank means
+	// "unchanged" and must not erase a stored credential.
+	if v := trimStr(r.FormValue("cf_token")); v == "" {
+		s.CFToken = current.CFToken
+	} else {
+		s.CFToken = v
+	}
+	if v := trimStr(r.FormValue("r53_secret")); v == "" {
+		s.R53SecretKey = current.R53SecretKey
+	} else {
+		s.R53SecretKey = v
+	}
+
+	return s
 }
 
 // ─── Logs ─────────────────────────────────────────────────────────────────────
