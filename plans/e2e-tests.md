@@ -11,7 +11,7 @@ Status: 2026-08-10. Verified against `step-ui-go/` at `a7b59b8`.
 | [1. Purpose and scope](#1-purpose-and-scope) | 1.1 Tiers · 1.2 Tests that cannot be green today · 1.3 Tier rosters |
 | [2. Test environment](#2-test-environment) | 2.1 Compose stack · 2.2 Fresh vs reused volumes · 2.3 Seed credentials · 2.4 Root provisioning and `UI_TLS_MODE` · 2.5 Which `.env` keys reach the container · 2.6 Log-assertion mechanics · 2.7 Required test infrastructure · 2.8 Running a subset locally |
 | [3. Test suites](#3-test-suites) | 3.0 Conventions and execution order · 3.1 Bootstrap · 3.2 Auth · 3.3 RBAC · 3.4 Certificates · 3.5 Provisioners · 3.6 History and security log · 3.7 Admin · 3.8 Backup · 3.9 Health · 3.10 UI-cert renewal · 3.11 CSRF · 3.12 Config and static · 3.13 Temporary users · 3.14 Let's Encrypt · 3.15 Notifications |
-| [4. Automation and CI](#4-automation-and-ci) | 4.1 Tooling · 4.2 Topology · 4.3 Jobs · 4.4 Existing workflows · 4.5 Secrets · 4.6 Artifacts · 4.7 Flake policy |
+| [4. Automation and CI](#4-automation-and-ci) | 4.1 The harness, its three projects and two execution contexts · 4.2 Topology and cost · 4.3 Jobs · 4.4 Existing workflows · 4.5 Secrets · 4.6 Artifacts · 4.7 Flake policy |
 | [5. Traceability](#5-traceability) | 5.1 Acceptance criteria · 5.2 Risk register · 5.3 Coverage by area · 5.4 Source file to test |
 | [6. Application findings](#6-application-findings) | V1 to V12, all closed on 2026-08-10, and what the suite asserts about each |
 | [Appendix A](#appendix-a-test-index) | Test index, all 79, sorted by ID |
@@ -33,12 +33,17 @@ Status: 2026-08-10. Verified against `step-ui-go/` at `a7b59b8`.
 | `make setup` | generate `secrets/postgres_password`, `secrets/secret_key`, `secrets/ca_password`. `FORCE=1` regenerates |
 | `docker compose up -d --build` | bring up the stock stack |
 | `make e2e-fresh` | `down -v` then `up -d --wait` |
+| `make e2e-install` | `npm ci` in `test/e2e`, plus `npx playwright install chromium` for a local run |
 | `make e2e-quick` | the pre-push subset, Section 2.8 |
-| `make e2e-main` | the full long-lived-stack suite in the Section 3.0.3 order |
+| `make e2e-main` | the `api` then the `ui` project against the long-lived stack, in the Section 3.0.3 order |
+| `npx playwright test --project=api` | one project on its own, from inside `test/e2e` |
+| `npx playwright test -g 'E2E-CERT-05'` | one test by ID, since every title begins with its ID |
+| `npx playwright show-report` | open the HTML report from the last local run |
+| `npx playwright show-trace <trace.zip>` | inspect a failure's trace, including request and response bodies |
 | `make e2e-restart-ui` | restart `step-ui`, which clears both process-local rate limiters |
 | `make e2e-reset-ssl` | remove the `step-ui-ssl` volume only |
 | `make e2e-seed-history N` | insert exactly N synthetic `cert_history` rows |
-| `./test/e2e/scenario.sh <scenario>` | run one bootstrap scenario against its own disposable stack |
+| `./test/e2e/scenario.sh <scenario>` | run one bootstrap scenario, driving the `infra` project against its own disposable stack |
 | `./test/e2e/collect.sh <dir>` | collect the artifact set in Section 4.6, redacting as it writes |
 | `./test/e2e/assert-redacted.sh <dir>` | E2E-SEC-04's canary sweep over a collected artifact |
 
@@ -53,7 +58,7 @@ The suite was seeded from `plans/step-cli-to-ca-lib-swap.md`. Section 5 traces w
 - The deliberate startup-fatal paths. Process-exit behaviour is black-box by definition and is structurally untestable anywhere else. "Never fatal on CA failure" only means something if the intended fatals are pinned as contrast.
 - The background UI-cert renewal goroutine (`startUICertRenewer`) picking up a renewed cert with zero downtime via `certReloader` (`tlsreload.go`).
 - Full request/response round-trips through chi middleware, meaning CSRF, session cookies and RBAC as an integrated stack rather than handler by handler.
-- Certificate issuance producing material a real `openssl`/`tls.LoadX509KeyPair` can parse, with SANs, duration and key type matching what was requested. This is Risk R4's "what would have to be true for this plan to fail silently": the locally-built CSR's shape must match `step ca certificate`'s, not merely "issuance succeeded".
+- Certificate issuance producing material a real `openssl` and a real TLS stack can parse, with SANs, duration and key type matching what was requested. This is Risk R4's "what would have to be true for this plan to fail silently": the locally-built CSR's shape must match `step ca certificate`'s, not merely "issuance succeeded".
 - Revocation actually rejected CA-side on reuse (Risk R7). `Revoke()` returning `nil` is not proof.
 - Fresh-volume `docker compose up` behaviour, which unit tests structurally cannot exercise.
 - The full configuration-switch and response-header matrix. Eleven environment keys change runtime behaviour, and a response header is only observable on the wire. Section 3.12 enumerates all eleven and says which test covers each.
@@ -102,9 +107,9 @@ Nothing else in Section 3 is expected red. In particular E2E-AUTH-11 through E2E
 
 ### 1.3 Tier rosters
 
-**PR tier, job `e2e-main`** (one long-lived stack, in the Section 3.0.3 order): E2E-AUTH-01 to E2E-AUTH-07, E2E-AUTH-11, E2E-AUTH-12, E2E-AUTH-14, E2E-AUTH-15, E2E-RBAC-01 to E2E-RBAC-03, E2E-CERT-01 to E2E-CERT-13, E2E-PROV-01, E2E-PROV-02, E2E-HIST-01 to E2E-HIST-03, E2E-SEC-01 to E2E-SEC-06, E2E-ADM-01 to E2E-ADM-05, E2E-ADM-07, E2E-ADM-08, E2E-BAK-01, E2E-BAK-02, E2E-HLTH-01 to E2E-HLTH-06, E2E-CSRF-01, E2E-CSRF-05, E2E-CFG-01, E2E-STATIC-01, E2E-TEMP-01, E2E-TEMP-02.
+**PR tier, job `e2e-main`**, projects `api` then `ui`, one long-lived stack, in the Section 3.0.3 order: E2E-AUTH-01 to E2E-AUTH-07, E2E-AUTH-11, E2E-AUTH-12, E2E-AUTH-14, E2E-AUTH-15, E2E-RBAC-01 to E2E-RBAC-03, E2E-CERT-01 to E2E-CERT-13, E2E-PROV-01, E2E-PROV-02, E2E-HIST-01 to E2E-HIST-03, E2E-SEC-01 to E2E-SEC-06, E2E-ADM-01 to E2E-ADM-05, E2E-ADM-07, E2E-ADM-08, E2E-BAK-01, E2E-BAK-02, E2E-HLTH-01 to E2E-HLTH-06, E2E-CSRF-01, E2E-CSRF-05, E2E-CFG-01, E2E-STATIC-01, E2E-TEMP-01, E2E-TEMP-02.
 
-**PR tier, job `e2e-bootstrap`**, one disposable stack per scenario:
+**PR tier, job `e2e-bootstrap`**, project `infra`, one disposable stack per scenario:
 
 | Scenario | Tests |
 |---|---|
@@ -262,14 +267,17 @@ Without `compose.e2e-fingerprint.yml`, `CA_FINGERPRINT` is unreachable in this d
 
 | Item | Purpose |
 |---|---|
-| Containerised HTTP harness on `step-net` | see below |
-| `test/e2e` as its own Go module | test-only dependencies added to `step-ui-go/go.mod` would surface in `govulncheck` and `trivy-fs`, both currently blocking |
-| `test/e2e/scenario.sh <scenario>` | one entry point per bootstrap scenario, naming a compose override plus a harness selector. Sets `STEPUI_ADMIN_PASSWORD`, except for the `fatals` scenario's case (b) |
+| `test/e2e` as its own Node project | Playwright Test in TypeScript, with its own `package.json`, `tsconfig.json` and `playwright.config.ts`. Kept outside both the Go module and the repo-root frontend tooling, so its dependencies never reach `govulncheck` or `trivy-fs`, both currently blocking |
+| a pinned `mcr.microsoft.com/playwright` image | carries Chromium and the runtime for the `api` and `ui` projects. Pinned by tag and digest, since an unpinned image changes browser version between runs |
+| `test/e2e/scenario.sh <scenario>` | one entry point per bootstrap scenario, naming a compose override and invoking the `infra` project with the scenario's grep filter. Sets `STEPUI_ADMIN_PASSWORD`, except for the `fatals` scenario's case (b) |
 | `test/e2e/collect.sh <dir>` | the artifact collector, specified in Section 4.6. Redacts before it writes |
 | `test/e2e/assert-redacted.sh <dir>` | E2E-SEC-04's canary sweep over the collected artifact |
-| `oathtool`, or `github.com/pquerna/otp/totp` in the harness module | TOTP code generation for E2E-AUTH-04 through E2E-AUTH-07 |
+| an OTP library in the harness project | TOTP code generation for E2E-AUTH-04 through E2E-AUTH-07, behind the boundary-guard fixture in Section 4.1.4 |
+| a QR decoder in the harness project | E2E-AUTH-04's `ui` companion decodes `GET /profile/2fa/qr` and compares it against the plaintext secret the page renders |
 
-The harness must run **as a container on `step-net`**, not on the host. Both rate limiters key on the client IP, so a host harness is seen as the single docker gateway address and per-test rate-limit isolation is impossible. `TRUST_PROXY` is not passed through the stock compose file, so `X-Forwarded-For` cannot namespace it either. A container on `step-net` also resolves `https://step-ca:9443` and the mock IdP issuer URL identically to the way the application resolves them, which is what makes an OIDC discovery document validate for both parties, and it is the only place `curl --cert/--key` can reach step-ca directly for E2E-CERT-05.
+The `api` and `ui` projects must run **as a container on `step-net`**, not on the host. Both rate limiters key on the client IP, so a host harness is seen as the single docker gateway address and per-test rate-limit isolation is impossible. `TRUST_PROXY` is not passed through the stock compose file, so `X-Forwarded-For` cannot namespace it either. A container on `step-net` also resolves `https://step-ca:9443` and the mock IdP issuer URL identically to the way the application resolves them, which is what makes an OIDC discovery document validate for both parties and for the browser, and it is the only place E2E-CERT-05's mTLS probe can reach step-ca directly.
+
+The `infra` project runs on the host, because it drives `docker compose` and inspects published ports. Section 4.1.2 states both contexts.
 
 #### 2.7.3 Makefile targets
 
@@ -279,8 +287,9 @@ The harness must run **as a container on `step-net`**, not on the host. Both rat
 | `make e2e-reset-ssl` | removes the `step-ui-ssl` volume only |
 | `make e2e-seed-history N` | inserts exactly N synthetic `cert_history` rows without disturbing the real ones |
 | `make e2e-fresh` | `down -v` plus `up -d --wait` |
-| `make e2e-main` | runs the long-lived-stack suite in the order given in Section 3.0.3 |
+| `make e2e-main` | runs the `api` then the `ui` project against the long-lived stack, in the order given in Section 3.0.3 |
 | `make e2e-quick` | the pre-push subset, Section 2.8 |
+| `make e2e-install` | `npm ci` in `test/e2e`, plus `npx playwright install chromium` for a local run outside the container |
 
 #### 2.7.4 Application prerequisite
 
@@ -297,11 +306,17 @@ Two assertion lists must be recorded once, by hand, on a known-good stack before
 
 #### 2.7.6 Deliberately not required
 
-A QR decoder: the pending TOTP secret is rendered as plaintext in a readonly input at `templates/profile_2fa.html:105`. `docker compose cp` for E2E-CERT-07: the test plants its material through `/issue` instead. Any `apk add` inside the runtime image: it runs as `USER stepui` (uid 10001, `Dockerfile:48`) so `apk add` cannot succeed, and `openssl` is already installed (`Dockerfile:29`).
+**A cookie-minting helper.** Forging a session cookie with backdated `session_created_at` and `last_activity` values would mean reimplementing Go's `securecookie` HMAC and AES encoding in TypeScript, and keeping that reimplementation correct against a dependency this suite does not control. It is not worth it, and nothing needs it. The idle and absolute lifetime checks it would have served are asserted directly in `middleware/middleware_test.go` (Section 1's delegation table), and every session-revocation property in the suite now uses a **real** cookie against a real `session_epoch` bump: E2E-AUTH-12 captures one, and E2E-AUTH-14, E2E-AUTH-15 and E2E-TEMP-02 watch a live session stop working. A forged cookie would be a weaker oracle than the ones already in place.
+
+**`docker compose cp` for E2E-CERT-07:** the test plants its material through `/issue` instead.
+
+**Any `apk add` inside the runtime image:** it runs as `USER stepui` (uid 10001, `Dockerfile:48`) so `apk add` cannot succeed, and `openssl` is already installed (`Dockerfile:29`).
 
 ### 2.8 Running a subset locally
 
-`make e2e-quick` is the pre-push minimum. It runs against the stock stack with no override, needs no mock IdP, no mail catcher and no fresh volumes, and takes about **two minutes** after the stack is healthy.
+`make e2e-quick` is the pre-push minimum. It runs `npx playwright test --project=api` with a grep filter over the IDs below, against the stock stack with no override. It needs no mock IdP, no mail catcher, no fresh volumes and no browser, and takes about **two minutes** after the stack is healthy.
+
+Run `make e2e-install` once first. Locally the `api` project can run from the host rather than from the Playwright container, because none of the tests below depends on per-test rate-limiter isolation. Anything from Section 3.2's lockout pair, or from E2E-CFG-02, needs the container and therefore the full `make e2e-main`.
 
 | Included | Why |
 |---|---|
@@ -312,9 +327,9 @@ A QR decoder: the pending TOTP secret is rendered as plaintext in a readonly inp
 | E2E-HLTH-01, E2E-HLTH-02 | the two probes the container healthcheck and any orchestrator depend on |
 | E2E-ADM-01 | the pinned library version, which a dependency bump changes |
 
-Excluded, and why: everything that stops a container (needs the Section 3.0.4 barrier and adds a minute of restarts), everything on the 2FA subject (leaves state), E2E-AUTH-02 and E2E-AUTH-03 (poison the source IP for five minutes), and every test on a flagged override stack.
+Excluded, and why: the whole `ui` project (needs a browser and adds a download on a cold machine), everything that stops a container (needs the Section 3.0.4 barrier and adds a minute of restarts), everything on the 2FA subject (leaves state), E2E-AUTH-02 and E2E-AUTH-03 (poison the source IP for five minutes), and every test on a flagged override stack.
 
-Bringing the stack up from cold is roughly 50 seconds to healthy. `make e2e-fresh` if the previous run left state behind, `make e2e-restart-ui` if a rate limiter is blocking you.
+Bringing the stack up from cold is roughly 50 seconds to healthy. `make e2e-fresh` if the previous run left state behind, `make e2e-restart-ui` if a rate limiter is blocking you. On a failure, `npx playwright show-report` opens the trace for the failing test.
 
 ## 3. Test suites
 
@@ -708,13 +723,13 @@ Do **not** assert "the session cookie value changed". `securecookie` encrypts wi
 
 #### E2E-AUTH-04: TOTP enrollment
 
-*Tier:* PR. Uses a dedicated user.
+*Tier:* PR. Uses a dedicated user. Runs in `api`, with a `ui` companion for the QR assertion.
 
 *Steps:*
 1. Log in as the dedicated test user.
 2. `POST /profile/2fa/start` with the `csrf_token` from `GET /profile/2fa`.
-3. `GET /profile/2fa` and scrape the pending secret from the readonly input at `templates/profile_2fa.html:105` (`value="{{.U.TOTPPendingSecret}}"`). No QR decoding is required, and no database access is required.
-4. Compute a current code with `oathtool --totp -b <secret>`.
+3. `GET /profile/2fa` and scrape the pending secret from the readonly input at `templates/profile_2fa.html:105` (`value="{{.U.TOTPPendingSecret}}"`). No database access is required.
+4. Compute a current code from that secret, through the boundary-guarded TOTP fixture of Section 4.1.4.
 5. `POST /profile/2fa/confirm` with `csrf_token` and `totp_code`.
 6. `GET /profile/2fa` again.
 
@@ -722,6 +737,8 @@ Do **not** assert "the session cookie value changed". `securecookie` encrypts wi
 - The confirm response renders `profile_2fa` with exactly **8** recovery codes matching `^[A-Za-z0-9]{6}-[A-Za-z0-9]{6}-[A-Za-z0-9]{6}$` (`generateRecoveryCodes(8)`, `handlers/totp.go:114`). Save them.
 - Step 6 no longer offers enrollment, since TOTP is now enabled.
 - Re-fetching `GET /profile/2fa` does not render the recovery codes a second time. They are shown exactly once.
+
+*`ui` companion.* Load `/profile/2fa` in the browser while an enrolment is pending, read the rendered `<img>` at `/profile/2fa/qr`, decode the PNG, and assert the `otpauth://` URI it carries names the **same secret** as the readonly input on the same page. Two independent renderings of one secret must agree. The `api` steps above deliberately take the plaintext path, so without this companion nothing would notice a QR image that encoded the wrong value or failed to render at all.
 
 *Note for E2E-AUTH-05:* `Profile2FAConfirm` calls bare `totp.Validate` (`handlers/totp.go:109`) and does **not** go through the replay guard, so `totp_last_step` is still zero on entry to the next test. That is why the replay assertion there is meaningful rather than pre-poisoned.
 
@@ -843,6 +860,8 @@ Do **not** assert "the session cookie value changed". `securecookie` encrypts wi
 - Step 6 returns `302` to `/login`, and both requests in step 7 return `302` to `/login`, not `403`. `RequireLogin` redirects rather than forbidding, and the difference between the two is itself a regression surface.
 - The response to step 6 carries a session cookie with `Max-Age=-1`, and an `auth_log` row with reason `Logout`.
 - Both `base.html` and `admin_base.html` render an inline logout form with a `csrf_token`, so the POST is reachable from every authenticated page.
+
+*`ui` companion.* Load one page from each base template in the browser, click the logout control, and assert the resulting navigation lands on `/login` with the session ended. Steps 1 to 7 above prove the route contract; this proves an operator can actually reach it. A logout form that renders but does not submit, or whose token is stale on a cached page, is invisible to every request-level assertion.
 
 E2E-AUTH-12 covers the stronger property, that a **copy** of the cookie taken before logout is also revoked. `/logout` is one of the twenty-three routes E2E-CSRF-01 sweeps.
 
@@ -1036,7 +1055,11 @@ The duration axis is separate and is the only reason a duration regression is de
 
 *Order of execution.* Run `e2e-internal-ec-p256` **first, as a canary**. Its `87600h` request equals `STEPCA_MAX_TLS_CERT_DURATION`'s default exactly, and `validityValidator` rejects only when the requested duration *exceeds* the maximum, so an exactly-equal request is expected to pass. It sits on the boundary, which is why it runs first: if the boundary behaves differently from the expectation, every other row fails for the same reason and the failure message should say so. The CA's one-minute backdate may or may not be supplying margin here. That has not been confirmed, and no assertion depends on it.
 
-*Steps, per row:* `POST /issue` with `csrf_token`, `name`, `domain`, `template`, `key_type`, `duration`. Then `GET /download/cert/{id}` and `GET /download/key/{id}` as manager. Client timeout at least 120s, so that a 60-second cut is reported as the `WriteTimeout` finding it is rather than as a client timeout.
+*Steps, per row:* `POST /issue` with `csrf_token`, `name`, `domain`, `template`, `key_type`, `duration`. Then `GET /download/cert/{id}` and `GET /download/key/{id}` as manager. Request timeout at least 120s, so that a 60-second cut is reported as the `WriteTimeout` finding it is rather than as a client timeout.
+
+The eleven rows run in `api`, posting the form directly. That is the right level for the issuance contract, but it bypasses the page's JavaScript entirely, so it carries a `ui` companion.
+
+*`ui` companion.* In the browser, click each of the four template cards on `/issue` in turn and read back the hidden `template`, `key_type` and `duration` inputs (`issue.html`'s picker). Assert each card sets the values the handler reads, and that the four templates produce four distinct triples. A field-name drift between the JavaScript and `normalizeIssuePolicy` would leave every `api` row green while the real form silently submitted a default.
 
 *Assertions, per row:*
 - `302` to `/issue` with flash `Certificate <name> for <domain> issued (<key_type>)!`.
@@ -1044,7 +1067,7 @@ The duration axis is separate and is the only reason a duration regression is de
 - `openssl x509 -noout -subject -ext subjectAltName` shows `CN=<domain>` and a `subjectAltName` extension whose **`DNSNames` list has length exactly 1** and equals `[<domain>]`. This is Risk R4's CSR-shape half. "Contains the domain" is not sufficient and must never be substituted, because it is satisfied by both a CN-only CSR and a DNSNames-only CSR, which are exactly the two wrong shapes the plan names. The code under test sets `Subject.CommonName = domain` and `DNSNames = []string{domain}` (`stepca/issue.go:68-71`).
 - The public-key algorithm, curve and modulus size read out of the **downloaded certificate** match the requested `key_type`.
 - `openssl rsa -in private.key -check -noout` or `openssl ec -in private.key -check -noout` succeeds.
-- `tls.LoadX509KeyPair(certificate.crt, private.key)` succeeds in the harness. This cross-checks two artifacts produced by different code paths using a third-party parser.
+- Loading the downloaded certificate and key together as a TLS key pair succeeds. This cross-checks two artifacts produced by different code paths using a third-party parser.
 - `NotAfter - NotBefore` is within a minute of the requested duration.
 
 *Cross-row assertions, evaluated once over the whole matrix:*
@@ -1103,7 +1126,7 @@ Without steps 1 to 4 this test passes identically when the CA's request logging 
 
 #### E2E-CERT-05: revocation is enforced CA-side on reuse
 
-*Tier:* PR. Requires the harness container on `step-net`.
+*Tier:* PR. Runs in `api`, whose container is on `step-net` and is therefore the only place `step-ca:9443` is directly reachable.
 
 *Objective:* Risk R7. `Revoke()` returning `nil` is not evidence, and neither is the flash text, which any dial error or missing file also produces.
 
@@ -1111,7 +1134,7 @@ Without steps 1 to 4 this test passes identically when the CA's request logging 
 
 *Steps:*
 1. `POST /revoke/{id}` for `victim` with `csrf_token` as admin.
-2. From the harness container, `curl -sk --cert control/certificate.crt --key control/private.key -X POST https://step-ca:9443/renew -o /dev/null -w '%{http_code}'`.
+2. From the project's container, issue a client-certificate-authenticated `POST https://step-ca:9443/renew` presenting `control`'s certificate and key, and record the status.
 3. The same call with `victim`'s certificate and key.
 4. `docker compose logs step-ca | grep -i revoke`.
 
@@ -1399,7 +1422,7 @@ A prefix match on a string the test itself caused to be written round-trips a `H
 
 *Tier:* PR.
 
-*Steps:* `curl -sI` against `/certificates/{id}`, `/download/key/{id}`, `/admin/users`, `/admin/backup`, `/profile/2fa`.
+*Steps:* issue a `HEAD` request against `/certificates/{id}`, `/download/key/{id}`, `/admin/users`, `/admin/backup` and `/profile/2fa`, and read the response headers.
 
 *Assertions:* each response carries `Cache-Control: no-store`. The header is **currently absent** on all five, so this test is red until a one-line addition to `mw.SecurityHeaders` or a per-route middleware lands.
 
@@ -1702,12 +1725,13 @@ Eleven environment keys change runtime behaviour. This is the complete list and 
 
 *Tier:* PR, except the `LOCAL_LOGIN_ENABLED` and `USE_HTTPS` rows, which need override stacks and run in the nightly `oidc-mail` leg. Runs second to last in the long-lived stack, per Section 3.0.3.
 
-*Steps:* `curl -sI` against a representative route from every tier plus `/login`, `/health` and `/static/css/base.css`, once per configuration below. Each configuration change is applied by editing `.env` and restarting `step-ui`, and the original configuration is restored in teardown.
+*Steps:* read the response headers for a representative route from every tier plus `/login`, `/health` and `/static/css/base.css`, once per configuration below. Each configuration change is applied by editing `.env` and restarting `step-ui`, and the original configuration is restored in teardown.
 
 | Configuration | Assertion |
 |---|---|
 | default | `X-Frame-Options: DENY` and `X-Content-Type-Options: nosniff` on every response (`middleware/middleware.go:26-27`) |
 | default | `Content-Security-Policy` present and **byte-identical** to the literal at `middleware/middleware.go:42-47`, on every response. Compare the whole string, not a substring, and pin `default-src 'self'` with no `unsafe-inline` anywhere |
+| default, `ui` companion | loading each page template in the browser produces **zero** console errors and **zero** `securitypolicyviolation` events. The header comparison above proves the policy is the intended string; this proves the intended string does not block an asset the page needs. A directive that breaks a stylesheet changes no status code and no header |
 | `ENABLE_HSTS=true` | `Strict-Transport-Security: max-age=31536000; includeSubDomains` (`:31`) |
 | `ENABLE_HSTS=false` | `Strict-Transport-Security: max-age=0` (`:33`). The header is present with a zero max-age, not absent |
 | `SESSION_SECURE=true` | the session cookie carries `Secure`, and `GET /admin` reports the `Session cookie` preflight check as `ok` |
@@ -1725,7 +1749,7 @@ Eleven environment keys change runtime behaviour. This is the complete list and 
 
 *Objective:* Section 6.4. The rate limiter and the audit log must key off an address the client cannot choose.
 
-*Preconditions:* `TRUST_PROXY=true`. `TRUSTED_PROXY_CIDRS` set to a block that does **not** contain the harness container's address. The harness therefore connects as an untrusted peer, which is the case that mattered.
+*Preconditions:* `TRUST_PROXY=true`. `TRUSTED_PROXY_CIDRS` set to a block that does **not** contain the project container's address on `step-net`. The requests therefore arrive from an untrusted peer, which is the case that mattered.
 
 *Steps:*
 1. Issue twenty failed logins for a valid username, rotating `X-Forwarded-For` through twenty distinct addresses.
@@ -1758,7 +1782,7 @@ Eleven environment keys change runtime behaviour. This is the complete list and 
 
 *Objective:* `mimeByExt` exists (`main.go:46-65`) because the distribution `mime.types` in a minimal image maps `.css` to `text/plain`. A regression there leaves every page returning `200` with correct-looking bytes while the browser refuses to apply the stylesheet, and no status-code assertion anywhere in this suite would notice.
 
-*Steps:* `curl -sI` for one asset of each served extension. Then request `/static/../main.go`, `/static/%2e%2e/main.go` and `/static/....//main.go`.
+*Steps:* read the response headers for one asset of each served extension. Then request `/static/../main.go`, `/static/%2e%2e/main.go` and `/static/....//main.go`.
 
 *Assertions:* the `Content-Type` for each asset equals the value `mimeByExt` maps its extension to, exactly. Every traversal attempt returns `404` or `400`, never `200`, and never any file outside the embedded sub-FS. The handler serves from `fs.Sub(embeddedAssets, "static")` (`main.go:326-331`), so a traversal escape would be a serious regression.
 
@@ -1821,7 +1845,7 @@ Behind an env flag, skipped with an explicit reason when it is not set, on the s
 
 *Steps:* `POST /le/issue` with a domain the local responder can satisfy. Poll `/le` until the entry is issued.
 
-*Assertions:* the certificate appears on the dashboard, `GET /le/download/cert/{id}` returns parseable PEM, `GET /le/download/key/{id}` returns a key that `tls.LoadX509KeyPair` pairs with it, and the issuer is the local ACME server's intermediate.
+*Assertions:* the certificate appears on the dashboard, `GET /le/download/cert/{id}` returns parseable PEM, `GET /le/download/key/{id}` returns a key that loads with it as a TLS key pair, and the issuer is the local ACME server's intermediate.
 
 #### E2E-LE-03: auto-renew toggle and delete
 
@@ -1864,26 +1888,70 @@ Behind an env flag, skipped with an explicit reason when it is not set, on the s
 
 ## 4. Automation and CI
 
-### 4.1 Tooling
+### 4.1 The harness
 
-The suite is form-encoded and multipart HTTP, TLS inspection, container control and SQL. It needs no browser.
+The suite is Playwright Test in TypeScript. `test/e2e/` is its own Node project carrying `package.json`, `tsconfig.json`, `playwright.config.ts`, `fixtures/`, `helpers/` and `specs/`. It is not part of the `step-ui` Go module and not part of the repo-root frontend tooling, so its dependencies never reach `govulncheck` or the `trivy` filesystem scan, both of which gate today.
 
-| Tool | Used by | For |
+Specs mirror this document's own sections, one directory per section, so a reader holding a test ID can find its file without an index: `specs/bootstrap/`, `specs/auth/`, `specs/rbac/`, `specs/certs/`, `specs/provisioners/`, `specs/history/`, `specs/admin/`, `specs/backup/`, `specs/health/`, `specs/renewal/`, `specs/csrf/`, `specs/config/`, `specs/temp/`, `specs/le/`, `specs/notifications/`. **Every `test()` title begins with its E2E ID**, so a failure in `junit.xml` names the ID directly and the check UI is usable without cross-referencing.
+
+#### 4.1.1 The three projects
+
+One config, three `projects` selected by `testMatch`. A test's project determines both how it drives the application and where it runs.
+
+| Project | Drives | Owns |
 |---|---|---|
-| `docker compose` | Sections 3.1, 3.5, 3.9, 3.10 | bringing stacks up, stopping services, reading logs |
-| `curl` with a cookie jar per session | Sections 3.2, 3.3, 3.6 to 3.8, 3.11 to 3.15 | every HTTP request |
-| `curl -sI` | Section 3.12 | response headers |
-| `curl -F` | E2E-CERT-06 | the multipart import |
-| `curl --cert/--key` from inside `step-net` | E2E-CERT-05 | the CA-side revocation probe |
-| `openssl s_client`, `x509`, `rsa`, `ec`, `crl2pkcs7`, `pkcs7` | Sections 3.1, 3.4, 3.10 | served and issued certificate material |
-| `oathtool` or `github.com/pquerna/otp/totp` | E2E-AUTH-04 to E2E-AUTH-07 | TOTP codes |
-| `psql` | E2E-CERT-07, E2E-HIST-01, E2E-TEMP-01, the collector | pre-state, seeding and failure dumps |
-| `tar`, `jq`, `sha256sum` | E2E-BAK-01, E2E-PROV-01 | bundle and CA-config inspection |
-| `tls.LoadX509KeyPair` in the Go harness | E2E-CERT-01, E2E-LE-02 | cert-and-key pairing |
+| `api` | `APIRequestContext` over HTTP, no browser | the majority of the suite: Section 3.2 auth flows, 3.3 RBAC, 3.4 certificates, 3.6 history and security log, 3.7 admin, 3.8 backup, 3.9 health, 3.11 CSRF, 3.12 config switches, 3.13 temporary users, 3.14 Let's Encrypt, 3.15 notifications |
+| `ui` | Chromium | what is genuinely browser-shaped, and nothing else |
+| `infra` | Node driving child processes | `docker compose` lifecycle, `openssl s_client`, container log assertions, `psql`, and the fresh-volume bootstrap scenarios of Section 3.1, plus Section 3.10 |
 
-The only scraping required is the `csrf_token` hidden input and, for E2E-AUTH-04, the pending TOTP secret's readonly input. Both are plain `<input>` values extractable without executing JavaScript.
+**The `ui` project is deliberately small.** Four tests are in it, and each is there because its property cannot be observed over HTTP:
 
-**No browser tier.** CSP is a response header and E2E-CFG-01 compares it exactly on every route, which catches more than a browser walking a subset of pages. The QR property needs a decoder rather than a browser. The admin-console dropdown is server-rendered. The one genuine client-side concern is `issue.html`'s picker, which sets the hidden `template`, `key_type` and `duration` inputs from JavaScript, and the sufficient check there is static: assert in `lint-meta.yml` that every `name=` the JavaScript writes exists in the form and is read by the handler.
+| Test | Why it needs a browser |
+|---|---|
+| E2E-CERT-01 | `issue.html`'s template picker sets the hidden `template`, `key_type` and `duration` inputs from JavaScript. A companion spec clicks through the picker once per template and asserts the resulting form values, which is the only check that catches a JavaScript-to-handler field-name mismatch. The eleven-row issuance matrix itself stays in `api` |
+| E2E-AUTH-04 | the QR image at `GET /profile/2fa/qr` must decode to the same secret the page renders in its readonly input. That is a rendering property of a PNG |
+| E2E-AUTH-11 | logout is a POST from an inline form in both base templates. Whether that form is present, carries a token and submits is a page property |
+| E2E-CFG-01 | the CSP header is compared exactly in `api`. The `ui` companion loads each page template with a browser and asserts **zero** console errors and **zero** CSP violation events, which catches a directive that blocks a real asset without changing any status code |
+
+Everything else stays out of `ui`. The admin-console dropdown is server-rendered, so a form POST is equivalent. The RBAC matrix, the CSRF sweep and every certificate assertion are status codes and response bodies, which `APIRequestContext` reports directly and faster.
+
+#### 4.1.2 Two execution contexts
+
+| Project | Runs | Because |
+|---|---|---|
+| `api`, `ui` | **in a container on `step-net`**, from a pinned `mcr.microsoft.com/playwright` image | both rate limiters key on the client IP, so a harness on the host is seen as the single docker gateway address and per-test rate-limit isolation is impossible. The OIDC issuer URL must also resolve identically for the application and for the browser, which holds only inside the compose network, and `step-ca:9443` is reachable for E2E-CERT-05's mTLS probe only from there |
+| `infra` | **on the host** | it drives `docker compose` and inspects published ports. It asserts on container and TLS state rather than on authenticated request behaviour, so it needs no application-visible identity |
+
+#### 4.1.3 Configuration that is not default
+
+| Setting | Value | Why |
+|---|---|---|
+| `retries` | `0` in every project | Playwright retries in CI by default. Section 4.7's no-retry policy is deliberate, and a default left in place would quietly defeat it |
+| `fullyParallel` | `false` for `api` and `infra` | the execution order and state-bleed analysis in Section 3.0.3 are load-bearing, and one long-lived stack cannot support parallel workers. `ui` may parallelise only where its tests are provably independent |
+| `forbidOnly` | `true` in CI | a stray `test.only` fails the run rather than silently shrinking it |
+| `timeout`, `expect.timeout` | explicit | auto-waiting covers the browser tier and does nothing for a container healthcheck or a certificate serial, so the bounded-poll helpers of Section 4.7 still exist and still report the last observed value on expiry |
+| `trace` | `retain-on-failure` | see Section 4.6 |
+| `screenshot` | `only-on-failure` | |
+| `video` | `retain-on-failure` | |
+| reporters | `list`, `junit`, `html` | `list` for the job log, `junit` for the check UI, `html` uploaded as an artifact |
+
+#### 4.1.4 Fixtures and helpers
+
+Worker- and test-scoped fixtures the specs depend on:
+
+| Fixture or helper | Purpose |
+|---|---|
+| role-scoped authenticated context | performs the login flow once for `viewer`, `manager` and `admin` and hands back a context carrying the session |
+| CSRF token extraction | pulls `csrf_token` from a fetched page, used by every state-changing request |
+| TOTP generation | computes a code with a boundary guard, so a code is never consumed inside its last few seconds. E2E-AUTH-05's replay assertion depends on that guard |
+| `psql` query helper | pre-state checks, seeding, and the failure-time dump |
+| `docker compose` helper | up, down, stop, start, restart, logs-since, inspect |
+| `openssl s_client` helper | returns parsed issuer, subject, SAN list, serial and validity |
+| log-assertion helper | takes a since-marker and an **exact** string, since Section 2.4 forbids matching on the ambiguous substring |
+
+**"Jar A" and "jar B"** throughout Section 3 mean two independent, isolated request contexts, each with its own cookie storage. In `api` that is a second `APIRequestContext`; in `ui` a second browser context. Several tests state properties that only hold across two of them, E2E-CSRF-05 and E2E-AUTH-15 most obviously, so the isolation is part of the assertion rather than an implementation convenience.
+
+The skip-with-reason contract of Section 3.0.2 is `test.skip()` with a reason naming the missing infrastructure, so an unavailable override stack is visible in the report rather than silently passing.
 
 ### 4.2 Topology
 
@@ -1917,15 +1985,48 @@ The bootstrap matrix runs entirely inside `e2e-main`'s shadow and costs no addit
 
 The matrix key in both matrices is a single `scenario` or `leg` string naming a compose override plus a harness selector, never an environment tuple, so adding a leg is one line in one place.
 
-**Cost:** the PR tier adds roughly nine minutes to feedback, taking the repository from about five minutes to about nine warm and thirteen cold, at roughly twenty billed runner-minutes.
+#### 4.2.1 Cost
+
+Re-derived for the Playwright harness, because the dominant term changed. The `mcr.microsoft.com/playwright` image is roughly 1.3GB of compressed layers and GitHub-hosted runners are ephemeral, so it is pulled on **every** run and is the single largest line item in `e2e-main`.
+
+Assumptions: GitHub-hosted `ubuntu-latest`, 4 vCPU. Runner boot and checkout 23s. Playwright image pull 65s. `npm ci` in `test/e2e` 20s. Application image re-materialised from the `type=gha` layer cache 30s. Base-image pulls and `docker compose up -d --wait` to healthy 50s. `down -v` 6s.
+
+**`e2e-main`**, which is the critical path:
+
+| Step | Wall clock |
+|---|---|
+| runner boot and checkout | 23s |
+| Playwright image pull, **overlapped** with the application-image restore and `up -d --wait` | 65s |
+| `npm ci` | 20s |
+| `api` project | 4m10s |
+| `ui` project, four tests plus browser launch | 55s |
+| artifact collection and the redaction assertion | 15s |
+| **total** | **≈ 7m10s** |
+
+The overlap is deliberate and is the only lever that matters here. Pulling the Playwright image while the compose stack is coming to healthy costs nothing, and pulling it afterwards would add a clear minute. Caching the image through `actions/cache` as a `docker save` tarball was considered and rejected: restoring 1.3GB from the cache measures within a few seconds of pulling it from the registry, so it trades a well-understood pull for cache-key maintenance and buys nothing.
+
+**`e2e-bootstrap`** runs the `infra` project on the host, five legs in parallel with `fail-fast: false`. `infra` launches no browser, so the job sets `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` and uses `actions/setup-node` rather than the Playwright image, which is what keeps each leg under four minutes:
+
+| Step | Wall clock |
+|---|---|
+| runner boot and checkout | 23s |
+| `setup-node` plus `npm ci`, no browser download | 25s |
+| application image from the layer cache | 30s |
+| the scenario itself, including `down -v` and bring-up | 1m30s to 2m30s |
+| artifact collection | 15s |
+| **longest leg** | **≈ 4m05s** |
+
+That sits inside `e2e-main`'s shadow, so the matrix adds no wall clock.
+
+**Per pull request:** `image` (1m warm, 5m cold) then `e2e-main` at 7m10s then `e2e-gate` at 10s. **Roughly 8m20s warm and 12m20s cold**, taking the repository from about five minutes of feedback to about thirteen at worst. Billed runner-minutes are roughly **30**: eight for `e2e-main`, eighteen across the five bootstrap legs, and the rest for `image` and the gate. The five legs each pay their own boot and `npm ci`, which is the price of `fail-fast: false` and of one broken scenario not masking the other four.
 
 ### 4.3 Jobs
 
 `image` builds `step-ca-ui:e2e` once and writes the buildx layer cache to `type=gha,scope=e2e`. Both downstream jobs re-materialise the image from that cache rather than recompiling, and then compose with `compose.e2e-image.yml` so that `step-ui`'s `build:` block is never used.
 
-`e2e-main` generates secrets in-job, brings up the long-lived stack with `--wait`, and runs `make e2e-main`, which executes the order in Section 3.0.3.
+`e2e-main` generates secrets in-job, brings up the long-lived stack with `--wait`, and then runs the `api` and `ui` projects **inside a Playwright container attached to `step-net`**, in that order. `api` first, because `ui`'s four tests depend on fixtures and application state the `api` project establishes.
 
-`e2e-bootstrap` runs `test/e2e/scenario.sh` once per scenario, with `fail-fast: false` so that one broken scenario does not mask the others. The driver sets `STEPUI_ADMIN_PASSWORD` for every scenario except `fatals` case (b), which requires it absent.
+`e2e-bootstrap` runs the `infra` project **on the host**, one scenario per matrix leg, with `fail-fast: false` so one broken scenario does not mask the others. Its runner sets `STEPUI_ADMIN_PASSWORD` for every scenario except `fatals` case (b), which requires it absent.
 
 Both jobs collect artifacts and run the redaction assertion under `if: always()`, then upload. `e2e-gate` fails unless both report `success`.
 
@@ -1934,9 +2035,9 @@ Appendix B carries the workflow file.
 ### 4.4 Changes to the existing workflows
 
 - **`security.yml`'s `trivy-image` job** should stop calling `docker build` directly (`security.yml:154-155`) and build through `docker/build-push-action` with `cache-from: type=gha,scope=e2e`. That removes a third cold build from the repository's CI and guarantees trivy scans the byte-identical image e2e runs.
-- **`ci.yml`** should `go vet` the new `test/e2e` module alongside `step-ui-go`.
+- **`lint-meta.yml`'s `style` job** gains the harness: `tsc --noEmit` and `eslint` over `test/e2e`, so it is not the only unlinted code in the repository. The repository already lints `step-ui-go/static/js` with a flat eslint config in that job, so follow that pattern rather than introducing a second style.
 - **Branch protection** gains exactly one required check, `e2e`.
-- **`test/e2e` is a separate Go module** for the reason given in Section 2.7.2.
+- **`test/e2e` is a separate Node project** for the reason given in Section 2.7.2, and is deliberately outside the repo-root frontend tooling.
 - e2e must not duplicate build, vet, test, lint, coverage, gosec, trivy or gitleaks. It never compiles the application. It consumes the image the `image` job produced.
 - Every `uses:` is pinned to a 40-character commit SHA with a trailing `# vX.Y.Z` comment, matching the convention in all five existing workflows, and reuses the SHAs already present there.
 - No inline flow mappings. `.github/.yamllint.yml` extends `default` and overrides only `line-length` and `truthy`, so the default `braces` rule applies at error level with `max-spaces-inside: 0`, and `lint-meta.yml:48` runs yamllint over `.github/`.
@@ -1953,12 +2054,17 @@ Mock IdP and mailpit credentials are fixed, visibly fake values committed in the
 
 ### 4.6 Artifacts
 
-The collector produces all of the following. `if-no-files-found: error` makes a silently empty collection fail the job.
+Two sources. Playwright emits the first group. The collector emits the second and knows nothing about Playwright, so none of that group changed. `if-no-files-found: error` makes a silently empty collection fail the job.
+
+**From Playwright:**
+
+- **`junit.xml` from the `junit` reporter,** so triage starts in the checks UI rather than in a log file. Every test title begins with its E2E ID, so the failing row names the ID.
+- **Traces, screenshots and video, retained on failure,** plus the `html` report. A trace already carries every request with its headers and body, the response, and for `ui` tests the DOM at each step. That is what makes a failure diagnosable here: this application renders its error paths inline at `200`, so a status code alone never identifies the failure, and the trace carries the rendered body that does.
+
+**From the collector:**
 
 - **Per-service logs** captured with `--no-color --timestamps`. Timestamps are mandatory, since every `slog.Debug` line is invisible and retry counts are inferable only from the timestamps on the surrounding INFO lines.
 - **`docker inspect` for every container, including `State.Health.Log`.** That is the only place a failing healthcheck probe's own output exists, and `docker compose down` destroys it.
-- **`results.json` and `junit.xml`,** so that triage starts in the checks UI rather than in a log file.
-- **A full HTTP transcript including response bodies, for failing tests only.** This application renders its error paths inline at `200`, so a status code alone never identifies the failure.
 - **A `psql` dump of `certificates`, `cert_history`, `auth_log` and `users` at failure time.**
 - **The resolved `docker compose config`.**
 - **The live `ca.json`,** since `scripts/step-ca-bootstrap.sh` rewrites its claims on every start and the file on the volume is not the file in the repository.
@@ -2070,6 +2176,7 @@ Reverse index. If you changed a file on the left, the tests on the right are the
 | `main.go` (startup guards, bootstrap block) | E2E-BOOT-01 to E2E-BOOT-07, E2E-BOOT-09 |
 | `main.go` (server, shutdown, `useHTTPS`) | E2E-BOOT-08, E2E-CFG-01 |
 | `main.go` (`mimeByExt`, `staticHandlerFromFS`) | E2E-STATIC-01 |
+| `step-ui-go/static/js/pages/issue.js` | E2E-CERT-01's `ui` companion |
 | `main.go` (temp-user ticker) | E2E-TEMP-01 |
 | `tlsbootstrap.go` | E2E-BOOT-01 to E2E-BOOT-06, E2E-BOOT-09, E2E-RENEW-01 |
 | `tlsreload.go` | E2E-RENEW-01, E2E-CFG-01's `USE_HTTPS` row |
@@ -2116,7 +2223,7 @@ Reverse index. If you changed a file on the left, the tests on the right are the
 | `db/users.go` (`session_epoch`, `BumpSessionEpoch`) | E2E-AUTH-12, E2E-AUTH-14, E2E-AUTH-15, E2E-TEMP-02 |
 | `db/users.go` (roles, activation) | E2E-ADM-08 |
 | `templates/le_settings.html` | E2E-LE-04 |
-| `templates/profile_2fa.html` | E2E-AUTH-04 |
+| `templates/profile_2fa.html` | E2E-AUTH-04, including its `ui` companion's QR decode |
 | `entrypoint.sh` | E2E-BOOT-01, E2E-BOOT-07 case (c) |
 | `scripts/step-ca-bootstrap.sh` | E2E-CERT-11, E2E-PROV-01 |
 | `docker-compose.yml` | every bootstrap scenario |
@@ -2393,6 +2500,11 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  # Pinned by tag and digest: an unpinned image changes browser version between
+  # runs, which is exactly the kind of silent drift this suite exists to catch.
+  PLAYWRIGHT_IMAGE: mcr.microsoft.com/playwright:v1.49.1-noble@sha256:<digest>
+
 jobs:
   image:
     name: build e2e image
@@ -2423,7 +2535,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Set up Buildx
         uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
-      - name: Materialise the image from the layer cache
+      - name: Materialise the application image from the layer cache
         uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
         with:
           context: ./step-ui-go
@@ -2443,10 +2555,24 @@ jobs:
             echo "PUBLIC_BASE_URL=https://localhost"
             echo "SESSION_SECURE=true"
           } >> .env
-      - name: Bring up the long-lived stack
-        run: docker compose -f docker-compose.yml -f compose.e2e-image.yml up -d --wait
-      - name: Run the main suite
-        run: make e2e-main
+      - name: Bring up the stack, pulling the Playwright image alongside it
+        # The pull is the largest single term in this job. Running it in the
+        # background while the stack reaches healthy costs nothing; running it
+        # afterwards costs a clear minute. Both must finish before the next step.
+        run: |
+          docker pull "$PLAYWRIGHT_IMAGE" &
+          pull_pid=$!
+          docker compose -f docker-compose.yml -f compose.e2e-image.yml up -d --wait
+          wait "$pull_pid"
+      - name: Run the api then the ui project on step-net
+        run: |
+          docker run --rm \
+            --network step-network \
+            -v "$PWD/test/e2e:/work" -w /work \
+            -e BASE_URL=https://step-ui:8443 \
+            -e CI=true \
+            "$PLAYWRIGHT_IMAGE" \
+            sh -c 'npm ci && npx playwright test --project=api --project=ui'
       - name: Collect artifacts
         if: always()
         run: ./test/e2e/collect.sh artifacts/
@@ -2458,7 +2584,10 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: e2e-main-${{ github.run_attempt }}
-          path: artifacts/
+          path: |
+            artifacts/
+            test/e2e/playwright-report/
+            test/e2e/test-results/
           if-no-files-found: error
 
   e2e-bootstrap:
@@ -2478,9 +2607,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "20"
       - name: Set up Buildx
         uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
-      - name: Materialise the image from the layer cache
+      - name: Materialise the application image from the layer cache
         uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
         with:
           context: ./step-ui-go
@@ -2489,6 +2622,13 @@ jobs:
           push: false
           load: true
           cache-from: type=gha,scope=e2e
+      - name: Install the harness without browsers
+        # infra launches no browser, so skipping the download is what keeps
+        # each leg inside e2e-main's shadow.
+        run: npm ci
+        working-directory: test/e2e
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
       - name: Generate secrets in-job
         run: |
           make setup FORCE=1
@@ -2506,8 +2646,11 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: e2e-bootstrap-${{ matrix.scenario }}-${{ github.run_attempt }}
-          path: artifacts/
+          path: |
+            artifacts/
+            test/e2e/playwright-report/
           if-no-files-found: error
+
 
   e2e-gate:
     name: e2e
