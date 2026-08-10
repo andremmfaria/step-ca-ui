@@ -111,7 +111,13 @@ func TestSecurityHeaders_CSP(t *testing.T) {
 		t.Fatal("Content-Security-Policy header missing")
 	}
 	// unsafe-inline must not appear in script-src (P2-3 requirement).
-	for _, tok := range []string{"script-src 'self'"} {
+	for _, tok := range []string{
+		"script-src 'self'",
+		"object-src 'none'",
+		"base-uri 'self'",
+		"form-action 'self'",
+		"frame-ancestors 'none'",
+	} {
 		found := false
 		for i := range len(csp) - len(tok) + 1 {
 			if csp[i:i+len(tok)] == tok {
