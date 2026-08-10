@@ -56,7 +56,7 @@ func TestFindAdminConsoleCommand(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.id, func(t *testing.T) {
-			c, ok := findAdminConsoleCommand(cfg, &FakeCA{}, tc.id)
+			c, ok := findAdminConsoleCommand(cfg, tc.id)
 			if ok != tc.wantFound {
 				t.Fatalf("findAdminConsoleCommand(%q) found=%v; want %v", tc.id, ok, tc.wantFound)
 			}
@@ -124,7 +124,7 @@ func TestAdminCommandLine(t *testing.T) {
 // declared so an accidental deletion is caught.
 func TestAdminConsoleAllowlistCount(t *testing.T) {
 	const want = 10
-	got := len(adminConsoleCommands(defaultTestCfg(), &FakeCA{}))
+	got := len(adminConsoleCommands(defaultTestCfg()))
 	if got != want {
 		t.Errorf("allowlist has %d commands; want %d", got, want)
 	}
@@ -191,7 +191,7 @@ func TestAdminConsoleCommandsReflectConfig(t *testing.T) {
 
 	wantHealthErr := errors.New("boom")
 	fakeCA := &FakeCA{HealthErr: wantHealthErr}
-	cmds := adminConsoleCommands(cfg, fakeCA)
+	cmds := adminConsoleCommands(cfg)
 
 	var caHealth, pgReady *adminConsoleCommand
 	for i := range cmds {

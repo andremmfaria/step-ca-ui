@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -194,7 +195,7 @@ func TestEnsureUICert_Stepca_Success(t *testing.T) {
 		t.Errorf("expected exactly 1 IssueCertificate call, got %d", ca.issueCalls)
 	}
 	got, err := os.ReadFile(cfg.SSLCert) //nolint:gosec // G304: t.TempDir()-derived path
-	if err != nil || string(got) != string(certPEM) {
+	if err != nil || !bytes.Equal(got, certPEM) {
 		t.Errorf("SSLCert contents mismatch: err=%v", err)
 	}
 }
@@ -267,7 +268,7 @@ func TestRenewUICertOnce(t *testing.T) {
 		t.Fatalf("renewUICertOnce: %v", err)
 	}
 	got, err := os.ReadFile(cfg.SSLCert) //nolint:gosec // G304: t.TempDir()-derived path
-	if err != nil || string(got) != string(certPEM) {
+	if err != nil || !bytes.Equal(got, certPEM) {
 		t.Errorf("SSLCert not rewritten as expected: err=%v", err)
 	}
 

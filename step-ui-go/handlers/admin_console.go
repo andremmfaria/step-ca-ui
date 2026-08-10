@@ -89,9 +89,9 @@ func pgIsReadyArgs(dsn string) []string {
 // adminConsoleCommands returns the allowlist of diagnostic commands built from
 // runtime config.  The user can only supply a command_id; the binary and all
 // arguments (or NativeFn) are server-controlled.  This is the only place
-// they are defined. ca may be nil (Handler.caClient() failed to construct a
-// client) — both native commands below handle that without panicking.
-func adminConsoleCommands(cfg *config.Config, ca stepca.CA) []adminConsoleCommand {
+// they are defined.  The CA client is not needed here: native commands receive
+// it as a NativeFn argument at run time, where a nil client is handled.
+func adminConsoleCommands(cfg *config.Config) []adminConsoleCommand {
 	return []adminConsoleCommand{
 		{
 			ID:          "system.date",
@@ -197,8 +197,8 @@ func caHealthNativeFn(ctx context.Context, ca stepca.CA) (string, error) {
 
 // findAdminConsoleCommand looks up a command by its ID in the allowlist.
 // Returns the command and true on a hit; zero value and false on a miss.
-func findAdminConsoleCommand(cfg *config.Config, ca stepca.CA, id string) (adminConsoleCommand, bool) {
-	for _, c := range adminConsoleCommands(cfg, ca) {
+func findAdminConsoleCommand(cfg *config.Config, id string) (adminConsoleCommand, bool) {
+	for _, c := range adminConsoleCommands(cfg) {
 		if c.ID == id {
 			return c, true
 		}
@@ -209,8 +209,7 @@ func findAdminConsoleCommand(cfg *config.Config, ca stepca.CA, id string) (admin
 
 // AdminConsoleGet renders the diagnostics console form.
 func (h *Handler) AdminConsoleGet(w http.ResponseWriter, r *http.Request) {
-	caClient, _ := h.caClient() // nil on error is fine — native commands report it as their result text
-	h.render(w, "admin_console", h.adminConsolePageData(w, r, "", nil, caClient))
+	h.render(w, "admin_console", h.adminConsolePageData(w, r, "", nil))
 }
 
 // AdminConsolePost runs the selected allowlisted command and renders the result.
@@ -220,12 +219,13 @@ func (h *Handler) AdminConsolePost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	commandID := strings.TrimSpace(r.FormValue("command_id"))
+	// nil on error is fine — native commands report it as their result text
 	caClient, _ := h.caClient()
 
-	c, ok := findAdminConsoleCommand(h.cfg, caClient, commandID)
+	c, ok := findAdminConsoleCommand(h.cfg, commandID)
 	if !ok {
 		h.auditSecurity(r, "console.denied command_id="+commandID)
-		data := h.adminConsolePageData(w, r, commandID, nil, caClient)
+		data := h.adminConsolePageData(w, r, commandID, nil)
 		data["ConsoleError"] = "Unknown command. Only allowlisted commands may be run."
 		h.render(w, "admin_console", data)
 
@@ -238,7 +238,7 @@ func (h *Handler) AdminConsolePost(w http.ResponseWriter, r *http.Request) {
 		c.ID, result.CommandLine, result.ExitCode, result.TimedOut, result.Duration,
 	))
 
-	h.render(w, "admin_console", h.adminConsolePageData(w, r, commandID, &result, caClient))
+	h.render(w, "admin_console", h.adminConsolePageData(w, r, commandID, &result))
 }
 
 // adminConsolePageData builds the template data map for the console page.
@@ -247,10 +247,9 @@ func (h *Handler) adminConsolePageData(
 	r *http.Request,
 	selectedID string,
 	result *adminConsoleResult,
-	caClient stepca.CA,
 ) map[string]interface{} {
 	data := h.base(w, r, "admin_console")
-	data["Commands"] = adminConsoleCommands(h.cfg, caClient)
+	data["Commands"] = adminConsoleCommands(h.cfg)
 	data["Timeout"] = adminConsoleTimeout.String()
 	data["MaxOutputKB"] = adminConsoleMaxOut / 1024
 	data["SelectedCommandID"] = selectedID
