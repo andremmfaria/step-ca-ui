@@ -1,11 +1,4 @@
 {{define "content"}}
-{{if .Flashes}}
-<div class="flash-stack">
-    {{range .Flashes}}
-<div class="flash flash-{{.Type}} {{if eq .Type "err"}}flash-err{{else}}flash-ok{{end}}">{{if eq .Type "err"}}⛔ {{else}}✓ {{end}}{{.Text}}</div>
-{{end}}
-</div>
-{{end}}
 <div class="page-header">
     <h1 class="m-0-0-4-h3">Temporary Users</h1>
     <p class="muted m-0">Short-lived accounts for contractors and guests</p>

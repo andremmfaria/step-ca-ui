@@ -15,6 +15,22 @@ import (
 // the local password holder whatever role the IdP asserts (V1).
 var ErrOIDCLocalUser = errors.New("db: oidc username belongs to a local account")
 
+// ErrInvalidRole reports a role outside the allowlist. roleLevel treats an
+// unknown role as zero, so such a row can log in but fails every role check
+// with nothing to explain why (V9).
+var ErrInvalidRole = errors.New("db: role must be one of viewer, manager, admin")
+
+// ValidRole reports whether role is one the application recognises. It is the
+// single allowlist for the handlers and this package both.
+func ValidRole(role string) bool {
+	switch role {
+	case "viewer", "manager", "admin":
+		return true
+	default:
+		return false
+	}
+}
+
 // ─── Users ────────────────────────────────────────────────────────────────────
 
 // GetUserByUsername looks up a user by username, returning nil when not found.
@@ -81,6 +97,9 @@ func GetAllUsers(d *sql.DB) ([]*models.User, error) {
 
 // CreateUser persists a new active user account.
 func CreateUser(d *sql.DB, username, passwordHash, role string) error {
+	if !ValidRole(role) {
+		return fmt.Errorf("create user %q: %w", username, ErrInvalidRole)
+	}
 	_, err := d.Exec(`INSERT INTO users (username,password_hash,role,is_active) VALUES ($1,$2,$3,true)`, //nolint:noctx // pre-existing signature
 		username, passwordHash, role)
 	return err
@@ -90,6 +109,9 @@ func CreateUser(d *sql.DB, username, passwordHash, role string) error {
 // The epoch bump rides along in the same statement so the demoted user cannot
 // slip a request through between the two writes.
 func UpdateUserRole(d *sql.DB, id int, role string) error {
+	if !ValidRole(role) {
+		return fmt.Errorf("update role for user %d: %w", id, ErrInvalidRole)
+	}
 	_, err := d.Exec(`UPDATE users SET role=$1, session_epoch=session_epoch+1 WHERE id=$2`, role, id) //nolint:noctx // pre-existing signature
 	return err
 }
@@ -244,6 +266,9 @@ func DeleteUser(d *sql.DB, id int) error {
 func UpsertOIDCUser(d *sql.DB, username, displayName, role string, syncRole bool) (*models.User, error) {
 	if d == nil {
 		return nil, fmt.Errorf("db: nil connection")
+	}
+	if !ValidRole(role) {
+		return nil, fmt.Errorf("oidc upsert of %q: %w", username, ErrInvalidRole)
 	}
 	var (
 		res sql.Result

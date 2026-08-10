@@ -57,7 +57,10 @@
                 <summary>Account</summary>
                 <div class="admin-dd-menu">
                     <a href="/">Back to Application</a>
-                    <a href="/logout" class="admin-danger-link">Sign Out</a>
+                    <form class="logout-form" method="post" action="/logout">
+                        <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+                        <button type="submit" class="admin-danger-link">Sign Out</button>
+                    </form>
                 </div>
             </details>
         </nav>
@@ -249,20 +252,23 @@
                     </svg>
                     <span>Back to Application</span>
                 </a>
-                <a href="/logout" class="admin-danger-link">
-                    <svg width="14"
-                         height="14"
-                         viewBox="0 0 24 24"
-                         fill="none"
-                         stroke="currentColor"
-                         stroke-width="2"
-                         stroke-linecap="round"
-                         stroke-linejoin="round">
-                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                        <polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" />
-                    </svg>
-                    <span>Sign Out</span>
-                </a>
+                <form class="logout-form" method="post" action="/logout">
+                    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+                    <button type="submit" class="admin-danger-link">
+                        <svg width="14"
+                             height="14"
+                             viewBox="0 0 24 24"
+                             fill="none"
+                             stroke="currentColor"
+                             stroke-width="2"
+                             stroke-linecap="round"
+                             stroke-linejoin="round">
+                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                            <polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" />
+                        </svg>
+                        <span>Sign Out</span>
+                    </button>
+                </form>
             </div>
         </aside>
         <main class="admin-main">
@@ -279,6 +285,9 @@
                 </svg>
                 <span>Restricted administrator area. Critical actions are recorded in the audit log.</span>
             </div>
+            {{range .Msgs}}
+            <div class="alert {{if eq .Type "ok"}}alert-ok{{else}}alert-err{{end}}">{{.Text}}</div>
+            {{end}}
             {{template "content" .}}
         </main>
     </div>

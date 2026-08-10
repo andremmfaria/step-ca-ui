@@ -22,6 +22,13 @@ type Config struct {
 	EnableHSTS    bool
 	TrustProxy    bool
 
+	// Raw value; main.go parses it and refuses to start when TrustProxy is set
+	// and it names no usable block (V4).
+	TrustedProxyCIDRs string
+
+	// Empty means issuance is unrestricted, the behaviour that predates the key (V6).
+	AllowedDomainSuffixes []string
+
 	// PublicBaseURL is the externally reachable origin ("https://ca.example.com").
 	// Links sent by email are built from this and never from the inbound
 	// request, because Host and X-Forwarded-Proto are attacker controlled.
@@ -75,6 +82,10 @@ func Load() *Config {
 		SessionSecure: getEnvBool("SESSION_SECURE", true),
 		EnableHSTS:    getEnvBool("ENABLE_HSTS", false),
 		TrustProxy:    getEnvBool("TRUST_PROXY", false),
+
+		TrustedProxyCIDRs:     getEnv("TRUSTED_PROXY_CIDRS", ""),
+		AllowedDomainSuffixes: getEnvList("ALLOWED_DOMAIN_SUFFIXES"),
+
 		PublicBaseURL: strings.TrimRight(strings.TrimSpace(getEnv("PUBLIC_BASE_URL", "")), "/"),
 		Port:          port,
 		CertsDir:      "/opt/step-ui/certs",
@@ -129,6 +140,24 @@ func getEnvOrFile(key, fileKey, def string) string {
 		}
 	}
 	return def
+}
+
+// getEnvList splits a comma-separated variable into trimmed, lower-cased,
+// non-empty entries. A leading dot on an entry is dropped so that
+// ".example.com" and "example.com" mean the same thing.
+func getEnvList(key string) []string {
+	raw := os.Getenv(key)
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	var out []string
+	for _, part := range strings.Split(raw, ",") {
+		entry := strings.TrimPrefix(strings.ToLower(strings.TrimSpace(part)), ".")
+		if entry != "" {
+			out = append(out, entry)
+		}
+	}
+	return out
 }
 
 func getEnvBool(key string, def bool) bool {

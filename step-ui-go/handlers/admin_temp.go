@@ -9,12 +9,24 @@ import (
 	"strings"
 	"time"
 
-	appdb "step-ui/db"
 	"step-ui/security"
+
+	appdb "step-ui/db"
 )
 
 // AdminUsersTempGet — temporary user list page.
 func (h *Handler) AdminUsersTempGet(w http.ResponseWriter, r *http.Request) {
+	data := h.adminUsersTempData(w, r)
+	// take deletes on read, so a refresh of this URL shows nothing (V7).
+	if cred, ok := tempCreds.take(r.URL.Query().Get("cred")); ok {
+		data["NewUsername"] = cred.Username
+		data["NewPassword"] = cred.Password
+	}
+	h.render(w, "admin_users_temp", data)
+}
+
+// adminUsersTempData builds the page's view model.
+func (h *Handler) adminUsersTempData(w http.ResponseWriter, r *http.Request) map[string]interface{} {
 	users, _ := appdb.ListTempUsers(h.db)
 
 	// Build view-model: pre-computed status and formatted dates
@@ -61,37 +73,9 @@ func (h *Handler) AdminUsersTempGet(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	data["LoginURL"] = scheme + "://" + r.Host + "/login"
-	data["Flashes"] = h.popFlash(w, r)
 	data["Users"] = vms
 	data["Now"] = time.Now()
-
-	// One-time display of freshly generated credentials via session flash
-	if fl := r.URL.Query().Get("new_id"); fl != "" {
-		// Pull the password from the short-lived cookie set in POST
-		if c, err := r.Cookie("new_temp_cred"); err == nil {
-			// format: "username|password"
-			val := c.Value
-			for i := 0; i < len(val); i++ {
-				if val[i] == '|' {
-					data["NewUsername"] = val[:i]
-					data["NewPassword"] = val[i+1:]
-					break
-				}
-			}
-			// Clear the cookie immediately after display
-			http.SetCookie(w, &http.Cookie{
-				Name:     "new_temp_cred",
-				Value:    "",
-				Path:     "/",
-				Expires:  time.Unix(0, 0),
-				MaxAge:   -1,
-				HttpOnly: true,
-				SameSite: http.SameSiteLaxMode,
-				Secure:   true,
-			})
-		}
-	}
-	h.render(w, "admin_users_temp", data)
+	return data
 }
 
 // AdminUsersTempPost — creates a temporary user.
@@ -104,7 +88,7 @@ func (h *Handler) AdminUsersTempPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	role := r.FormValue("role")
-	if role != "admin" && role != "manager" && role != "viewer" {
+	if !appdb.ValidRole(role) {
 		role = "viewer"
 	}
 	note := r.FormValue("note")
@@ -147,27 +131,18 @@ func (h *Handler) AdminUsersTempPost(w http.ResponseWriter, r *http.Request) {
 	password := generateTempPassword(16)
 
 	hash := security.HashPassword(password)
-	id, err := appdb.CreateTempUser(h.db, username, hash, role, expiresAt, note)
-	if err != nil {
+	if _, err := appdb.CreateTempUser(h.db, username, hash, role, expiresAt, note); err != nil {
 		h.flash(w, r, "err", "Failed to create user: "+err.Error())
 		http.Redirect(w, r, "/admin/users-temp", http.StatusSeeOther)
 		return
 	}
 
-	// Store fresh credentials in a short-lived cookie so the GET can display them once
-	http.SetCookie(w, &http.Cookie{
-		Name:     "new_temp_cred",
-		Value:    username + "|" + password,
-		Path:     "/",
-		MaxAge:   120, // 2 minutes
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-		Secure:   true,
-	})
-
+	// Post/redirect/get, with the credential handed over by an unguessable
+	// single-use token rather than in a cookie: refreshing the result page must
+	// not create a second account (V7).
 	h.flash(w, r, "ok", "Temporary user created")
-	//nolint:gosec // G710: id is the DB-generated primary key (int), not user input
-	http.Redirect(w, r, fmt.Sprintf("/admin/users-temp?new_id=%d", id), http.StatusSeeOther)
+	//nolint:gosec // G710: the token is server-minted by security.GenerateToken, not caller text
+	http.Redirect(w, r, "/admin/users-temp?cred="+tempCreds.put(username, password), http.StatusSeeOther)
 }
 
 // generateTempUsername → "guest-ab12cd"

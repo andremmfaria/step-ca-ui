@@ -168,3 +168,94 @@ func TestIntegration_SessionEpochBumps(t *testing.T) {
 		}
 	})
 }
+
+// ─── Role allowlist (V9) ──────────────────────────────────────────────────────
+
+// TestIntegration_InvalidRoleRejectedAtDataLayer holds the invariant one level
+// below the handler: a role outside the allowlist scores zero in roleLevel, so
+// the row it produces logs in and then fails every role check.
+func TestIntegration_InvalidRoleRejectedAtDataLayer(t *testing.T) {
+	conn := openTestDB(t)
+	hash := security.HashPassword("TestPass1!")
+
+	t.Run("CreateUser", func(t *testing.T) {
+		for _, role := range []string{"superuser", "Admin", "", "admin viewer"} {
+			username := fmt.Sprintf("badrole_%d", time.Now().UnixNano())
+			err := CreateUser(conn, username, hash, role)
+			if !errors.Is(err, ErrInvalidRole) {
+				t.Errorf("CreateUser role=%q: got %v want ErrInvalidRole", role, err)
+			}
+			u, err := GetUserByUsername(conn, username)
+			if err != nil {
+				t.Fatalf("GetUserByUsername: %v", err)
+			}
+			if u != nil {
+				t.Errorf("CreateUser role=%q wrote a row anyway: %+v", role, u)
+			}
+		}
+	})
+
+	t.Run("UpdateUserRole", func(t *testing.T) {
+		username := fmt.Sprintf("rolekeeper_%d", time.Now().UnixNano())
+		if err := CreateUser(conn, username, hash, "manager"); err != nil {
+			t.Fatalf("CreateUser: %v", err)
+		}
+		u, err := GetUserByUsername(conn, username)
+		if err != nil || u == nil {
+			t.Fatalf("GetUserByUsername: %v", err)
+		}
+		if err := UpdateUserRole(conn, u.ID, "superuser"); !errors.Is(err, ErrInvalidRole) {
+			t.Errorf("UpdateUserRole: got %v want ErrInvalidRole", err)
+		}
+		after, err := GetUserByID(conn, u.ID)
+		if err != nil {
+			t.Fatalf("GetUserByID: %v", err)
+		}
+		if after.Role != "manager" {
+			t.Errorf("role: got %q want %q", after.Role, "manager")
+		}
+		// The rejection happens before the write, so it must not revoke the
+		// user's sessions either.
+		if after.SessionEpoch != 0 {
+			t.Errorf("session_epoch: got %d want 0", after.SessionEpoch)
+		}
+	})
+
+	t.Run("valid roles still pass", func(t *testing.T) {
+		for _, role := range []string{"viewer", "manager", "admin"} {
+			username := fmt.Sprintf("goodrole_%s_%d", role, time.Now().UnixNano())
+			if err := CreateUser(conn, username, hash, role); err != nil {
+				t.Fatalf("CreateUser role=%q: %v", role, err)
+			}
+			u, err := GetUserByUsername(conn, username)
+			if err != nil || u == nil || u.Role != role {
+				t.Errorf("role %q round-trip: got %+v, %v", role, u, err)
+			}
+		}
+	})
+}
+
+// TestIntegration_UpsertOIDCUserRejectsInvalidRole closes V9's other route in:
+// mapGroupsToRole only returns known roles, but it falls back to the
+// operator-supplied OIDC_DEFAULT_ROLE, which reaches this function unchecked.
+func TestIntegration_UpsertOIDCUserRejectsInvalidRole(t *testing.T) {
+	conn := openTestDB(t)
+
+	for _, role := range []string{"garbage", "Admin", ""} {
+		username := fmt.Sprintf("oidc_badrole_%d", time.Now().UnixNano())
+		user, err := UpsertOIDCUser(conn, username, "OIDC User", role, true)
+		if !errors.Is(err, ErrInvalidRole) {
+			t.Errorf("UpsertOIDCUser role=%q: got %v want ErrInvalidRole", role, err)
+		}
+		if user != nil {
+			t.Errorf("UpsertOIDCUser role=%q returned %+v want nil", role, user)
+		}
+		got, err := GetUserByUsername(conn, username)
+		if err != nil {
+			t.Fatalf("GetUserByUsername: %v", err)
+		}
+		if got != nil {
+			t.Errorf("UpsertOIDCUser role=%q wrote a row anyway: %+v", role, got)
+		}
+	}
+}

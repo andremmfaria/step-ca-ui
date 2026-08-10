@@ -49,6 +49,17 @@ func (h *Handler) runRenewal() {
 	}
 
 	for _, cert := range certs {
+		// One out-of-policy certificate must not stop every other renewal, so
+		// this skips rather than returning.
+		if policyErr := checkDomainPolicy(cert.Domain, h.cfg.AllowedDomainSuffixes); policyErr != nil {
+			slog.Error("LE renewal skipped: certificate is outside the name policy",
+				"domain", cert.Domain, "id", cert.ID, "err", policyErr)
+			// Also to the LE log, which is where an operator looks: a silently
+			// skipped certificate expires in thirty days.
+			appdb.AddLELog(ctx, h.db, cert.Domain, "error",
+				fmt.Sprintf("Renewal skipped: %v", policyErr))
+			continue
+		}
 		slog.Info("LE renewing certificate", "domain", cert.Domain)
 		appdb.AddLELog(ctx, h.db, cert.Domain, "renew", "Automatic renewal started")
 

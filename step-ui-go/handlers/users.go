@@ -14,6 +14,10 @@ import (
 	appdb "step-ui/db"
 )
 
+// invalidRoleMsg names the valid roles, because a rejected role is otherwise
+// indistinguishable from a typo the administrator cannot see (V9).
+const invalidRoleMsg = "Role must be one of: viewer, manager, admin"
+
 // Users renders the admin user management list page.
 func (h *Handler) Users(w http.ResponseWriter, r *http.Request) {
 	users, _ := appdb.GetAllUsers(h.db)
@@ -42,6 +46,10 @@ func (h *Handler) UsersPost(w http.ResponseWriter, r *http.Request) {
 		role := r.FormValue("role")
 		if username == "" || password == "" {
 			h.flash(w, r, "err", "Please fill in all fields")
+			break
+		}
+		if !appdb.ValidRole(role) {
+			h.flash(w, r, "err", invalidRoleMsg)
 			break
 		}
 		if ok, msg := security.ValidatePassword(password); !ok {
@@ -80,16 +88,21 @@ func (h *Handler) UsersPost(w http.ResponseWriter, r *http.Request) {
 			h.flash(w, r, "err", "You cannot change your own role")
 			break
 		}
-		if role == "viewer" || role == "manager" || role == "admin" {
-			_ = appdb.UpdateUserRole(h.db, uid, role)
-			roleTarget, _ := appdb.GetUserByID(h.db, uid)
-			if roleTarget != nil {
-				h.auditSecurity(r, fmt.Sprintf("user.change_role target=%s uid=%d role=%s", roleTarget.Username, uid, role))
-			} else {
-				h.auditSecurity(r, fmt.Sprintf("user.change_role uid=%d role=%s", uid, role))
-			}
-			h.flash(w, r, "ok", "Role updated")
+		if !appdb.ValidRole(role) {
+			h.flash(w, r, "err", invalidRoleMsg)
+			break
 		}
+		if err := appdb.UpdateUserRole(h.db, uid, role); err != nil {
+			h.flash(w, r, "err", "Role update error: "+err.Error())
+			break
+		}
+		roleTarget, _ := appdb.GetUserByID(h.db, uid)
+		if roleTarget != nil {
+			h.auditSecurity(r, fmt.Sprintf("user.change_role target=%s uid=%d role=%s", roleTarget.Username, uid, role))
+		} else {
+			h.auditSecurity(r, fmt.Sprintf("user.change_role uid=%d role=%s", uid, role))
+		}
+		h.flash(w, r, "ok", "Role updated")
 
 	case "toggle_active":
 		uid, _ := strconv.Atoi(r.FormValue("uid"))

@@ -14,6 +14,7 @@ import (
 	"log"
 	"log/slog"
 	"mime"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -117,10 +118,12 @@ func init() {
 
 func main() {
 	handlers.StartedAt = time.Now()
-	// Register types for gob (gorilla/sessions)
+	// An unregistered type makes sessions.Save fail and write no cookie at
+	// all, so every value ever put in a session must appear here (V11).
 	gob.Register(int(0))
 	gob.Register(int64(0))
 	gob.Register("")
+	gob.Register(models.FlashMsg{})
 	cfg := config.Load()
 
 	// ─── Startup security checks ─────────────────────────────────────────────
@@ -130,6 +133,26 @@ func main() {
 	}
 	if !cfg.SessionSecure {
 		slog.Warn("SESSION_SECURE=false: session cookies will not carry the Secure flag; do not use this in production")
+	}
+	// Believing a forwarding header from an untrusted peer hands the login rate
+	// limiter and the auth log to the client, so a deployment that wants
+	// forwarding must name the proxies it trusts (V4).
+	var trustedProxies []*net.IPNet
+	if cfg.TrustProxy {
+		parsed, err := mw.ParseTrustedProxies(cfg.TrustedProxyCIDRs)
+		if err != nil {
+			log.Fatalf("FATAL: TRUST_PROXY=true requires a usable TRUSTED_PROXY_CIDRS: %v", err)
+		}
+		trustedProxies = parsed
+	}
+	// mapGroupsToRole only ever returns a known role, but it falls through to
+	// this operator-supplied value, which would otherwise reach users.role
+	// unchecked (V9).
+	if cfg.OIDCEnabled && cfg.OIDCDefaultRole != "" && !appdb.ValidRole(cfg.OIDCDefaultRole) {
+		log.Fatalf("FATAL: OIDC_DEFAULT_ROLE=%q is not one of viewer, manager, admin — leave it empty to deny access instead", cfg.OIDCDefaultRole)
+	}
+	if len(cfg.AllowedDomainSuffixes) == 0 {
+		slog.Warn("ALLOWED_DOMAIN_SUFFIXES is unset: certificate issuance is unrestricted and any manager can have the CA sign any name")
 	}
 
 	// ─── Database ────────────────────────────────────────────────────────────
@@ -182,12 +205,10 @@ func main() {
 	// ─── Router ──────────────────────────────────────────────────────────────
 	r := chi.NewRouter()
 	r.Use(chiMiddleware.Recoverer)
-	// RealIP rewrites r.RemoteAddr from X-Forwarded-For / X-Real-IP headers.
-	// Only enable when the app sits behind a trusted reverse proxy; leaving it
-	// off means the rate limiter and auth log always see the real socket peer
-	// and cannot be spoofed by a client crafting forwarding headers.
+	// Leaving this off means the rate limiter and auth log always see the real
+	// socket peer.
 	if cfg.TrustProxy {
-		r.Use(chiMiddleware.RealIP)
+		r.Use(mw.RealIP(trustedProxies))
 	}
 	r.Use(mw.SecurityHeaders(cfg.EnableHSTS))
 
@@ -200,7 +221,8 @@ func main() {
 	r.Post("/forgot-password", h.ForgotPasswordPost)
 	r.Get("/reset-password", h.ResetPasswordGet)
 	r.Post("/reset-password", h.ResetPasswordPost)
-	r.Get("/logout", h.Logout)
+	r.Get("/logout", h.LogoutGet)
+	r.Post("/logout", h.Logout)
 	if cfg.OIDCEnabled {
 		r.Get("/auth/oidc/login", h.OIDCLogin)
 		r.Get("/auth/oidc/callback", h.OIDCCallback)

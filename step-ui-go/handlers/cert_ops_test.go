@@ -97,6 +97,33 @@ func TestIssueCert_PathOutsideCertsDir(t *testing.T) {
 	}
 }
 
+// TestIssueCert_DomainOutsideNamePolicy confirms the suffix policy is enforced
+// inside issueCert, which is what puts the renew path behind it too (V6).
+func TestIssueCert_DomainOutsideNamePolicy(t *testing.T) {
+	dir := t.TempDir()
+	cfg := &config.Config{CertsDir: dir, AllowedDomainSuffixes: []string{"example.com"}}
+
+	ca := &countingFakeCA{}
+	ca.IssueResult.Cert = []byte("cert-bytes")
+	ca.IssueResult.Key = []byte("key-bytes")
+
+	certPath := filepath.Join(dir, "certificate.crt")
+	keyPath := filepath.Join(dir, "private.key")
+
+	if err := issueCert(context.Background(), ca, "evil-example.com", certPath, keyPath, "8760h", "EC:P-256", cfg); err == nil {
+		t.Fatal("expected a policy error for a lookalike domain")
+	}
+	if ca.issueCalls != 0 {
+		t.Errorf("expected 0 IssueCertificate calls, got %d", ca.issueCalls)
+	}
+	if err := issueCert(context.Background(), ca, "www.example.com", certPath, keyPath, "8760h", "EC:P-256", cfg); err != nil {
+		t.Fatalf("covered domain: %v", err)
+	}
+	if ca.issueCalls != 1 {
+		t.Errorf("covered domain: expected 1 IssueCertificate call, got %d", ca.issueCalls)
+	}
+}
+
 // TestRevokeStep_PropagatesCAError confirms a FakeCA.RevokeErr is propagated
 // by revokeStep — the direct replacement for the deleted stepRunner-based
 // TestRevokeStep_RunnerError.

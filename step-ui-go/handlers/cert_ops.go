@@ -95,10 +95,35 @@ func normalizeIssuePolicy(template, duration, keyType, domain string) (IssuePoli
 	return policy, nil
 }
 
+// checkDomainPolicy enforces ALLOWED_DOMAIN_SUFFIXES. validateIdentifier asks
+// whether a name is well formed; this asks whether the operator has any
+// authority over it (V6). An empty policy allows everything, which is what the
+// application did before the key existed.
+//
+// Matching is on label boundaries, so "evil-example.com" does not satisfy
+// "example.com", and a wildcard is judged by the name under its "*." prefix.
+func checkDomainPolicy(domain string, suffixes []string) error {
+	if len(suffixes) == 0 {
+		return nil
+	}
+	name := strings.ToLower(strings.TrimSuffix(strings.TrimPrefix(strings.TrimSpace(domain), "*."), "."))
+	for _, suffix := range suffixes {
+		if name == suffix || strings.HasSuffix(name, "."+suffix) {
+			return nil
+		}
+	}
+	return fmt.Errorf("domain %q is not covered by ALLOWED_DOMAIN_SUFFIXES (%s)", domain, strings.Join(suffixes, ", "))
+}
+
 func issueCert(ctx context.Context, caClient stepca.CA, domain, certPath, keyPath, duration, keyType string, cfg *config.Config) error {
 	// Validate domain before it reaches the CA library — the same guard that
 	// previously protected against flag injection into the step CLI's argv.
 	if err := validateIdentifier(domain); err != nil {
+		return err
+	}
+	// Both issuance and renewal reach the CA through here, so the name policy
+	// sits here rather than in normalizeIssuePolicy, which Renew never calls.
+	if err := checkDomainPolicy(domain, cfg.AllowedDomainSuffixes); err != nil {
 		return err
 	}
 	dur, err := time.ParseDuration(duration)

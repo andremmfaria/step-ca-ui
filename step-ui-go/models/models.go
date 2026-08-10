@@ -1,7 +1,10 @@
 // Package models defines the data types used across the Step-CA UI application.
 package models
 
-import "time"
+import (
+	"encoding/gob"
+	"time"
+)
 
 // User represents an application user account.
 type User struct {
@@ -68,6 +71,12 @@ type CertHistory struct {
 type FlashMsg struct {
 	Type string // "ok" or "err"
 	Text string
+}
+
+// Registered here, not only in main, so tests and the server share one
+// behaviour: without it sessions.Save fails and emits no cookie at all (V11).
+func init() {
+	gob.Register(FlashMsg{})
 }
 
 // SessionInfo holds the authenticated user data stored in the session cookie.

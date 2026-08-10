@@ -17,7 +17,7 @@ import (
 // clientIP returns the host portion of r.RemoteAddr, stripping the ephemeral
 // port so that all connections from the same client count under one rate-limit
 // key regardless of TCP connection cycling.
-// When TrustProxy=true the chi RealIP middleware has already normalised
+// When TrustProxy=true the middleware.RealIP middleware may have normalised
 // RemoteAddr to a bare IP, so SplitHostPort returns an error and we fall back
 // to the raw value — both cases produce the correct host-only string.
 func clientIP(r *http.Request) string {
@@ -96,7 +96,8 @@ func (h *Handler) LoginPost(w http.ResponseWriter, r *http.Request) {
 				"Failed login burst",
 				fmt.Sprintf("IP %s blocked after repeated failed login attempts", ip),
 				map[string]string{"username": username, "ip": ip})
-			h.flash(w, r, "err", "Too many attempts. Please wait 15 minutes.")
+			// No flash: LoginGet's Blocked branch already renders this text as
+			// .Error, and login.html would show both boxes.
 		}
 		http.Redirect(w, r, "/login", http.StatusFound)
 		return
@@ -202,8 +203,18 @@ func (h *Handler) completeLogin(w http.ResponseWriter, r *http.Request, user *mo
 	_ = appdb.LogAuth(h.db, user.Username, r.RemoteAddr, true, reason)
 }
 
+// LogoutGet answers an old bookmark. Logging out revokes every session the
+// user holds, so it is a POST carrying a CSRF token and this route deliberately
+// ends nothing (V10).
+func (h *Handler) LogoutGet(w http.ResponseWriter, r *http.Request) {
+	http.Redirect(w, r, "/login", http.StatusFound)
+}
+
 // Logout clears the session and redirects to the login page.
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
+	if !h.requireCSRF(w, r, "/") {
+		return
+	}
 	si := h.sessionInfo(r)
 	if si.UserID != 0 {
 		// Dropping the browser's copy of a client-side cookie is not

@@ -37,6 +37,12 @@ func TestLoad_Defaults(t *testing.T) {
 	if cfg.TrustProxy {
 		t.Error("TrustProxy: got true want false")
 	}
+	if cfg.TrustedProxyCIDRs != "" {
+		t.Errorf("TrustedProxyCIDRs: got %q want empty", cfg.TrustedProxyCIDRs)
+	}
+	if len(cfg.AllowedDomainSuffixes) != 0 {
+		t.Errorf("AllowedDomainSuffixes: got %v want empty (issuance unrestricted by default)", cfg.AllowedDomainSuffixes)
+	}
 	if cfg.UITLSMode != "self-signed" {
 		t.Errorf("UITLSMode: got %q want %q", cfg.UITLSMode, "self-signed")
 	}
@@ -71,6 +77,8 @@ func TestLoad_EnvOverrides(t *testing.T) {
 	t.Setenv("LOCAL_LOGIN_ENABLED", "false")
 	t.Setenv("ENABLE_HSTS", "true")
 	t.Setenv("TRUST_PROXY", "true")
+	t.Setenv("TRUSTED_PROXY_CIDRS", "10.0.0.7/32,192.168.0.0/16")
+	t.Setenv("ALLOWED_DOMAIN_SUFFIXES", " Example.COM , .internal.example.net ,, ")
 	t.Setenv("USE_HTTPS", "true")
 	t.Setenv("SECRET_KEY", "overridden-secret-key-32chars!!")
 	t.Setenv("CA_URL", "https://myca:9443")
@@ -109,6 +117,14 @@ func TestLoad_EnvOverrides(t *testing.T) {
 	}
 	if !cfg.TrustProxy {
 		t.Error("TrustProxy: got false want true")
+	}
+	if cfg.TrustedProxyCIDRs != "10.0.0.7/32,192.168.0.0/16" {
+		t.Errorf("TrustedProxyCIDRs: got %q", cfg.TrustedProxyCIDRs)
+	}
+	// Entries are trimmed, lower-cased and stripped of a leading dot so that
+	// ".example.net" and "example.net" cannot disagree.
+	if got := cfg.AllowedDomainSuffixes; len(got) != 2 || got[0] != "example.com" || got[1] != "internal.example.net" {
+		t.Errorf("AllowedDomainSuffixes: got %q want [example.com internal.example.net]", got)
 	}
 	if !cfg.UseHTTPS {
 		t.Error("UseHTTPS: got false want true")
@@ -177,7 +193,8 @@ func clearEnvVars(t *testing.T) {
 	vars := []string{
 		"PORT", "DATABASE_URL", "CA_URL", "ROOT_CERT", "PROVISIONER",
 		"PASSWORD_FILE", "STEP_CA_IMAGE", "SECRET_KEY", "SECRET_KEY_FILE",
-		"SESSION_SECURE", "ENABLE_HSTS", "TRUST_PROXY", "OIDC_ENABLED",
+		"SESSION_SECURE", "ENABLE_HSTS", "TRUST_PROXY", "TRUSTED_PROXY_CIDRS",
+		"ALLOWED_DOMAIN_SUFFIXES", "OIDC_ENABLED",
 		"OIDC_ISSUER_URL", "OIDC_CLIENT_ID", "OIDC_CLIENT_SECRET",
 		"OIDC_REDIRECT_URL", "OIDC_GROUP_CLAIM", "OIDC_GROUP_ADMIN",
 		"OIDC_GROUP_MANAGER", "OIDC_GROUP_VIEWER", "OIDC_DEFAULT_ROLE",

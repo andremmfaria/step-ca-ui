@@ -57,6 +57,13 @@ func (h *Handler) LEIssuePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// A different issuer, but the same question of authority over the name (V6).
+	if err := checkDomainPolicy(domain, h.cfg.AllowedDomainSuffixes); err != nil {
+		h.flash(w, r, "err", "Policy error: "+err.Error())
+		http.Redirect(w, r, "/le/issue", http.StatusFound)
+		return
+	}
+
 	if appdb.LECertExists(r.Context(), h.db, domain) {
 		h.flash(w, r, "err", "A certificate for this domain already exists")
 		http.Redirect(w, r, "/le/issue", http.StatusFound)
@@ -113,6 +120,12 @@ func (h *Handler) LERenew(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if cert == nil {
+		http.Redirect(w, r, "/le", http.StatusFound)
+		return
+	}
+	// A name that has fallen outside policy must not renew its way around it.
+	if err := checkDomainPolicy(cert.Domain, h.cfg.AllowedDomainSuffixes); err != nil {
+		h.flash(w, r, "err", "Policy error: "+err.Error())
 		http.Redirect(w, r, "/le", http.StatusFound)
 		return
 	}

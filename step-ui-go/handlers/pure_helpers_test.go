@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -248,6 +249,47 @@ func TestValidateIdentifier(t *testing.T) {
 			}
 			if !tc.wantErr && err != nil {
 				t.Errorf("validateIdentifier(%q): unexpected error: %v", tc.id, err)
+			}
+		})
+	}
+}
+
+// ─── checkDomainPolicy (V6) ───────────────────────────────────────────────────
+
+func TestCheckDomainPolicy(t *testing.T) {
+	suffixes := []string{"example.com", "internal.example.net"}
+	cases := []struct {
+		name     string
+		domain   string
+		suffixes []string
+		wantErr  bool
+	}{
+		{name: "empty policy allows anything", domain: "somebody-elses-bank.com"},
+		{name: "exact match", domain: "example.com", suffixes: suffixes},
+		{name: "subdomain", domain: "www.example.com", suffixes: suffixes},
+		{name: "deep subdomain", domain: "a.b.example.com", suffixes: suffixes},
+		{name: "wildcard under a covered name", domain: "*.example.com", suffixes: suffixes},
+		{name: "case insensitive", domain: "WWW.Example.COM", suffixes: suffixes},
+		{name: "trailing root dot", domain: "www.example.com.", suffixes: suffixes},
+		{name: "second entry", domain: "host.internal.example.net", suffixes: suffixes},
+		{name: "lookalike rejected", domain: "evil-example.com", suffixes: suffixes, wantErr: true},
+		{name: "suffix without a label boundary rejected", domain: "notexample.com", suffixes: suffixes, wantErr: true},
+		{name: "parent of a covered name rejected", domain: "example.net", suffixes: suffixes, wantErr: true},
+		{name: "unrelated name rejected", domain: "somebody-elses-bank.com", suffixes: suffixes, wantErr: true},
+		{name: "wildcard over an uncovered name rejected", domain: "*.evil-example.com", suffixes: suffixes, wantErr: true},
+		{name: "covered name as a subdomain of another rejected", domain: "example.com.attacker.net", suffixes: suffixes, wantErr: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := checkDomainPolicy(tc.domain, tc.suffixes)
+			if tc.wantErr && err == nil {
+				t.Errorf("checkDomainPolicy(%q): expected error", tc.domain)
+			}
+			if !tc.wantErr && err != nil {
+				t.Errorf("checkDomainPolicy(%q): unexpected error: %v", tc.domain, err)
+			}
+			if tc.wantErr && err != nil && !strings.Contains(err.Error(), "ALLOWED_DOMAIN_SUFFIXES") {
+				t.Errorf("checkDomainPolicy(%q): error %q does not name the policy", tc.domain, err)
 			}
 		})
 	}

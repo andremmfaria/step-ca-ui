@@ -3,9 +3,6 @@
     <h1 class="admin-page-title">Notifications</h1>
     <p class="admin-page-subtitle">Webhook for critical CA events, issuance failures, and expiring certificates</p>
 </div>
-{{range .Msgs}}
-<div class="alert {{if eq .Type "ok"}}alert-ok{{else}}alert-err{{end}}">{{.Text}}</div>
-{{end}}
 <div class="card">
     <div class="card-header">
         <strong>Webhook</strong>

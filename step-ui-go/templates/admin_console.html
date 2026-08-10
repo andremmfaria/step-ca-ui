@@ -23,9 +23,6 @@
 <div class="card">
   <div class="card-header"><strong>Run a command</strong></div>
   <div class="card-body">
-    {{range .Msgs}}
-      <div class="flash {{.Type}}">{{.Text}}</div>
-    {{end}}
     {{if .ConsoleError}}<div class="flash err">{{.ConsoleError}}</div>{{end}}
     <form method="POST" action="/admin/console" class="admin-console-form">
       <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">

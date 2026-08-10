@@ -55,7 +55,10 @@
                 <div class="mobile-dd-menu">
                     <a href="/profile" class="{{isActive "profile" .ActivePage}}">Profile</a>
                     {{if hasRole .Session.Role "admin"}}<a href="/admin">Admin Panel</a>{{end}}
-                    <a href="/logout" class="danger-link">Sign Out</a>
+                    <form class="logout-form" method="post" action="/logout">
+                        <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+                        <button type="submit" class="danger-link">Sign Out</button>
+                    </form>
                 </div>
             </details>
         </nav>
@@ -275,17 +278,20 @@
                 </svg>
                 Profile
             </a>
-            <a href="/logout" class="nav-link danger-link">
-                <svg class="nav-icon"
-                     viewBox="0 0 14 14"
-                     fill="none"
-                     stroke="currentColor"
-                     stroke-width="1.5"
-                     stroke-linecap="round">
-                    <path d="M5 2H3a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h2M9 10l3-3-3-3M12 7H6" />
-                </svg>
-                Sign Out
-            </a>
+            <form class="logout-form" method="post" action="/logout">
+                <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+                <button type="submit" class="nav-link danger-link">
+                    <svg class="nav-icon"
+                         viewBox="0 0 14 14"
+                         fill="none"
+                         stroke="currentColor"
+                         stroke-width="1.5"
+                         stroke-linecap="round">
+                        <path d="M5 2H3a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h2M9 10l3-3-3-3M12 7H6" />
+                    </svg>
+                    Sign Out
+                </button>
+            </form>
         </nav>
         <div class="sidebar-footer">
             <div class="user-info">
