@@ -14,7 +14,7 @@ Tracks `plans/e2e-tests.md` as it lands. Sections refer to that document.
 
 **Phase 2, harness.** `test/e2e` as its own Node project: `@playwright/test` 1.62.1, three projects (`api`/`ui`/`infra`) selected by `testMatch`, retries 0, `ignoreHTTPSErrors`, junit pinned into the collected artifact path. Harness `Dockerfile` on `mcr.microsoft.com/playwright:v1.62.1-noble` pinned by digest, plus `docker-ce-cli`, the compose plugin, `openssl` and `postgresql-client`. Helpers: compose/exec/psql/logs with a cumulative capture across recreates, bounded polling, openssl probe, TOTP with a boundary guard, QR decode, env-file editing, router-derived POST route list. Fixtures: worker-scoped `admin`/`manager`/`viewer` with lazy re-auth, `jarB`, disposable users. Scripts: `scenario.sh`, `collect.sh`, `assert-redacted.sh`.
 
-**Phase 3, specs, so far.** E2E-AUTH-01, E2E-AUTH-11, E2E-RBAC-01, E2E-RBAC-02, E2E-CSRF-01, E2E-CSRF-05, E2E-CERT-01 to -04 and -09, E2E-PROV-01/02, E2E-HIST-01 to -03, E2E-SEC-01/02, E2E-ADM-01 to -05, E2E-BAK-01, E2E-HLTH-01 to -06, E2E-STATIC-01. 135 passing, 8 skipped (LE-gated cells) from a cold stack, run the way CI runs them: the harness image on `step-network`.
+**Phase 3, specs, so far.** E2E-AUTH-01, E2E-AUTH-11, E2E-RBAC-01, E2E-RBAC-02, E2E-CSRF-01, E2E-CSRF-05, E2E-CERT-01 to -04 and -09, E2E-PROV-01/02, E2E-HIST-01 to -03, E2E-SEC-01/02, E2E-ADM-01 to -05, E2E-BAK-01, E2E-HLTH-01 to -06, E2E-STATIC-01, E2E-AUTH-12, -14, -15. 138 passing, 8 skipped (LE-gated cells) from a cold stack, run the way CI runs them: the harness image on `step-network`.
 
 **Phase 4, CI.** `.github/workflows/e2e.yml` is live and green on `main`: an `image` job that builds and caches both images, an `e2e-main` job that brings the stack up and runs the `api` project from the harness container, artifact collection with the redaction sweep, and the `e2e` gate. `lint-meta.yml` gained the harness `tsc --noEmit` and `eslint`. The bootstrap matrix and the `ui` project join the same file when their specs land.
 
@@ -43,6 +43,20 @@ Two things the workflow had to learn the hard way, both now encoded in it:
 ## Local run
 
 `.env` uses `UI_HTTPS_PORT=8443` and `HOST_IP=127.0.0.1`. The `secrets/*` files needed `chmod 644`: they were mode 600 owned by uid 1002, while step-ca runs as uid 1000 and step-ui as uid 10001, so both were denied. Run the api project from the host with `BASE_URL=https://localhost:8443`; per-test rate-limit isolation needs the container on `step-network` instead.
+
+## Paused: the React and OpenAPI-client question
+
+Work stopped here on 2026-08-13 while the team considers replacing the server-rendered templates plus vanilla JS with React and an OpenAPI-generated client. That decision changes what parts of this suite survive, so it is worth knowing before more specs are written.
+
+**Survives unchanged.** Everything the `api` project asserts about status codes, headers, redirects, database rows, the CA's log, issued certificate material and the backup bundle. That is the bulk of what is written so far: RBAC, CSRF, certificates, history, security log, admin console, backup, health, static MIME and traversal, and the session-revocation family.
+
+**Needs rewriting.** Every assertion that reads rendered HTML: the content substrings in E2E-RBAC-01's 200 cells, flash-message text, `extractCSRF`'s hidden-input scrape, the row parsers in the history, security-log, provisioner and integrity specs. A React client would move these to JSON responses, which is a smaller and more stable oracle, but the assertions themselves would be rewritten.
+
+**Changes shape entirely.** CSRF as a hidden form field (E2E-CSRF-01, -05) and the inline logout form (E2E-AUTH-11) are properties of server-rendered forms. An OpenAPI client would carry the token differently, or use a different mechanism altogether.
+
+**Unaffected either way.** The whole Section 3.1 bootstrap matrix, the TLS and renewal work, and the compose, workflow and harness infrastructure. None of it touches the presentation layer.
+
+The four `ui` companions were deliberately never written, which is fortunate: all four are browser-shaped and would have been the first thing thrown away.
 
 ## Remaining
 
