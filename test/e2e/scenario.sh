@@ -49,13 +49,24 @@ cp "$repo_root/.env" "$env_file"
 trap 'rm -f "$env_file"' EXIT
 
 # Case (b) of the fatals scenario needs the admin password absent, so that
-# scenario is the one place the driver does not set it.
+# scenario is the one place the driver does not set one.
 if [[ "$scenario" != "fatals" ]]; then
   if ! grep -qE '^STEPUI_ADMIN_PASSWORD=.+' "$env_file"; then
-    echo "FATAL: STEPUI_ADMIN_PASSWORD is unset in .env; every scenario except 'fatals' needs it" >&2
-    exit 1
+    admin_pw="$(openssl rand -base64 24)"
+    echo "::add-mask::${admin_pw}"
+    sed -i '/^#\?[[:space:]]*STEPUI_ADMIN_PASSWORD=/d' "$env_file"
+    echo "STEPUI_ADMIN_PASSWORD=${admin_pw}" >> "$env_file"
+    export STEPUI_ADMIN_PASSWORD="$admin_pw"
+  else
+    STEPUI_ADMIN_PASSWORD="$(sed -n 's/^STEPUI_ADMIN_PASSWORD=//p' "$env_file" | head -1)"
+    export STEPUI_ADMIN_PASSWORD
   fi
 fi
+
+# Both containers read the mounted secrets as their own non-root uid, which is
+# never the checkout's owner. Mode 600 denies them (step-ca is uid 1000,
+# step-ui 10001) and the CA never finishes booting.
+chmod 644 "$repo_root"/secrets/* 2>/dev/null || true
 
 export E2E_COMPOSE_OVERRIDES="$overrides"
 export E2E_ENV_FILE="$env_file"

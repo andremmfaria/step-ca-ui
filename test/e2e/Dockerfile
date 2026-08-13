@@ -6,7 +6,9 @@
 # The tag must match @playwright/test in package.json, or the reporter and the
 # runtime disagree. The digest pins the browser build; an unpinned image changes
 # browser version between runs.
-FROM mcr.microsoft.com/playwright:v1.62.1-noble@sha256:dcc5531e97840b9b5e794f2814476b21571c5124a3fca2267d73041f56e7580e
+ARG PLAYWRIGHT_IMAGE=mcr.microsoft.com/playwright:v1.62.1-noble@sha256:dcc5531e97840b9b5e794f2814476b21571c5124a3fca2267d73041f56e7580e
+# hadolint ignore=DL3006
+FROM ${PLAYWRIGHT_IMAGE}
 
 # docker-ce-cli and the compose plugin are the single mechanism every
 # container- or database-touching assertion uses over the mounted socket.

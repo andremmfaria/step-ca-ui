@@ -1,0 +1,154 @@
+name: E2E
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Pinned by tag and digest: an unpinned image changes browser version between
+  # runs, which is the silent drift this suite exists to catch. The tag must
+  # match @playwright/test in test/e2e/package.json.
+  PLAYWRIGHT_IMAGE: "mcr.microsoft.com/playwright:v1.62.1-noble@sha256:dcc5531e97840b9b5e794f2814476b21571c5124a3fca2267d73041f56e7580e"
+
+jobs:
+  image:
+    name: build e2e images
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+
+      - name: Build the application image and warm its layer cache
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          context: ./step-ui-go
+          file: ./step-ui-go/Dockerfile
+          tags: step-ca-ui:e2e
+          push: false
+          load: true
+          cache-from: type=gha,scope=e2e
+          cache-to: type=gha,scope=e2e,mode=max
+
+      - name: Build the harness image (Playwright base plus docker CLI)
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          context: ./test/e2e
+          file: ./test/e2e/Dockerfile
+          build-args: |
+            PLAYWRIGHT_IMAGE=${{ env.PLAYWRIGHT_IMAGE }}
+          tags: step-ca-ui-harness:e2e
+          push: false
+          load: true
+          cache-from: type=gha,scope=e2e-harness
+          cache-to: type=gha,scope=e2e-harness,mode=max
+
+  e2e-main:
+    name: e2e main suite
+    needs: image
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+
+      - name: Materialise the application image from the layer cache
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          context: ./step-ui-go
+          file: ./step-ui-go/Dockerfile
+          tags: step-ca-ui:e2e
+          push: false
+          load: true
+          cache-from: type=gha,scope=e2e
+
+      - name: Materialise the harness image from the layer cache
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          context: ./test/e2e
+          file: ./test/e2e/Dockerfile
+          build-args: |
+            PLAYWRIGHT_IMAGE=${{ env.PLAYWRIGHT_IMAGE }}
+          tags: step-ca-ui-harness:e2e
+          push: false
+          load: true
+          cache-from: type=gha,scope=e2e-harness
+
+      # Never repository secrets: a stored CA provisioner password is a
+      # long-lived credential with no rotation story that protects the CA's
+      # private keys.
+      - name: Generate secrets in-job
+        run: |
+          make setup FORCE=1
+          ADMIN_PW="$(openssl rand -base64 24)"
+          echo "::add-mask::${ADMIN_PW}"
+          cp .env.example .env
+          {
+            echo "STEPUI_ADMIN_PASSWORD=${ADMIN_PW}"
+            echo "PUBLIC_BASE_URL=https://localhost"
+            echo "SESSION_SECURE=true"
+          } >> .env
+          # step-ca runs as uid 1000 and step-ui as 10001, neither of which owns
+          # the checkout, so mode 600 denies both and the CA never boots.
+          chmod 644 secrets/*
+
+      - name: Bring up the stack
+        run: docker compose -f docker-compose.yml -f compose.e2e-image.yml up -d --wait
+
+      # The harness runs as a container on step-network, not on the host: both
+      # rate limiters key on the client IP, so a host harness is one gateway
+      # address and per-test rate-limit isolation is impossible. The repo mount
+      # carries the compose file, .env and secrets/; the docker socket is the
+      # one mechanism every container- or database-touching assertion uses.
+      - name: Run the api project
+        run: |
+          docker run --rm \
+            --network step-network \
+            -v "$PWD:/repo" -v /var/run/docker.sock:/var/run/docker.sock \
+            -w /repo/test/e2e \
+            -e BASE_URL=https://step-ui:8443 \
+            -e CI=true \
+            step-ca-ui-harness:e2e \
+            npx playwright test --project=api
+
+      - name: Collect artifacts
+        if: always()
+        run: ./test/e2e/collect.sh artifacts/
+
+      - name: Assert the artifact carries no secrets
+        if: always()
+        run: ./test/e2e/assert-redacted.sh artifacts/
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: e2e-main-${{ github.run_attempt }}
+          path: |
+            artifacts/
+            test/e2e/artifacts/
+          if-no-files-found: error
+
+  e2e-gate:
+    name: e2e
+    needs:
+      - e2e-main
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail unless every e2e job succeeded
+        run: test "${{ needs.e2e-main.result }}" = success

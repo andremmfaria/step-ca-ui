@@ -87,3 +87,20 @@ jobs:
 
       - name: djlint (Go templates — lint only; format burn-down is PR-23)
         run: djlint step-ui-go/templates/ --profile=golang --lint
+
+      # The e2e harness is its own Node project, deliberately outside the
+      # repo-root frontend tooling so its dependencies never reach govulncheck
+      # or trivy-fs. Without these two steps it is the only unlinted code here.
+      - name: Install the e2e harness
+        run: npm ci
+        working-directory: test/e2e
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+
+      - name: tsc (e2e harness)
+        run: npx tsc --noEmit
+        working-directory: test/e2e
+
+      - name: eslint (e2e harness)
+        run: npx eslint .
+        working-directory: test/e2e
