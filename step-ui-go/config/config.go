@@ -75,10 +75,11 @@ type Config struct {
 	LEACMEDirectoryURL string
 }
 
-const (
-	LEProductionDirectoryURL = "https://acme-v02.api.letsencrypt.org/directory"
-	defaultUICertDuration    = 8760 * time.Hour
-)
+// LEProductionDirectoryURL is LE_ACME_DIRECTORY_URL's default, so behaviour is
+// unchanged until an operator points issuance somewhere else.
+const LEProductionDirectoryURL = "https://acme-v02.api.letsencrypt.org/directory"
+
+const defaultUICertDuration = 8760 * time.Hour
 
 // Load reads configuration from environment variables.
 // Sensitive values support a *_FILE variant: if SECRET_KEY_FILE is set its
