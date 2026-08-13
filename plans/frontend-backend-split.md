@@ -22,7 +22,7 @@ Cost: a full rewrite of the user interface across 33 templates, 65 routes and 46
 | [8. Phases](#8-phases) | Phase 0 to Phase 9, all on `main`. only Phase 9 is irreversible |
 | [9. CI and CD](#9-ci-and-cd) | 9.1 Job graph · 9.2 Workflow changes · 9.3 Rollback and recovery |
 | [10. Impact on the e2e suite](#10-impact-on-the-e2e-suite) | the agent was stopped 2026-08-13. what survives, and the resumption order |
-| [11. Risk register](#11-risk-register) | R1 to R28, each with a trigger and an owner phase unless explicitly parked |
+| [11. Risk register](#11-risk-register) | R1 to R29, each with a trigger and an owner phase unless explicitly parked |
 | [12. Open questions](#12-open-questions) | all answered 2026-08-13, with what each answer changed |
 | [13. Review log](#13-review-log) | what the review changed |
 
@@ -97,7 +97,7 @@ Every acceptance criterion in Section 2 is internal and mechanical. None of them
 
 **What it buys.** A typed contract that a reviewer can diff and a compiler can enforce, replacing 33 hand-maintained templates and 16 untyped scripts. The three action multiplexers become eleven single-purpose operations, each with its own role marker and its own audit point. Authorisation stops being "it is inside the right chi group" and becomes an enumerable table a test asserts. A machine-readable description that the e2e suite and any future automation can be generated against. Deep-linkable table state. Per-item selection on certificate import, which falls out for free. Correct pagination, which is a live bug today.
 
-**What gets worse.** First paint requires a JavaScript bundle where today it requires none. The strict CSP means toast, theming and anything else that would normally be a dependency is hand-rolled. Two Node toolchains land in a Go repository and the dependabot surface grows by three ecosystems. The image build gains two stages. 28 e2e specs are rewritten. And for eight phases the system carries two UIs and two authorisation implementations at once (R22).
+**What gets worse.** First paint requires a JavaScript bundle where today it requires none. The strict CSP means toast, theming and anything else that would normally be a dependency is hand-rolled. 28 e2e specs are rewritten, and for eight phases the system carries two UIs and two authorisation implementations at once (R22). The ongoing tax, stated concretely rather than as "some overhead": two runtime images to build, scan, pin and patch on two CVE cadences; a third-party base image that must be minor-pinned and covered by dependabot; a Node build stage whose vulnerabilities no image scanner ever sees, guarded only by `npm audit`; three new npm ecosystems totalling several hundred transitive packages, which is the largest single ongoing cost in the plan; an nginx configuration that is now the security perimeter with no unit test framework of its own; and a cross-container certificate reload mechanism that does not exist today. 9.1's argument that two images is a net win is true for CI cache scoping and false for total ongoing work.
 
 ### 1.5 Alternatives to the whole approach
 
@@ -161,6 +161,8 @@ Every box below is either **mechanical** (a named command or test decides it) or
 - [ ] An unmatched path under `/api/` or `/auth/` returns `404 application/problem+json`, including the 405 case.
 - [ ] On a clean checkout with no Node run: `go build ./...`, `go vet ./...`, `golangci-lint run` and `go test -race ./...` all pass, and a `yq` assertion confirms `build-test-lint` contains no `setup-node` or `npm` step. Trivially true now that no Go package embeds a build artifact.
 - [ ] `TRUST_PROXY=true` **and** `TRUSTED_PROXY_CIDRS` set to nginx's single `/32` are present in the base compose environment block and in `.env.example`, and `step-net` declares an explicit `ipam.config.subnet` with a static address for `step-ui-web`. Setting the first without the second is `log.Fatalf` (`main.go:140-147`), not a degradation.
+- [ ] **Four forgery tests, not one.** Table-driven over `X-Forwarded-For`, `X-Real-IP`, `True-Client-IP` and `Forwarded`, against both an `/api/v1` operation and (during the migration window) `/login`, asserting the recorded address is the real peer in every case. A test that only forges `X-Forwarded-For` passes while the `realip.go:71-74` fallback is wide open, which is exactly how the CRITICAL finding survived an earlier draft.
+- [ ] `middleware.forwardedHeaders` is deleted or gated behind an explicit opt-in, so the guarantee is compiled in rather than resting on a config file a future edit can drop.
 - [ ] Two rate-limit tests, not one. A wrong password from one client address does not block a second. And a request carrying a forged `X-Forwarded-For` rate-limits on the real peer, which is what `proxy_set_header X-Forwarded-For $remote_addr` guarantees. **Getting either wrong locks out every user after five failures from anyone**, on a rolling five-minute window (`security.go:112`; the 15 minutes the login page claims comes from `BlockTime`, which is dead code).
 - [ ] No Go route serves `text/html` and no Go handler writes a `Content-Security-Policy` header for a document.
 - [ ] `go.mod` pins huma at `v2.30.0` or newer, asserted with `semver.Compare`.
@@ -186,11 +188,18 @@ Every box below is either **mechanical** (a named command or test decides it) or
 - [ ] Neither runtime image contains Node: `docker run --rm --entrypoint sh <img> -c '! command -v node && ! command -v npm'` succeeds for both. **After Phase 9** the backend image additionally contains no `.html`, `.css` or `.js` file. It does contain the committed `openapi.json`, which is data rather than a served asset.
 - [ ] nginx serves `/assets/*` with `immutable`, serves `index.html` with `no-store`, falls back to `index.html` for an unknown SPA path, and does **not** fall back for `/api/`, `/auth/`, `/health`, `/ready` or `/openapi.json`, which reach the backend and return its own status. Table-driven against the running stack.
 - [ ] nginx emits no `Access-Control-Allow-*` header on any path, and a request with `Origin: https://evil.example` to the public port is answered without one. The CORS ban is enforced at two layers and tested at both (D6).
-- [ ] nginx proxies over HTTPS with `proxy_ssl_verify on` against `/home/step/certs/root_ca.crt` on the `step-ca-data` volume, with `proxy_ssl_name step-ui`, and an untrusted upstream certificate 502s rather than silently downgrading. The compose default `UI_TLS_MODE` is `stepca`, since a self-signed backend leaf cannot satisfy this.
+- [ ] nginx proxies over HTTPS with `proxy_ssl_verify on` and `proxy_ssl_verify_depth 2` against `/etc/step-ui/ssl/root_ca.crt`, which the Go container copies from `cfg.RootCert` so nginx mounts one volume and never sees `/home/step`, with `proxy_ssl_name step-ui`, and an untrusted upstream certificate 502s rather than silently downgrading. The compose default `UI_TLS_MODE` is `stepca`, since a self-signed backend leaf cannot satisfy this.
 - [ ] nginx serves its **own** leaf (`web.crt`) carrying the public hostname, and the backend leaf carries `step-ui`. One certificate cannot satisfy both roles, and sharing one private key across both containers is rejected on its own merits (D5 rule 4).
 - [ ] `docker compose restart step-ui` and the next request through nginx succeeds with no action on `step-ui-web`, which is the `resolver` plus variable `proxy_pass` behaviour (D5 rule 5).
 - [ ] A 6 MiB upload returns `413` with `application/problem+json` from Go, not nginx's HTML 413, which requires `client_max_body_size` above the Go ceiling.
-- [ ] No `/api/v1` response carries a `Strict-Transport-Security` header or a document-shaped CSP, and no response carries a `Server` header.
+- [ ] No `/api/v1` response carries a `Strict-Transport-Security` header or a document-shaped CSP, and no response discloses a `Server` version. (`server_tokens off` removes the version, not the header, and stock `nginx:alpine` cannot remove the header.)
+- [ ] With `step-ui` stopped, every `/api/v1` path through nginx returns `application/problem+json` with `type` ending `/upstream-unavailable`, and the SPA renders a named unavailable state rather than a login form or a parse failure.
+- [ ] Building the frontend image against a deliberately mutated `openapi.json` makes the running SPA show the contract-skew banner (5.10).
+- [ ] A backup create against a seeded stack returns `200` through nginx rather than a 504, which requires `proxy_read_timeout` above `handlers/backup.go:179`'s two-minute `pg_dump` ceiling.
+- [ ] With `WEB_TLS_MODE=provided` and no files present, startup fails with a named error listing the two missing paths, not an `[emerg] cannot load certificate` crash loop.
+- [ ] Every file under `dist/assets/` matches a content-hash pattern, so the `immutable` policy cannot be applied to a file that can change.
+- [ ] `rg -n '"/api/v1'` over `backend/` returns exactly one non-test hit (5.1), and `jq -e '[.paths|keys[]|select(startswith("/")|not)]|length==0'` passes, since a path without a leading slash resolves relative to the current route under `baseUrl: ''` and lands on the SPA shell with `200`.
+- [ ] `make nginx-lint` runs the frontend image against a stub upstream and asserts the fallback, proxy-prefix, header and cache behaviours in under fifteen seconds with no compose stack. Without a fast rung, every `nginx.conf` edit costs a full stack bring-up and the config stops being tested.
 - [ ] The compose healthcheck on `step-ui` is `curl -fsk https://localhost:8443/health`. It currently curls `/login` without `-f`, so it both passes on any status and points at a route this plan deletes.
 - [ ] The proxied path prefix list in `frontend/nginx.conf` and in `frontend/vite.config.ts` derive from one source, asserted by a test (4.4).
 - [ ] After the backend renews its leaf, nginx serves the new certificate without a container restart (D5, R13).
@@ -264,94 +273,130 @@ Every box below is either **mechanical** (a named command or test decides it) or
 
 ### D5. Two images, nginx as the origin and the TLS terminator
 
-**Decision.** The SPA is built to static files and baked into an `nginx:alpine` image. The Go image carries no static assets once Phase 9 lands. `//go:embed static`, `staticHandlerFromFS`, `mimeByExt` and the `/static/*` route all leave the Go side, and with them the class of problems a single-image design would have had. This is the one place where the two-container answer makes the plan **smaller**.
+**Decision.** The SPA is built to static files and baked into an `nginx:alpine` image. The Go image serves no static assets once Phase 9 lands. This is the one place where the two-container answer makes the plan **smaller**: `//go:embed static`, `staticHandlerFromFS`, the hand-written traversal check and the hand-written MIME table all leave the Go side.
 
-Everything below was verified against the repository, and five things that looked obvious turned out to be wrong. They are stated as rules rather than as advice.
-
-**nginx's job, in full.**
+Everything below was verified against the repository. Nine things that looked obvious turned out to be wrong, so they are stated as numbered rules rather than as advice, and the config is given as the artefact rather than as prose.
 
 ```nginx
+# frontend/nginx.conf — REPLACES /etc/nginx/conf.d/default.conf, which must be
+# deleted in the image or the stock port-80 server survives inside the network.
+
 server_tokens off;
-client_max_body_size 6m;                       # above 5.7's 5 MiB Go ceiling, so Go owns the 413
-resolver 127.0.0.11 valid=10s ipv6=off;        # Docker's embedded DNS
+log_format origin '$remote_addr $request_id "$request_method $uri" $status '
+                  'ua=$upstream_status urt=$upstream_response_time';   # $uri, never $request
+access_log /dev/stdout origin;
 
-ssl_certificate     /etc/step-ui/ssl/web.crt;  # nginx's OWN leaf, not the backend's
-ssl_certificate_key /etc/step-ui/ssl/web.key;
+client_header_timeout 10s;  client_body_timeout 15s;  send_timeout 15s;
+keepalive_timeout 30s;      proxy_connect_timeout 3s;  proxy_read_timeout 180s;
+limit_conn_zone $binary_remote_addr zone=perip:10m;
+limit_req_zone  $binary_remote_addr zone=api:10m rate=20r/s;
+resolver 127.0.0.11 valid=10s ipv6=off timeout=2s;
 
-location = /nginx-health { access_log off; return 200; }
+server {
+  listen 8443 ssl;  http2 on;
+  server_name ${WEB_HOSTNAME};
+  ssl_certificate     /etc/step-ui/ssl/web.crt;
+  ssl_certificate_key /etc/step-ui/ssl/web.key;
+  ssl_protocols TLSv1.2 TLSv1.3;
+  gzip on;
+  client_max_body_size 1m;
+  limit_conn perip 32;  limit_req zone=api burst=40 nodelay;
 
-location /assets/ {
+  location = /nginx-health { access_log off; return 200; }
+  location ~ ^/(docs|openapi\.yaml|schemas)(/|$) { return 404; }
+
+  location /assets/ {
+    include conf.d/doc-headers.conf;
     add_header Cache-Control "public, max-age=31536000, immutable" always;
-    add_header X-Content-Type-Options "nosniff" always;
     try_files $uri =404;
-}
+  }
 
-location / {
+  location / {
+    include conf.d/doc-headers.conf;          # CSP, XFO, nosniff, Referrer-Policy, HSTS
     add_header Cache-Control "no-store" always;
-    add_header Content-Security-Policy "..." always;
-    add_header X-Content-Type-Options "nosniff" always;
-    add_header X-Frame-Options "DENY" always;
-    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-    add_header Strict-Transport-Security "max-age=63072000" always;
     try_files $uri /index.html;
-}
+  }
 
-location ~ ^/(api|auth)/|^/(health|ready|openapi\.json)$ {
+  location ~ ^/(api|auth)/|^/(health|ready|openapi\.json)$ {
+    include conf.d/proxy-headers.conf;        # MUST be included in EVERY proxying block
+    add_header X-Content-Type-Options "nosniff" always;   # opts this block OUT of inheritance
+    client_max_body_size 8m;                  # above 5.7's 5 MiB Go ceiling, so Go owns the 413
+    proxy_buffering off;
     set $backend "step-ui:8443";
-    proxy_pass                    https://$backend$request_uri;
-    proxy_ssl_trusted_certificate /home/step/certs/root_ca.crt;
-    proxy_ssl_verify              on;
-    proxy_ssl_name                step-ui;
-    proxy_ssl_server_name         on;
-    proxy_set_header              Host              $host;
-    proxy_set_header              X-Forwarded-For   $remote_addr;
-    proxy_set_header              X-Forwarded-Proto $scheme;
+    proxy_pass https://$backend$request_uri;  # $request_uri mandatory with a variable
+    proxy_ssl_trusted_certificate /etc/step-ui/ssl/root_ca.crt;
+    proxy_ssl_verify on;  proxy_ssl_verify_depth 2;
+    proxy_ssl_name step-ui;  proxy_ssl_server_name on;
+    proxy_ssl_protocols TLSv1.2 TLSv1.3;
+    proxy_intercept_errors on;
+    error_page 502 503 504 = @apidown;
+  }
+
+  location @apidown {
+    default_type application/problem+json;
+    add_header Cache-Control "no-store" always;
+    return 503 '{"type":"https://step-ca-ui/errors/upstream-unavailable",'
+               '"title":"Service Unavailable","status":503}';
+  }
 }
+server { listen 8443 ssl default_server; ssl_reject_handshake on; return 444; }
 ```
 
-**Rule 1: `X-Forwarded-For` is `$remote_addr`, never `$proxy_add_x_forwarded_for`.** The append form is correct only behind another trusted proxy, and there is none here. With the append form plus a wide trusted CIDR, `clientFromHeaders` walks the list right to left, skips the trusted entries and returns whatever the client put in the header (`middleware/realip.go:63-70`). That hands an unauthenticated caller full control of the login rate limiter, `auth_log.ip`, `users.last_ip` and the security log. The replace form makes a client-supplied header unsurvivable regardless of how the trusted list is later widened.
+`conf.d/proxy-headers.conf`, included by **every** location that proxies, legacy blocks included:
 
-**Rule 2: the trusted list is nginx's single address, and the network needs a pinned subnet to have one.** `docker-compose.yml:151-156` declares `step-net` as a plain bridge with no `ipam` block, so Docker allocates dynamically and no hardcoded CIDR stays correct across a `docker network rm`. Add an explicit `ipam.config.subnet`, give `step-ui-web` a static `ipv4_address`, and set `TRUSTED_PROXY_CIDRS` to that one address as a `/32`. Trusting the whole subnet is wrong: the bridge gateway sits inside it and host-originated traffic arrives from there.
-
-**Rule 3: `TRUST_PROXY=true` without `TRUSTED_PROXY_CIDRS` is a crash, not a degradation.** `main.go:140-147` calls `mw.ParseTrustedProxies` and `log.Fatalf`s on error, and `ParseTrustedProxies` errors on an empty list (`middleware/realip.go:32-34`). Neither key is passed through the base compose file's environment block today (`docker-compose.yml:76-109`), so setting them in `.env` alone is a silent no-op, which is the exact trap `compose.e2e-config.yml` was written to document. Both keys go in the compose environment block and in `.env.example`.
-
-**Rule 4: nginx gets its own certificate. Sharing the backend's cannot work and should not anyway.** Four independent reasons, all verified:
-
-- The trust anchor is not where an earlier draft put it. `step-ui-ssl` contains exactly `server.crt` and `server.key`, mode `0600`, uid 10001 (`tlsbootstrap.go:176,180,265,268`, writing `cfg.SSLCert`/`cfg.SSLKey` = `/opt/step-ui/ssl/...`). The root CA lives on the **`step-ca-data`** volume at `/home/step/certs/root_ca.crt` (`config/config.go:93`, `docker-compose.yml:71`), so `step-ui-web` mounts that volume read-only too.
-- The default mode produces a self-signed leaf. `docker-compose.yml:95` defaults `UI_TLS_MODE` to `self-signed` and `ensureUICert` self-signs in that branch (`tlsbootstrap.go:240-245`), which chains to nothing. `proxy_ssl_verify on` would 502 every request on a fresh clone. **The compose default must become `stepca` in the same commit as the nginx introduction.**
-- One certificate cannot carry both names. `issueUICert` requests exactly one SAN (`stepca/issue.go:58,69-70`), `resolveUIHostname` (`tlsbootstrap.go:190-199`). If it is the public browser name the proxy hop fails verification; if it is `step-ui` browsers reject the public listener. There is no value satisfying both, and `stepca.IssueRequest` has no SAN list.
-- Sharing the file means sharing the private key between the Go binary and a C web server with a far larger attack surface, and coupling two reload schedules to one mtime.
-
-**So this plan amends its own non-goal, deliberately and once.** 1.3 says `tlsbootstrap.go` is untouched. That holds for structure, not for content: a second issuance is added for the public name, writing `web.crt` and `web.key` into the shared volume under new `WEB_HOSTNAME` / `WEB_SSL_CERT` / `WEB_SSL_KEY` keys, renewed by the existing `startUICertRenewer` loop. Roughly twenty lines, no change to `stepca/`, no change to the `UI_TLS_MODE` switch, and the E2E-BOOT tier stays valid. The backend leaf then carries `step-ui` and serves only the proxy hop.
-
-**Rule 5: `proxy_pass` must resolve at request time, or a backend restart is a permanent 502.** With a literal hostname nginx resolves once at configuration load. `step-ui` carries `restart: unless-stopped` and a recreated container gets a new address, after which every proxied request 502s until nginx itself is restarted. `depends_on: service_healthy` is a **start-order gate only** and does nothing here. The `resolver` plus `set $backend` plus `$request_uri` form above fixes it. `$request_uri` is mandatory: with a variable in `proxy_pass`, nginx drops the matched URI.
-
-**Rule 6: `add_header` needs `always`, and any `add_header` in a block drops every inherited header.** Without `always` the header is emitted only on 2xx and 3xx, so a CSP set in `location /` is absent from every 4xx and 5xx. And because these directives are inherited only when the current level defines none, a single `add_header` in a location silently discards the whole server-level set. Every header nginx needs is therefore written explicitly in every block that sets any header, which is why the snippet above repeats them.
-
-**Rule 7: the nginx healthcheck checks nginx, never a proxied path.** A backend outage must not mark nginx unhealthy, or the restart loop takes the login page down with it. Probe `location = /nginx-health`. `nginx:alpine` has no `curl`, so the test is busybox `wget -q -O /dev/null --no-check-certificate https://localhost/nginx-health`. `depends_on: service_healthy` still earns its place, for a different reason than an earlier draft gave: `ssl_certificate` is fatal at startup, so nginx must not start before the Go container has written the leaf.
-
-**Rule 8: fix the backend healthcheck at the same time.** `docker-compose.yml:117-122` overrides the image healthcheck with `curl -sk ... /login`, with no `-f`, so it passes on any status that completes a handshake and it points at a route Section 6 deletes. It becomes `curl -fsk https://localhost:8443/health`, matching `Dockerfile:45-46`. Without this, `step-ui-web`'s `depends_on: service_healthy` never satisfies after Phase 9 and the stack does not start.
-
-**Who owns the security headers.** The Go container serves no HTML once Phase 9 lands, so nginx owns the document headers. Three specific corrections rather than a general principle:
-
-- **Go stops emitting `Strict-Transport-Security` entirely.** `mw.SecurityHeaders` emits `max-age=0` when `EnableHSTS` is false (`middleware/middleware.go:47`), which is the compose default, and since these are now the same origin an API response with `max-age=0` **clears** the HSTS policy nginx set on the document moments earlier. nginx is the sole emitter.
-- **Go's CSP is scoped off `/api/v1`.** nginx does not strip upstream headers, so Go's document-shaped CSP would arrive alongside nginx's on every API response and browsers enforce the intersection.
-- **`server_tokens off;`** because `mw.SecurityHeaders` deliberately does `Header().Del("Server")` (`middleware/middleware.go:66`) and nginx would otherwise advertise itself.
-
-What Go keeps on JSON responses is the subset that means anything there: `X-Content-Type-Options: nosniff`, `Cache-Control: no-store`, `X-Frame-Options: DENY`, `Referrer-Policy`, and a minimal `default-src 'none'; frame-ancestors 'none'`. `form-action`, `base-uri`, `style-src`, `font-src` and `img-src` are inert on `application/json`.
-
-**A file-permission dependency worth writing down.** The cert files are `0600` owned by uid 10001. `nginx:alpine` works only because its master process runs as root and reads them before dropping to the worker user. Any move to `nginxinc/nginx-unprivileged`, or a `USER` line added for hardening, breaks TLS startup silently. If Rule 4's second leaf lands, write `web.key` with a group both users share.
-
-**Two images, and the client tarball question is simpler than it was.** `openapi.json` is committed, so the frontend image reads it straight out of the build context and needs no Go stage.
-
-```
-frontend/Dockerfile     node:22-alpine  -> npm ci, generate the client, build the SPA
-                        nginx:alpine    -> COPY dist + nginx.conf, no Node at runtime
-backend/Dockerfile      golang-alpine   -> go build
-                        alpine          -> the binary, plus the committed openapi.json
+```nginx
+proxy_set_header Host             $host;
+proxy_set_header X-Forwarded-For  $remote_addr;   # replace, never $proxy_add_x_forwarded_for
+proxy_set_header X-Real-IP        $remote_addr;   # MUST be set. see rule 1.
+proxy_set_header True-Client-IP   "";             # MUST be cleared. see rule 1.
+proxy_set_header Forwarded        "";
+proxy_set_header X-Request-Id     $request_id;
 ```
 
-The backend image keeps `context: ./backend`. The frontend image needs `frontend/`, `clients/ts/` and `backend/openapi/openapi.json`, so its context is the repository root, which is what makes `.dockerignore` necessary. Note there are **five** `node_modules` trees after the split, not three (the repository root, `backend/`, `test/e2e/`, `frontend/`, `clients/ts/`), all covered by the glob:
+**Rule 1: setting `X-Forwarded-For` is not enough, and an earlier draft's claim that it made a client-supplied header "unsurvivable" was wrong.** `clientFromHeaders` (`middleware/realip.go:55-77`) walks XFF right to left, skips every entry that is itself trusted, and **falls through to `X-Real-IP` then `True-Client-IP`** when XFF yields nothing (`realip.go:12`, `:71-74`). With the replace form, XFF contains exactly one entry, nginx's own address, which is trusted, so the loop always exhausts and **the fallback fires on every single request**. An unauthenticated caller sending `X-Real-IP: 203.0.113.9` therefore controls the login rate limiter, `auth_log.ip`, `users.last_ip` and the security log: unlimited password guessing by rotating a header, and the ability to block a colleague by forging theirs. This is the single most serious defect the review found. The fix is both halves: nginx sets `X-Real-IP` and clears `True-Client-IP` and `Forwarded`, **and** Go's `forwardedHeaders` fallback (`realip.go:12`) is deleted or put behind an explicit opt-in, because one is a config file a future edit can drop and the other is compiled in.
+
+**Rule 2: `proxy_set_header` inherits exactly like `add_header`, and the legacy blocks are where it bites.** Directives at one level are inherited only when that level defines none of its own. Phase 3's legacy passthrough blocks either define a subset and silently lose the rest, or define none and inherit from a server level that defines none. Either way `POST /login`, the one route the rate limiter protects during Phases 3 to 8, would take the client's raw headers. Hence the `include` file above, in every proxying block, with no exceptions.
+
+**Rule 3: the trusted list is nginx's single address, and the network needs a pinned subnet to have one.** `docker-compose.yml:151-156` declares `step-net` with no `ipam` block, so Docker allocates dynamically and no hardcoded CIDR survives a `docker network rm`. Add `ipam.config.subnet` (as an env-var default, since `172.16/12` is where corporate VPNs live), give both application services static addresses, and set `TRUSTED_PROXY_CIDRS` to nginx's single `/32`. Trusting the subnet is wrong: the bridge gateway sits inside it. **Adding an upstream hop later is a change to nginx, not to this list**: the mechanism is nginx's realip module (`set_real_ip_from`, `real_ip_header`, `real_ip_recursive on`), after which `$remote_addr` is the true client and the replace form stays correct. Widening `TRUSTED_PROXY_CIDRS` instead collapses the rate limiter to one bucket for the whole internet.
+
+**Rule 4: `TRUST_PROXY=true` without `TRUSTED_PROXY_CIDRS` is a crash, not a degradation.** `main.go:140-147` `log.Fatalf`s, and `ParseTrustedProxies` errors on an empty list (`realip.go:32-34`). Neither key reaches the container today (`docker-compose.yml:76-109`), so setting them in `.env` alone is a silent no-op. Both go in the compose environment block and `.env.example`. Note `compose.e2e-oidc.yml:62-63` currently defaults `TRUST_PROXY` to false and would silently flip it off for that scenario.
+
+**Rule 5: nginx gets its own certificate, governed by its own mode key.** Four independent reasons a shared one cannot work. The root CA is not in `step-ui-ssl` (it is at `/home/step/certs/root_ca.crt` on `step-ca-data`, `config/config.go:93`). The compose default `UI_TLS_MODE` is `self-signed` (`docker-compose.yml:95`), which chains to nothing and 502s every request under `proxy_ssl_verify on`. One certificate cannot carry both the public browser name and `step-ui`, because `issueUICert` requests exactly one SAN (`stepca/issue.go:58,69-70`) and `IssueRequest` has no SAN list. And sharing the file shares a private key between the Go binary and a C web server with a far larger attack surface.
+
+So: **`UI_TLS_MODE` keeps its current three-way meaning for the backend leaf** (SAN `step-ui`, internal hop only), unchanged, so E2E-BOOT-01 to -09 stay valid. A new **`WEB_TLS_MODE`** with values `stepca` (default) and `provided` governs `web.crt`/`web.key`. Collapsing both under one key produces two unworkable states: `provided` writes no web leaf and nginx cannot start (`tlsbootstrap.go:208-209` is a bare `return nil`), and `self-signed` writes a backend leaf `proxy_ssl_verify` rejects. `WEB_HOSTNAME` has **no hostname fallback** and an empty value is `log.Fatalf`, because falling through to `os.Hostname()` writes a `web.crt` whose only SAN is a container id, which survives on the volume and is rejected by every browser on the next `make up` with no clue where it came from.
+
+The Go container also **copies `cfg.RootCert` into `/opt/step-ui/ssl/root_ca.crt`** at the end of the bootstrap, so nginx mounts exactly one volume, `step-ui-ssl:ro`, and never gets read access to the CA's `/home/step`. That also keeps `compose.e2e-fingerprint.yml` working unchanged. **A separate `step-ui-web-ssl` volume carries `web.crt` and `web.key`**, read-write to Go and read-only to nginx, so an RCE in nginx does not yield `server.key`, the credential for impersonating the backend.
+
+**Rule 6: the self-signed fallback and `proxy_ssl_verify on` are incompatible, and the stack must say so rather than 502 in silence.** `ensureUICert` falls back to self-signed after 30 retries, on context cancel and on a nil CA client (`tlsbootstrap.go:215-245`). That fallback exists to keep the UI up when the CA is down; under this design it guarantees the opposite, with both healthchecks green and every API call 502ing. Three changes: `ensureUICert` writes a `.fallback` marker whenever it self-signs in `stepca` mode, `/ready` reports it and the compose healthcheck treats it as unhealthy so `depends_on` holds nginx off, and `startUICertRenewer` runs whenever the mode is `stepca`, constructing its CA client lazily per iteration rather than requiring a non-nil client at boot (`main.go:436`), so a CA that comes up late is recovered from without a restart. For the **web** leaf specifically the fallback is a hard failure rather than a self-signed cert, because nothing downstream can work and a fast crash-loop is diagnosable where a silent 502 wall is not.
+
+**Rule 7: `proxy_pass` must resolve at request time.** With a literal hostname nginx resolves once at configuration load. `step-ui` carries `restart: unless-stopped` and a recreated container gets a new address, after which every proxied request 502s until nginx itself restarts. `depends_on: service_healthy` is a start-order gate and does nothing here. The `resolver` plus `set $backend` plus `$request_uri` form above fixes it. **The trade being made, recorded rather than left silent:** a variable `proxy_pass` cannot use a named `upstream` block, so there is no upstream keepalive and every proxied request costs a fresh TCP connect and TLS handshake to Go. At this scale that is acceptable, and it has one useful side effect noted in R29.
+
+**Rule 8: `add_header` needs `always`, any `add_header` in a block drops every inherited header, and the proxy block therefore defines one deliberately.** Without `always` a header is emitted only on 2xx and 3xx, so a CSP set in `location /` is absent from every 4xx and 5xx. And because inheritance is all-or-nothing per level, the proxy block currently inherits nothing only because it defines nothing: the day someone adds a single server-level `add_header`, the document CSP and HSTS get stamped onto every API response and browsers enforce the intersection with Go's `default-src 'none'`. The `X-Content-Type-Options` line in the proxy block exists to opt out of that, and says so in a comment.
+
+**Rule 9: nginx waits for its certificate instead of dying on it, and the reload lives in its own container.** `ssl_certificate` is fatal at config load, and `depends_on` does not survive a host reboot, where the daemon restarts containers in no guaranteed order. `frontend/entrypoint.sh` polls for `web.crt` and `web.key` for up to 120 seconds, logging the paths, then starts nginx against a bundled ephemeral certificate serving a fixed 503 naming the missing file. The same entrypoint runs the reload watcher: sha256 the certificate every 60 seconds, and on change `nginx -t && nginx -s reload`, logging both outcomes and re-arming on failure. **It cannot live in the Go container**: `nginx -s reload` signals a process in another container, so a Go-side watcher would need the Docker socket, which is host root held by the container that runs an allowlisted shell console. That is a prohibition, not a preference. Separately, `tlsbootstrap.go`'s two `os.WriteFile` calls become write-to-`.tmp`-then-`os.Rename`, which removes the torn-PEM race at the source for both readers.
+
+**Rule 10: three absolute URLs must name nginx's origin, and one of them is not the variable an earlier draft named.** `OIDC_REDIRECT_URL` (`config/config.go:116`, used at `handlers/handler.go:90`) is what the OIDC flow registers, **not** `PUBLIC_BASE_URL`, which `resetLink` uses for password-reset emails (`handlers/password_reset.go:112,260-271`) and which refuses to send when unset. Both, plus `WEB_HOSTNAME`, must name the published origin, and all three go in the compose environment block and `.env.example`. Note the emailed reset link targets `/reset-password?token=...`, which is now an SPA route resolved by `try_files`, so an e2e must assert the path `resetLink` emits actually resolves.
+
+**Rule 11: two long operations exceed nginx's default timeouts.** `writePGDump` runs under a two-minute context (`handlers/backup.go:179`) and `buildBackupBundle` tars three directories unbounded, against a default `proxy_read_timeout` of 60s. The invariant, which any new long operation moves: **`proxy_read_timeout` exceeds the longest backend operation.** 180s covers today. `proxy_buffering off` on the proxy block stops nginx spooling a whole backup bundle to disk before the first byte reaches the browser. `/admin/integrity`, whose cost Phase 6 measures, joins this class if it walks every certificate.
+
+**Who owns the security headers.** nginx owns the document headers because Go serves no document. Three specific corrections rather than a principle. **Go stops emitting `Strict-Transport-Security` entirely**: it emits `max-age=0` when `EnableHSTS` is false (`middleware/middleware.go:47`), the compose default, and on one origin that API response **clears** the policy nginx set on the document. nginx's HSTS stays env-gated through an `/etc/nginx/templates/` substitution rather than being hardcoded, because a two-year `max-age` on a name whose certificate chains to a private root is a trap with no downgrade path. **Go's CSP is scoped off `/api/v1`.** And `server_tokens off` removes the version but not the `Server` header, which stock `nginx:alpine` cannot do without a third-party module, so the acceptance criterion says "no version disclosed" rather than "no header".
+
+What Go keeps on JSON responses is the subset that means anything there: `nosniff`, `Cache-Control: no-store`, `X-Frame-Options`, `Referrer-Policy`, and a minimal `default-src 'none'; frame-ancestors 'none'`. `form-action`, `base-uri`, `style-src`, `font-src` and `img-src` are inert on `application/json`.
+
+**A file-permission dependency worth writing down.** The cert files are `0600` owned by uid 10001. `nginx:alpine` works only because its master runs as root and reads them before dropping to the worker user. `nginxinc/nginx-unprivileged`, or a `USER` line added during hardening, breaks TLS startup silently.
+
+**Two images.** `openapi.json` is committed, so the frontend image reads it from the build context and needs no Go stage.
+
+```
+frontend/Dockerfile   node:22-alpine -> npm ci, generate the client, build the SPA
+                      nginx:alpine   -> COPY dist + nginx.conf, no Node at runtime
+backend/Dockerfile    golang-alpine  -> go build
+                      alpine         -> the binary plus the committed openapi.json
+```
+
+`nginx:alpine` is **pinned to a minor or a digest**, not a floating tag, and `frontend/Dockerfile` joins dependabot's docker ecosystem. The frontend Dockerfile **copies narrowly and in dependency order** (`frontend/package*.json` and `clients/ts/package*.json`, then `npm ci`, then `backend/openapi/openapi.json`, then `clients/ts/`, then `frontend/`): a bare `COPY . .` at a root context hashes the whole repository, so every backend commit would trigger a full `npm ci` and Vite build, which is exactly the cost 9.1 claims the split avoids.
+
+The backend image keeps `context: ./backend`. The frontend image's context is the repository root, hence `.dockerignore`, covering **five** `node_modules` trees after the split:
 
 ```
 .git
@@ -369,7 +414,9 @@ backend/ssl/
 *.log
 ```
 
-`secrets/` holds real credential material from `make setup`, `.env` holds the real database and session configuration, and `backups/` holds `pg_dump` output containing password hashes. All three exist on disk now, and a Docker layer is immutable, so a file copied in and later deleted is still in the image.
+`secrets/` holds real credential material from `make setup`, `.env` the real database and session configuration, and `backups/` `pg_dump` output containing password hashes. All three exist on disk now, and a Docker layer is immutable, so a file copied in and later deleted is still in the image.
+
+**Independent rollback needs image tags, which compose does not have today.** Both application services use `build:` with no `image:`, so "roll back one half" is a `git checkout` and a rebuild, which the single image could already do. Both services gain `image: ${BACKEND_IMAGE:-...}` / `${WEB_IMAGE:-...}` alongside `build:`, and `docker-build.yml` tags both with the commit sha. Without that indirection the deployment split buys nothing operationally over one image.
 
 ### D6. Keep cookie sessions, add session-bound CSRF, add `__Host-` prefixes
 
@@ -551,11 +598,15 @@ Two consequences of nginx owning the first hop. The SPA fallback is `try_files` 
 
 ### 4.4 Development loop
 
-`make dev` brings postgres, step-ca **and the Go container** up under compose, and runs only Vite on the host. `step-ui-web` is not started in this mode: Vite replaces nginx as the origin, using the same path-routing rules, which is what keeps the dev loop honest. Running the Go binary on the host would need postgres and step-ca reachable from the host and the secrets files readable there, which is a mode the repository does not support and this plan is not going to build.
+`make dev` brings postgres, step-ca **and the Go container** up under compose with `--wait` (a `stepca` bootstrap can take a minute, and Vite starting immediately means the first `getSession` hits nothing), and runs only Vite on the host. The Go container still issues `web.crt` in this mode even though nothing reads it, which is harmless in itself and is the reason `WEB_HOSTNAME` must be required rather than falling back to `os.Hostname()`: otherwise a `make dev` run writes a certificate whose only SAN is a container id, it survives on the volume, and the next `make up` serves it to a browser that rejects it with no clue where it came from. `step-ui-web` is not started in this mode: Vite replaces nginx as the origin, using the same path-routing rules, which is what keeps the dev loop honest. Running the Go binary on the host would need postgres and step-ca reachable from the host and the secrets files readable there, which is a mode the repository does not support and this plan is not going to build.
 
 Vite proxies the same five path prefixes nginx proxies, to the same backend, with `secure: false`. **The proxy rules in `vite.config.ts` and the `location` blocks in `nginx.conf` are the same routing table written twice**, and a divergence between them is a bug that only shows up in one environment. Keep the prefix list in one place in the repository, generate or lint both from it, and say so in the Phase 3 PR.
 
-Same origin from the browser's point of view, so cookies and CSRF behave as in production, **with two documented exceptions**:
+**The claim that Vite "keeps the dev loop honest" is only half true, and the half it misses is the expensive one.** It keeps origin-sameness honest, which is what cookies and CSRF depend on. It exercises nothing else nginx does. The full divergence list: no CSP at all, so `style-src 'self'` with no `unsafe-inline`, the single hardest constraint in D7 and D12, is never tested where the code is written; no `X-Forwarded-For`, so with `TRUST_PROXY=true` and a `/32` list every dev request shares the gateway address and five bad passwords lock the developer out in a way that reads as a login bug; no cache headers; no `client_max_body_size`; different `try_files` precedence on encoded paths; a different `Host`; no HTTP/2; no compression. **A dev loop that never exercises the origin is fine for component work and unacceptable for anything touching headers, CSP, routing prefixes, caching or auth transport**, which is precisely the set this migration introduces.
+
+The answer is not to run nginx in dev (HMR websockets need their own proxy pair and a dev-only config, giving three routing tables instead of two, which R26 argues against) and not to make the loop a build (a sub-second edit becomes a 10 to 30 second rebuild). It is two additions. **`make preview` builds both images and runs the full four-container stack**, and is a mandatory pre-push step for any change touching `nginx.conf`, `vite.config.ts`, the CSP or the shared prefix list. And 4.4's single source of routing truth extends to carry the header set, with `vite.config.ts` emitting the same CSP from it through a `configureServer` middleware.
+
+Same origin from the browser's point of view, so cookies and CSRF behave as in production, **with these documented exceptions**:
 
 - Dev is HTTP, so TLS is not exercised and `Secure` cookies work only because browsers treat `http://localhost` as a secure context. `__Host-` prefixing is therefore off in dev (D6), and cookies are not scoped by port, so a session set against the compose UI port is also sent to `:5173`, which produces confusing state if both are used in one browser profile.
 - **OIDC does not traverse the Vite proxy.** The issuer redirects the browser to the registered redirect URI, which the app builds from `PUBLIC_BASE_URL`. Without `PUBLIC_BASE_URL=http://localhost:5173` in the dev environment and a matching redirect URI registered at the issuer, the callback lands on the backend origin and is served the embedded placeholder.
@@ -591,15 +642,19 @@ Plus `frontend-install`, `frontend-build`, `frontend-lint`, `frontend-typecheck`
 
 All JSON operations live under `/api/v1`.
 
-**Versioning is a requirement, not a hedge.** The repository owner asked for a versioned API even though no second consumer exists yet, which settles what an earlier draft left open. The policy, stated so it can be enforced rather than assumed:
+**Versioning is a requirement, and the honest policy is narrower than the obvious one.** The repository owner asked for a versioned API despite there being no second consumer. Keeping the segment is right. Writing the textbook policy around it would not be, and an earlier draft did, in a way that contradicted Section 2's own gate.
 
-- **Additive changes do not bump.** A new operation, a new optional request field, a new response field, a widened enum.
-- **Breaking changes bump the path segment.** A removed or renamed operation, a field going required, a narrowed enum, a changed type, a changed status code. `oasdiff breaking` in the `client` job is what detects these, so the gate stops being a bump reminder and becomes the version policy's enforcement (7.2).
-- **`v1` and `v2` would coexist**, since the only thing that makes a version segment mean anything is that the old one keeps working. Nothing in this plan builds that, and nothing needs to until a second consumer exists, but the policy is written now so the first breaking change is a decision rather than an accident.
+The obvious policy is "additive does not bump, breaking bumps the segment, `v1` and `v2` coexist". That is the policy for a **published** API. This one is not: D8 publishes on `v*` tags only, none is planned, the sole consumer resolves the client by path from the same CI run, and 1.3 makes a public surface a non-goal. **An old client cannot exist**, so a mechanism whose purpose is keeping old clients working is a naming convention wearing a policy's clothes. Coexistence is also undeliverable here for a reason worth naming: with no telemetry, no access-log analysis and no consumer registry, **nobody can tell when `v1` has stopped being called**, so "coexist" with no sunset rule means `v1` is maintained forever by one team across two role tables and two aggregate trees.
+
+**The operative rule.** Breaking changes land in `v1` in lockstep, because both artefacts are built from one commit. `oasdiff breaking` is a review signal that such a change is happening, plus the prompt to re-ask whether an external consumer now exists, and Section 2's MINOR-bump criterion is what it enforces. **The path segment bumps when, and only when, a consumer exists that this repository does not build in the same CI run.** That is the trigger, and it is also the trigger for reopening 1.3's non-goal and D10's aggregates.
+
+**Two things are done now because they are cheap now and expensive later.** `/api/v1` exists once, as a Go constant, and every scope derives from it: today it would be a string literal in the CSRF middleware's scope (5.4), `MaxBytesReader`'s wrap (5.7), Go's CSP scoping (D5), `X-Session-Expires-At`'s emission scope (5.3) and the 404 handler, plus `nginx.conf` and `vite.config.ts`. That is a correctness defect independent of versioning. And the role golden table carries a `version` column keyed as `(version, method, path)`, without which a `v1` operation and its `v2` successor cannot carry different roles, which is the main reason to ship a `v2` at all.
+
+Deferred, with the cost stated so it is a decision rather than a surprise: one spec document per version with the drift gate and `oasdiff` looping; a version axis in the client package's `exports` map rather than two packages, since D8's provenance assertion is per package; `apitypes/` split per version with `depguard` forbidding v2 importing v1, because a shared DTO is exactly how `v1` breaks when `v2` changes; D10 rule 3, that an aggregate composes only sources of its own version; and a sunset rule, which needs a consumer register that does not exist.
 
 The segment also makes `/api/` an unambiguous prefix for nginx's proxy rules (D5), which is a second, smaller reason to have it.
 
-`GET /api/status` becomes `GET /api/v1/status`. **`GET /health` and `GET /ready` stay unversioned probe routes and are not mirrored under `/api/v1`.** The SPA is served by the same process, so if the process is not ready the SPA does not load, and an alias would only invite a system-health widget built on a liveness probe. The SPA's system view is `GET /api/v1/status`.
+`GET /api/status` becomes `GET /api/v1/status`. **`GET /health` and `GET /ready` stay unversioned probe routes and are not mirrored under `/api/v1`**, but the reason an earlier draft gave for that is now false: nginx serves the SPA from its own image, so the document loads with the backend down. Three reasons that survive. Mirroring needs a third `auth` carve-out and 5.5's test currently fails on any `optional` operation other than `getSession`, for no gain. The SPA does not need a probe, it needs to know whether the API it talks to answers, and it learns that from its own boot query failing (5.10) rather than from a second way to be wrong about the same fact. And `/ready` does a database ping plus a three-second call to the CA (`handlers/health.go:29-59,64-104`), unauthenticated, so handing it to the browser makes it a poll target for every open tab. The SPA's system view is `GET /api/v1/status`.
 
 ### 5.2 Error model
 
@@ -732,7 +787,7 @@ Every list response is `{ items, page, pageSize, total, totalPages }`.
 
 Certificate, key and CA chain downloads stay real HTTP downloads with `Content-Disposition`, declared with `content: application/octet-stream` and `format: binary`, which generated clients render as `Blob`-returning functions. The frontend saves from the blob rather than navigating, so the CSRF header and `401` handling apply uniformly. There is no `Referer`, `Origin` or `Sec-Fetch-*` check anywhere in the current code, so nothing is lost by the change.
 
-**The blob-and-save convention applies only to responses bounded by construction**: certificates, keys, chains, and the TOTP PNG. `POST /api/v1/admin/backups` creates a backup and returns `{id, sizeBytes, downloadUrl}`, where `downloadUrl` is a single-use, short-lived, session-scoped path the browser navigates to directly. Buffering a whole `pg_dump` into JS heap with no progress and no resumption is not acceptable.
+**The blob-and-save convention applies only to responses bounded by construction**: certificates, keys, chains, and the TOTP PNG. `POST /api/v1/admin/backups` creates a backup and returns `{id, sizeBytes, downloadUrl}`, where `downloadUrl` is a **relative** path constrained in the schema by `pattern: ^/api/v1/admin/backups/[A-Za-z0-9_-]+/download$`. The constraint is load-bearing, not tidiness: a path outside a proxied prefix falls through nginx's `try_files` and the browser saves **the SPA shell, `200 text/html`**, named as a backup, which is a corrupt backup that looks like a successful one. Relative also keeps `credentials: 'same-origin'` and the `Strict` session cookie working on the navigation, and that navigation is same-site, which is the one top-level navigation to an API path the design has. Buffering a whole `pg_dump` into JS heap with no progress and no resumption is not acceptable.
 
 **Filenames.** `filename*=UTF-8''<pct-encoded>` with a quoted `filename` fallback. `DownloadCert` and `DownloadKey` already pass names through `safeName` (`handlers/pathsafe.go:116`), but ACME downloads interpolate `cert.Domain` unquoted (`handlers/le.go:219,234`), so the domain is passed through the same validation at serve time rather than trusting the stored row.
 
@@ -761,9 +816,22 @@ Without these, five phases produce five answers. Each is one module.
 | List and table state | `useListParams()` reads `page`, `pageSize`, `q`, `sort`, `order` from the URL search string as the single source of truth, debounces `q` at 300 ms, and every list query uses `placeholderData: keepPreviousData` so paging does not flash empty. Table state is deep-linkable for the same reason routes are. |
 | Server field errors | `problemToFieldErrors(problem)` maps `errors[].location` (`body.name`) to form field paths and is the only path from a `422` to a form. |
 | Downloads | `downloadBlob(res, filename)` is the only place `URL.createObjectURL` appears. The filename is derived client-side from the resource name, so no RFC 6266 parsing exists in the frontend. |
+| CSRF cookie name | The SPA cannot know whether `SESSION_SECURE` is on, and guessing wrong means no header, a `403 .../csrf` on every mutation, and **login being impossible with no diagnostic**. It therefore probes both names, prefixed first: `['__Host-step-ui-csrf', 'step-ui-csrf'].map(readCookie).find(Boolean)`. This is provably safe rather than merely convenient: under `SESSION_SECURE=true` a bare-named cookie cannot have been set by this server and the prefixed one wins the probe, so a sibling-host toss cannot shadow it, and under false the prefixed name cannot exist. Zero configuration surface. |
 | Session expiry | The client reads `X-Session-Expires-At` off every response and keeps the latest value. It is the only source for any expiry countdown, because the value returned once at boot is stale a minute later (5.3). |
 | Optimism | None. Every mutation awaits the server and invalidates. Certificate issuance, revocation and role changes are server-authoritative and rollback logic is pure liability. |
 | Escaping | ESLint bans `dangerouslySetInnerHTML`, `eval` and `new Function`. The CSP has no `unsafe-eval` and React is now the only escaping layer. |
+
+### 5.10 Two containers, two failure modes the SPA must handle
+
+The split created two states that could not exist when one process served both, and neither has a branch in the design unless it is written here.
+
+**The backend is down and the document is up.** D5 rule 9 deliberately keeps nginx healthy when the backend dies, which is correct. The consequence is that the SPA loads and every call fails. Without a branch, `GET /api/v1/session` returns nginx's HTML 502, the generated client's error union does not narrow it, `<AuthGate>` falls through to "not authenticated" and **renders the login form**, so a user types a password into a form that cannot work and the 401 interceptor never fires because there was no 401. Three parts to the fix: nginx answers upstream failure in the API's own error model (the `@apidown` block in D5); `<AuthGate>` gains a fourth branch, `unavailable`, rendering a retry rather than a login form; and 5.9's `retry: false` on `getSession` narrows to `retry: (n, e) => n < 3 && isNetworkOrServerError(e)`, still `false` for any 4xx. The blanket rule was written for 5.4's CSRF race, which is a 2xx-pairing problem and is untouched by retrying a 503. One limitation stays and is stated rather than fixed: on a cold start where the backend never goes healthy, `depends_on` means nginx never starts and the user gets a connection refusal instead of the screen. Dropping `depends_on` is not an option, since `ssl_certificate` is fatal at startup.
+
+**The two images are at different commits.** The frontend image reads `backend/openapi/openapi.json` out of its own build context, so the SPA is generated from whatever spec that context held, while the backend implements whatever its binary was built with. Two tags, two pushes, one `docker compose pull` can fetch one. Old SPA against new API gives 404s on removed operations, 422s on newly required fields and `undefined` reads on reshaped aggregates, all of which `throwOnError: false` turns into an unattributable error state. **D10's page-shaped aggregates make this worse than a resource API would**, because reshaping `dashboard` is by design, so skew there is guaranteed rather than incidental.
+
+Comparing `appVersion` or the git commit is the obvious answer and the wrong one: it fires on commits that did not touch the contract and stays silent on a rebuild that did. Compare the artefact that matters. The backend computes `sha256` over its embedded `openapi.json` at init and reports it as **`contractSha`** in `GET /api/v1/config` (named without the substring `hash`, which Section 2's property-name test bans). The frontend build stage computes the same digest and defines it into the bundle, empty under `vite dev` so the check is disabled there. On mismatch the SPA renders a persistent, **non-blocking** banner: a false positive that bricks the UI is worse than the skew it detects. Compose pins both services from one `${IMAGE_TAG}` so a partial upgrade is impossible at that layer. Roughly fifteen lines in total.
+
+**A related failure with the same shape.** D12.7 makes admin routes a lazy chunk, nginx serves `/assets/*` immutable and content-hashed, and a frontend deploy replaces the image wholesale, so a user with a tab open who then navigates to an admin route triggers a dynamic import of a filename that now 404s. This could not happen with the server-rendered UI and it happens on frontend-only deploys, which are the common case. Vite emits `vite:preloadError` for exactly this: listen once per session and reload. That listener is also the recovery path for the skew banner above.
 
 ---
 
@@ -1014,7 +1082,7 @@ import { client } from '@andremmfaria/step-ca-ui-client'
 client.setConfig({ baseUrl: '', credentials: 'same-origin' })
 
 client.interceptors.request.use((req) => {
-  const token = readCookie(csrfCookieName)   // __Host- prefixed when SESSION_SECURE
+  const token = readCsrf()                   // probes both names, see 5.9
   if (token && req.method !== 'GET') req.headers.set('X-CSRF-Token', token)
   return req
 })
@@ -1089,12 +1157,13 @@ Each phase PR names the D-numbers and acceptance criteria it discharges, and car
 5. Router with the full route table, every leaf a placeholder. The committed route list that Section 2's smoke criteria are table-driven from is `navigation.ts` plus the router table, exported as one array.
 6. `<AuthGate>` on the `state` discriminator, plus the login view including two-step MFA and refresh-resumes-on-code-step.
 7. **The origin, its own reviewable unit:** `frontend/nginx.conf` with every block and every rule from D5; the second certificate issuance (`web.crt`/`web.key`) and its renewal; the certificate-reload watcher, debounced and gated on `nginx -t` because the renewal rewrite is two non-atomic `os.WriteFile` calls (`tlsbootstrap.go:265-269`) and a reload can otherwise catch a torn PEM; `frontend/Dockerfile`; and the shared source for the proxied prefix list that `vite.config.ts` and `nginx.conf` both derive from.
-8. **The legacy passthrough, which is what keeps Phases 4 to 8 honest.** nginx gains, for the migration window only, a `location /static/` proxying to the backend and a `legacy` prefix list covering every template route in `main.go:224-325`, each block commented with Phase 9 as its deletion point. Without this, the moment the host port moves to nginx the old UI is unreachable, every template route falls through `try_files` to the SPA shell with `200 text/html`, and the `Parity` sign-off that Phases 4 to 8 depend on has nothing to compare against.
+8. **The migration-window routing, which is what keeps Phases 4 to 8 honest.** The naive answer, a legacy prefix list beside `location /`, does not work: **every template route is also an SPA route name** under D12.8, so `/certificates` cannot both proxy to Go and fall back to `index.html`, and whichever wins breaks one of Phase 3's own exit criteria. Instead the SPA is served under a temporary base path (`/app/`, via Vite's `base` and React Router's `basename`), `location /` proxies everything else to the backend as it does today, and Phase 9 flips the base to `/`. `__Host-` cookies are `Path=/` and unaffected. Each temporary block carries a comment naming Phase 9 as its deletion point, and every one of them includes `conf.d/proxy-headers.conf` (D5 rule 2), without which `POST /login` takes the client's raw forwarding headers for six phases. Note that during this window the legacy routes are served with Go's CSP and, since D5 removes HSTS from Go, no HSTS at all.
 9. **The Go side keeps its front end for now:** `/static/*`, `staticHandlerFromFS`, `mimeByExt` and the `init()` MIME block all stay until Phase 9. What lands here is `cfg.TrustProxy` plus `TRUSTED_PROXY_CIDRS`, the `mw.SecurityHeaders` split from D5 (HSTS removed, CSP scoped off `/api/v1`), and nothing else on the Go side.
-10. **Compose and CI:** the fourth container with a static address on a pinned subnet, `step-ui-ssl` and `step-ca-data` both mounted read-only into it, `depends_on: service_healthy`, the backend healthcheck corrected to `/health`, `UI_TLS_MODE` defaulting to `stepca`, the host port moving from `step-ui` to `step-ui-web`, `.dockerignore`, and updates to `docker-compose.yml`, `e2e.yml` (two images to build and load, `BASE_URL` now pointing at nginx), `docker-build.yml`, `security.yml` (two image scans plus `npm audit`), `codeql.yml` and `scripts/test_deploy.sh`.
+10. **Compose and CI:** the fourth container with a static address on a pinned, env-var-defaulted subnet; `step-ui-web-ssl` read-only into it and read-write into Go, with `step-ui-ssl` **not** mounted into nginx; `depends_on: service_healthy`; the backend healthcheck corrected to `-fsk .../health`; `UI_TLS_MODE` defaulting to `stepca` and the new `WEB_TLS_MODE`, `WEB_HOSTNAME`, `TRUST_PROXY`, `TRUSTED_PROXY_CIDRS`, `PUBLIC_BASE_URL` and `OIDC_REDIRECT_URL` keys; `image:` tags on both application services so a half can be rolled back; the host port moving to `step-ui-web` **on 8443 internally**, so only the hostname changes in the harness; `.dockerignore`; and updates to `docker-compose.yml`, all eight `compose.e2e-*.yml` overrides, `e2e.yml`, `docker-build.yml`, `security.yml`, `codeql.yml` and `scripts/test_deploy.sh`. **The `infra` project never instantiates nginx**: a new `compose.e2e-noweb.yml` assigns `step-ui-web` a profile that is never enabled, which is the only compose-native way an override can remove a service, and `scenario.sh` composes it into every scenario. Without it the `ca-down` scenario starts nginx against a self-signed fallback and `fatals` either hangs on `--wait` or aborts `up`, both reading as harness bugs.
+10b. **Bootstrap arithmetic.** `main.go:361-364`'s bootstrap context is `2*caBootstrapRetries*caBootstrapInterval + 30s`, derived explicitly from "both back-to-back". A third issuance makes the worst case exceed the budget, so the third loop gets an already-cancelled context and self-signs on attempt one. It becomes `3*`, and the comment with it. Relatedly, the renewer is **restructured, not extended**: `issueUICert`, `renewUICertOnce` and the four `generateSelfSignedCert` fallback sites are parameterised on `(certPath, keyPath, hostname)`, and one loop renews both leaves and sleeps on the minimum, so there is one reload event per cycle and one backoff rather than two goroutines drifting into independent reload storms. Six call sites change signature: an earlier draft's "roughly twenty lines, no restructuring" is withdrawn.
 11. `make dev` with the compose backend and Vite standing in for nginx.
 
-**Exit criterion.** Log in through nginx, see an empty dashboard, navigate, hard-refresh a deep link, refresh mid-MFA, log out. The CSP smoke spec passes. A wrong password from one IP does not rate-limit a second IP, and a request carrying a forged `X-Forwarded-For` rate-limits on the real peer. `docker compose restart step-ui` and the next request through nginx succeeds without touching `step-ui-web`. **Every template route and every `/static/*` asset still reachable through the published port**, which is what the legacy passthrough exists to guarantee. **A side-by-side of the dashboard and one admin page against the current UI**: if matching it requires restructuring selectors rather than renaming them, decide then whether to keep the CSS port or adopt a utility layer, once rather than six times (R21). Old template routes still work.
+**Exit criterion.** Log in through nginx at `/app/`, see an empty dashboard, navigate, hard-refresh a deep link, refresh mid-MFA, log out. The CSP smoke spec passes. **All four forgery headers** (`X-Forwarded-For`, `X-Real-IP`, `True-Client-IP`, `Forwarded`) fail to move the rate limiter, against both an API operation and `/login`. `docker compose restart step-ui` and the next request through nginx succeeds without touching `step-ui-web`. With `step-ui` stopped, `/api/v1/session` returns `application/problem+json` and the SPA renders an unavailable state rather than a login form. **Every template route and every `/static/*` asset still reachable through the published port.** A verified proxy hop, proving `proxy_ssl_verify` and the chain depth on a real stack. **A side-by-side of the dashboard and one admin page against the current UI**: if matching it requires restructuring selectors rather than renaming them, decide then whether to keep the CSS port or adopt a utility layer, once rather than six times (R21). Old template routes still work.
 
 ### Phase 4. Certificates
 
@@ -1310,7 +1379,7 @@ Each risk names a **trigger** and an **owner phase**, except R3, R20 and R24, wh
 
 **R12. The huma handler signature versus `gorilla/sessions`.** A handler receives only a `context.Context` while every cookie and session write needs `(r, w)`. All of 5.3 and 5.4 depends on the unwrap middleware. *Trigger:* Phase 0 step 3, before anything is built on it. If it fails, `oapi-codegen` is the better answer and Phase 0's exit criterion allows it. *Owner:* Phase 0.
 
-**R13. nginx serves a stale certificate after the backend renews.** nginx reads its certificate once at start, and the Go container renews the step-ca leaf on its own schedule into the shared volume. Without a reload the public listener keeps serving the expired one, and the failure is silent until a browser rejects it. This is new surface that did not exist when one process owned both ends. Mitigation: an mtime watcher issuing `nginx -s reload`, and an acceptance test that renews and re-handshakes without a restart. *Trigger:* the first renewal after Phase 3, and any certificate-expiry alarm. *Owner:* Phase 3 step 7.
+**R13. The certificate lifecycle now crosses a container boundary, in three ways rather than one.** nginx reads its certificate once at start, so a renewal is invisible until reload. The reload cannot be issued from the Go container without the Docker socket, which is host root held by the container that runs an allowlisted shell console, so it is a prohibition rather than an inconvenience. The write is two non-atomic `os.WriteFile` calls, so a naive watcher can catch a torn PEM. And the self-signed fallback, which exists to keep the UI up when the CA is down, now guarantees the opposite under `proxy_ssl_verify on`, with both healthchecks green and every API call 502ing. Stale-after-renewal was the only part of this an earlier draft saw. Mitigation: D5 rules 6 and 9 in full, plus atomic rename at the source. *Trigger:* the first renewal after Phase 3, any expiry alarm, and any `docker compose ps` that is all green with a dead UI. *Owner:* Phase 3 steps 7 and 10.
 
 **R14. The consumption mechanism is the whole design and is unproven.** If the frontend job can install a stale client and go green, every guarantee here is decorative. D8's three defences each close one path. Residual is decay: the proof is one-off and the `npm ci` ordering can be innocently refactored away, so the workflow block carries a CODEOWNERS entry and the `contract-negative` job re-runs the proof. *Trigger:* the `contract-negative` job going green when it should be red. *Owner:* Phase 2 step 4.
 
@@ -1334,13 +1403,15 @@ Each risk names a **trigger** and an **owner phase**, except R3, R20 and R24, wh
 
 **R24. Scope.** 33 templates, 65 routes, 46 handler files, two container images, six workflows plus `dependabot.yml`, and the entire test suite. Listed for honesty rather than as a risk with a mitigation: it is a fact about the work, and the controls for it are R17, R18 and Phase 0's off-ramp.
 
-**R25. The proxy layer is a second place to get authorisation and identity wrong.** Three concrete failures, all silent. `cfg.TrustProxy` left off means `security.RL` sees only nginx's address and five bad logins from anyone lock out every user (D5). A `location` block that falls through to `try_files` for an API path returns `200 text/html` where the client expects a problem document, which is the exact bug the earlier Go-side fallback guard existed to prevent, now relocated rather than removed. And an `add_header` in a `location` block silently drops every inherited header, so a CSP set at server level vanishes inside any block that adds one of its own. Mitigation: Section 2's table-driven checks against the running stack, which test nginx's behaviour rather than its configuration text. *Trigger:* any edit to `nginx.conf`. *Owner:* Phase 3 steps 7 and 8.
+**R25. The proxy layer is a second place to get identity wrong, and the first attempt at it was wrong.** The CRITICAL finding: with `X-Forwarded-For` set to `$remote_addr`, `clientFromHeaders` always exhausts its XFF loop and **falls through to `X-Real-IP` and `True-Client-IP`** (`middleware/realip.go:12,71-74`), so an unauthenticated caller controls the login rate limiter, `auth_log.ip`, `users.last_ip` and the security log on every request. Three further silent failures in the same layer: `TrustProxy` left off collapses every client to one address; `proxy_set_header` inherits all-or-nothing per level, so a legacy block without the include takes raw client headers; and a `location` falling through `try_files` for an API path returns `200 text/html` where the client expects a problem document. Mitigation: D5 rules 1 to 4, the shared include file, deleting the Go-side fallback, and Section 2's four-header forgery table test, which tests behaviour through the origin rather than configuration text. *Trigger:* any edit to `nginx.conf` or to `realip.go`. *Owner:* Phase 3 steps 7 to 10.
 
 **R26. The routing table is written twice.** `nginx.conf`'s `location` blocks and `vite.config.ts`'s proxy rules are the same list of prefixes, and a divergence is a bug that reproduces in only one environment. Adding an API prefix and forgetting the dev proxy means it works in compose and 404s locally, which reads as a broken dev setup rather than a missing route. Mitigation: 4.4's single source with both generated or linted from it. *Trigger:* any new top-level path prefix. *Owner:* Phase 3 step 7.
 
-**R27. The migration window is the dangerous part of the two-container split, not the end state.** From the moment nginx takes the published port until Phase 9, nginx must carry legacy passthrough blocks for `/static/*` and every template route, `backend/static/` holds a duplicate of the CSS that also lives in `frontend/src/styles/`, and two sets of security headers are in play. Every one of those is temporary scaffolding that a reviewer can mistake for the design. Mitigation: each legacy block carries a comment naming Phase 9 as its deletion point, and Phase 9 step 2 deletes all of it in one commit. *Trigger:* a legacy block surviving a phase it was supposed to be deleted in, or the duplicated CSS diverging. *Owner:* Phase 3 step 8, Phase 9 step 2.
+**R27. The migration window is the dangerous part of the two-container split, not the end state.** From the moment nginx takes the published port until Phase 9 the SPA lives under `/app/`, nginx proxies everything else to the backend, `backend/static/` holds a duplicate of the CSS that also lives in `frontend/src/styles/`, the legacy routes are served with Go's CSP and no HSTS at all, and every temporary proxy block must carry the header include or `POST /login` takes raw client headers. All of it is scaffolding a reviewer can mistake for the design. Mitigation: every temporary block comments Phase 9 as its deletion point, Phase 9 step 2 deletes all of it in one commit, and the base-path flip is a single Vite and router setting rather than a routing-table rewrite. *Trigger:* a temporary block surviving a phase, the duplicated CSS diverging, or a proxy block appearing without the include. *Owner:* Phase 3 step 8, Phase 9 step 2.
 
 **R28. The e2e harness is coupled to the container topology in more places than the routing.** `BASE_URL` has three independent definitions (`helpers/env.ts:8`, `playwright.config.ts:6`, `e2e.yml:131`). `helpers/session.ts` scrapes `name="csrf_token"` out of rendered HTML and expects a `302` from `/login`, which the SPA shell breaks in a way that reads as a fixture bug. `collect.sh:61` enumerates services by name and would silently never collect nginx logs, leaving the new origin as the one component with no diagnostics on failure. And `test/e2e/Dockerfile:1-4` documents that the harness runs inside the network precisely because "both rate limiters key on the client IP, so a host harness is one gateway address and per-test rate-limit isolation becomes impossible" — nginx recreates that condition *inside* the network, so per-test isolation survives only if D5's rules 1 to 3 all hold. Mitigation: Section 10's coupling table, worked through in Phase 3 rather than discovered in Phase 4. *Trigger:* any e2e failure that looks like a fixture bug rather than an assertion failure. *Owner:* Phase 3.
+
+**R29. Enabling upstream keepalive reopens request smuggling.** Desync between nginx and Go is currently unreachable, and for a reason that is an accident of D5 rule 7 rather than a control: a variable `proxy_pass` cannot use a named `upstream`, so there is no connection reuse, and reuse is the precondition for poisoning a subsequent victim request. `proxy_http_version` also defaults to 1.0, so no `Transfer-Encoding` reaches Go, and `proxy_request_buffering` is on. Anyone who later adds an `upstream` block with `keepalive` for performance removes the accident without noticing. Mitigation: a comment in `nginx.conf` saying so, next to the `resolver`. *Trigger:* any pull request adding `upstream` or `proxy_http_version 1.1`. *Owner:* Phase 3 step 7.
 
 ---
 
