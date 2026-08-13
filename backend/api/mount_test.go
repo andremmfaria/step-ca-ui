@@ -274,14 +274,12 @@ func TestUnmatchedAPIPath_ReturnsProblemDocument(t *testing.T) {
 // TestDocsAndSpecEndpoint_NotRegistered is D9's check: DefaultConfig's
 // auto-registered /docs and /openapi.json are wired below api.UseMiddleware
 // and so bypass every authorisation check, which is why Mount clears
-// DocsPath and OpenAPIPath. SchemasPath is untouched in Phase 0 (out of
-// scope per the spike's own instructions) so it is deliberately not asserted
-// here.
+// DocsPath, OpenAPIPath and SchemasPath.
 func TestDocsAndSpecEndpoint_NotRegistered(t *testing.T) {
 	srv := newTestServer(t)
 	client := newClient(t)
 
-	for _, path := range []string{"/docs", "/openapi.json", "/openapi.yaml"} {
+	for _, path := range []string{"/docs", "/openapi.json", "/openapi.yaml", "/schemas/Session.json"} {
 		resp := doRequest(t, client, http.MethodGet, srv.URL+path, nil, nil) //nolint:bodyclose // closed via t.Cleanup inside doRequest
 		if resp.StatusCode != http.StatusNotFound {
 			t.Errorf("GET %s: status = %d, want 404", path, resp.StatusCode)

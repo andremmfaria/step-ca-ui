@@ -49,14 +49,15 @@ func httpFrom(ctx context.Context) (*http.Request, http.ResponseWriter) {
 // the drift-gate test) so the two can never disagree (7.1). CreateHooks is
 // nilled because DefaultConfig's SchemaLinkTransformer injects a $schema
 // property into every response body and a request-Host-derived Link header.
-// DocsPath and OpenAPIPath are cleared because huma's auto-registered /docs
-// and /openapi.json are wired below api.UseMiddleware and so bypass every
-// authorisation check (D9).
+// DocsPath, OpenAPIPath and SchemasPath are cleared because huma wires those
+// routes below api.UseMiddleware, so they bypass every authorisation check
+// (D9). SchemasPath has its own register site independent of CreateHooks.
 func config() huma.Config {
 	cfg := huma.DefaultConfig("step-ca-ui", handlers.Version)
 	cfg.CreateHooks = nil
 	cfg.DocsPath = ""
 	cfg.OpenAPIPath = ""
+	cfg.SchemasPath = ""
 	return cfg
 }
 
