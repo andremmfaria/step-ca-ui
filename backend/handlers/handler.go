@@ -64,6 +64,31 @@ func New(db *sql.DB, cfg *config.Config, store *sessions.CookieStore) *Handler {
 	return NewWithFS(db, cfg, store, nil)
 }
 
+// NewForSpec builds a Handler usable only for OpenAPI operation registration
+// (backend/cmd/openapi, the drift-gate test): db and store are nil and cfg is
+// a zero value. Safe because NewWithFS only calls initOIDC when
+// cfg.OIDCEnabled is true (unreachable here) and never dereferences db or
+// store during construction (D3).
+func NewForSpec() *Handler {
+	return NewWithFS(nil, &config.Config{}, nil, nil)
+}
+
+// SessionCookieName is the gorilla/sessions cookie name. Exported so
+// backend/api's inline session handling (D2 cost 2 — a huma handler has no
+// access to mw.RequireLogin's chi middleware chain) uses the same name
+// rather than a second hardcoded literal.
+const SessionCookieName = "step-ui"
+
+// DB exposes the database handle to backend/api, which reads and validates
+// sessions directly instead of through the chi middleware chain.
+func (h *Handler) DB() *sql.DB { return h.db }
+
+// Store exposes the session store to backend/api.
+func (h *Handler) Store() *sessions.CookieStore { return h.store }
+
+// Cfg exposes the loaded configuration to backend/api.
+func (h *Handler) Cfg() *config.Config { return h.cfg }
+
 // NewWithFS creates a Handler that reads templates from the provided FS.
 // Pass the module-root embed.FS so templates and static files are baked into
 // the binary and the working directory no longer matters at runtime.
