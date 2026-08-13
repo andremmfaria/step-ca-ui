@@ -165,6 +165,10 @@ cover: ## Run coverage gate
 	cd $(GO_DIR) && go test -coverprofile=coverage.out ./... >/dev/null
 	cd $(GO_DIR) && COVERPROFILE=coverage.out THRESHOLD=15 bash scripts/coverage-gate.sh
 
+.PHONY: openapi
+openapi: ## Regenerate backend/openapi/openapi.json from the huma-registered operations
+	cd $(GO_DIR) && go run ./cmd/openapi -out openapi/openapi.json
+
 # ──────────────────────────────────────────────────────────────────────────────
 # End-to-end suite (plans/e2e-tests.md)
 # ──────────────────────────────────────────────────────────────────────────────

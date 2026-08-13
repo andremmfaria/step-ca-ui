@@ -23,6 +23,7 @@ import (
 	"syscall"
 	"time"
 
+	humaapi "step-ui/api"
 	"step-ui/config"
 	"step-ui/handlers"
 	"step-ui/models"
@@ -324,6 +325,11 @@ func main() {
 		r.Post("/profile/2fa/confirm", h.Profile2FAConfirm)
 		r.Post("/profile/2fa/disable", h.Profile2FADisable)
 	})
+
+	// ─── JSON API (Phase 0 of plans/frontend-backend-split.md) ──────────────
+	// Mounted on the same router as every route above: huma operation paths
+	// carry the /api/v1 prefix themselves (5.1).
+	humaapi.Mount(r, h)
 
 	// ─── Static files ─────────────────────────────────────────────────────────
 	// Use the embedded FS sub-tree for static files so the binary is self-contained

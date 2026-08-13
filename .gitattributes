@@ -2,3 +2,4 @@
 Dockerfile text eol=lf
 *.yml text eol=lf
 *.yaml text eol=lf
+backend/openapi/openapi.json text eol=lf

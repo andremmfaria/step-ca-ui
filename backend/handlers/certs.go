@@ -545,22 +545,35 @@ func (h *Handler) importManual(w http.ResponseWriter, r *http.Request, si *model
 	http.Redirect(w, r, "/import?tab=manual", http.StatusFound)
 }
 
-// APIStatus returns a JSON summary of active/expiring certificates.
-func (h *Handler) APIStatus(w http.ResponseWriter, _ *http.Request) {
+// ExpiringSoonDays is the threshold APIStatus (and its huma port, GET
+// /api/v1/status) uses to decide whether a certificate is "expiring soon".
+const ExpiringSoonDays = 30
+
+// StatusExpiring summarizes one certificate nearing expiry.
+type StatusExpiring struct {
+	Name   string `json:"name"`
+	Domain string `json:"domain"`
+	Days   int    `json:"days"`
+}
+
+// StatusSummary computes the active-certificate count and expiring-soon list
+// that APIStatus renders as JSON. Exported so backend/api's GET /api/v1/status
+// operation reuses this instead of duplicating the query and threshold logic.
+func (h *Handler) StatusSummary() (total int, expiringSoon []StatusExpiring) {
 	certs, _ := appdb.GetCerts(h.db, "active")
-	type exp struct {
-		Name   string `json:"name"`
-		Domain string `json:"domain"`
-		Days   int    `json:"days"`
-	}
-	var expiring []exp
 	for _, c := range certs {
-		if d := daysLeftVal(c.ExpiresAt); d <= 30 {
-			expiring = append(expiring, exp{c.Name, c.Domain, d})
+		if d := daysLeftVal(c.ExpiresAt); d <= ExpiringSoonDays {
+			expiringSoon = append(expiringSoon, StatusExpiring{c.Name, c.Domain, d})
 		}
 	}
+	return len(certs), expiringSoon
+}
+
+// APIStatus returns a JSON summary of active/expiring certificates.
+func (h *Handler) APIStatus(w http.ResponseWriter, _ *http.Request) {
+	total, expiring := h.StatusSummary()
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
-		"total": len(certs), "expiring_soon": expiring,
+		"total": total, "expiring_soon": expiring,
 	})
 }

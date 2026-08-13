@@ -1,0 +1,29 @@
+# Phase 0 step 10 spike overlay. Kept out of docker-compose.yml so the base
+# stack stays a three-service file until Phase 3c introduces the real origin.
+#
+#   docker compose -f docker-compose.yml -f compose.phase0-spike.yml up -d
+#
+# TRUST_PROXY must be on for the forgery proof to mean anything: with it off,
+# mw.RealIP never runs, no header can move the rate limiter, and the test
+# passes for the wrong reason.
+services:
+  step-ui:
+    environment:
+      TRUST_PROXY: "true"
+      TRUSTED_PROXY_CIDRS: "${STEP_UI_WEB_ADDR:-172.28.0.11}/32"
+
+  step-ui-web:
+    image: nginx:1.29-alpine
+    container_name: step-ui-web
+    restart: unless-stopped
+    volumes:
+      - ./frontend/nginx.spike.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./frontend/conf.d/proxy-headers.conf:/etc/nginx/conf.d/proxy-headers.conf:ro
+    ports:
+      - "${SPIKE_HTTP_PORT:-8088}:8080"
+    depends_on:
+      step-ui:
+        condition: service_healthy
+    networks:
+      step-net:
+        ipv4_address: "${STEP_UI_WEB_ADDR:-172.28.0.11}"
