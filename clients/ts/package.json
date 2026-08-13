@@ -1,0 +1,28 @@
+{
+  "name": "@andremmfaria/step-ca-ui-client",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Phase 0 spike: TypeScript client generated from backend/openapi/openapi.json (plans/frontend-backend-split.md, D4). Throwaway quality — proves the generation and packaging mechanics, not a real package.",
+  "license": "SEE LICENSE IN ../../LICENSE",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "generate": "openapi-ts",
+    "build": "tsc -p tsconfig.json",
+    "prepack": "npm run generate && npm run build"
+  },
+  "devDependencies": {
+    "@hey-api/openapi-ts": "0.99.0",
+    "typescript": "5.9.3"
+  }
+}

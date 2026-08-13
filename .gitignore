@@ -5,10 +5,20 @@ secrets/
 node_modules/
 package-lock.json
 package.json
-# The e2e harness is its own Node project and its manifests are tracked; the
-# two patterns above have no slash, so they would otherwise match at any depth.
+# The e2e harness, the generated client and the spike frontend are each their
+# own Node project and their manifests are tracked; the two patterns above
+# have no slash, so they would otherwise match at any depth.
 !test/e2e/package.json
 !test/e2e/package-lock.json
+!clients/ts/package.json
+!clients/ts/package-lock.json
+!frontend/package.json
+!frontend/package-lock.json
+
+# Generated client sources/build output — only the spec they're generated
+# from is committed (plans/frontend-backend-split.md, Phase 0 step 8).
+clients/ts/src/
+clients/ts/dist/
 
 # Generated ACME-server material for the Let's Encrypt leg (make e2e-le-certs)
 test/e2e/fixtures/pebble/certs/
