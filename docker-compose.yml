@@ -100,6 +100,11 @@ services:
       SECRET_KEY_FILE:  /run/secrets/secret_key
       SESSION_SECURE:   "${SESSION_SECURE:-true}"
       ENABLE_HSTS:      "${ENABLE_HSTS:-false}"
+      # Setting these in .env alone is a silent no-op: they only reach the
+      # container from here. TRUST_PROXY=true with an unusable CIDR list is a
+      # startup fatal, which is deliberate.
+      TRUST_PROXY:         "${TRUST_PROXY:-false}"
+      TRUSTED_PROXY_CIDRS: "${TRUSTED_PROXY_CIDRS:-}"
       # Required for password recovery; emailed links are built from this and
       # never from the request. See PUBLIC_BASE_URL in .env.example.
       PUBLIC_BASE_URL:  "${PUBLIC_BASE_URL:-}"
@@ -154,3 +159,11 @@ networks:
     name: step-network
     driver_opts:
       com.docker.network.bridge.enable_ip_masquerade: "true"
+    # Pinned so the proxy has a stable address to be trusted by as a /32.
+    # Trusting the whole subnet would include the bridge gateway, which is
+    # where host-originated traffic arrives from. Change STEP_NET_SUBNET if it
+    # collides with a LAN or VPN route; changing it on a live stack needs
+    # `docker compose down && docker network rm step-network` first.
+    ipam:
+      config:
+        - subnet: "${STEP_NET_SUBNET:-172.28.0.0/24}"
