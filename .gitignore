@@ -70,3 +70,6 @@ Thumbs.db
 
 # Backup directories from update scripts
 .backup-*/
+
+# Spike frontend build output
+frontend/dist/
