@@ -73,14 +73,15 @@ func (h *Handler) runRenewal() {
 		}
 
 		result, err := le.IssueCert(&le.LEConfig{
-			Email:     email,
-			Domain:    cert.Domain,
-			Provider:  provider,
-			CFToken:   settings.CFToken,
-			CFZoneID:  settings.CFZoneID,
-			R53KeyID:  settings.R53KeyID,
-			R53Secret: settings.R53SecretKey,
-			R53Region: settings.R53Region,
+			Email:        email,
+			Domain:       cert.Domain,
+			Provider:     provider,
+			CFToken:      settings.CFToken,
+			CFZoneID:     settings.CFZoneID,
+			R53KeyID:     settings.R53KeyID,
+			R53Secret:    settings.R53SecretKey,
+			R53Region:    settings.R53Region,
+			DirectoryURL: h.cfg.LEACMEDirectoryURL,
 		})
 		if err != nil {
 			if dbErr := appdb.UpdateLECertStatus(ctx, h.db, cert.ID, "error", err.Error()); dbErr != nil {

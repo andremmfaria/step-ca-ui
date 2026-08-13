@@ -1,0 +1,7 @@
+# Runs step-ui from the image the CI `image` job built, so no job pays its own
+# `up -d --build`. The base file's `build:` block survives the merge (overrides
+# add or replace keys, they do not delete them) and is simply never evaluated,
+# because CI never passes --build.
+services:
+  step-ui:
+    image: step-ca-ui:e2e

@@ -1,0 +1,19 @@
+# Makes CA_FINGERPRINT reachable: the stock stack mounts step-ca-data read-only
+# at ROOT_CERT's parent, so ensureRootCert early-returns and the fingerprint is
+# never read, and a fetch would hit EROFS anyway.
+#
+# !override replaces the base volume list instead of merging with it; a plain
+# `volumes:` key would leave the read-only mount in place.
+#
+# Removing /home/step also disables checkProvisionerPasswordSync and drops the
+# step-ca-data component from the backup bundle, so E2E-HLTH-06 and E2E-BAK-01
+# must not run against this stack (Section 2.7.1).
+services:
+  step-ui:
+    volumes: !override
+      - step-ui-certs:/opt/step-ui/certs
+      - step-ui-ssl:/opt/step-ui/ssl
+      - step-ui-data:/opt/step-ui/data
+      - step-ui-uploads:/opt/step-ui/uploads
+    environment:
+      ROOT_CERT: /opt/step-ui/data/root_ca.crt

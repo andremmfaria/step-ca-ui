@@ -94,6 +94,9 @@ type LEConfig struct {
 	R53Secret string
 	R53Region string
 	Staging   bool
+
+	// Empty falls back to the LEProductionCA/LEStagingCA selection below.
+	DirectoryURL string
 }
 
 // LEResult holds the file paths and timestamps of an issued ACME certificate.
@@ -142,6 +145,9 @@ func IssueCert(cfg *LEConfig) (*LEResult, error) {
 	caURL := LEProductionCA
 	if cfg.Staging {
 		caURL = LEStagingCA
+	}
+	if cfg.DirectoryURL != "" {
+		caURL = cfg.DirectoryURL
 	}
 
 	// Create the LEGO client

@@ -13,8 +13,8 @@ COMPOSE      := docker compose
 # ──────────────────────────────────────────────────────────────────────────────
 .PHONY: help
 help: ## Show this help
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
-		| awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
+		| awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Bootstrap
@@ -163,6 +163,63 @@ lint: ## Run golangci-lint and check formatting
 .PHONY: cover
 cover: ## Run coverage gate
 	bash scripts/coverage-gate.sh
+
+# ──────────────────────────────────────────────────────────────────────────────
+# End-to-end suite (plans/e2e-tests.md)
+# ──────────────────────────────────────────────────────────────────────────────
+E2E_DIR     := test/e2e
+E2E_PROJECT := $(if $(COMPOSE_PROJECT_NAME),$(COMPOSE_PROJECT_NAME),$(notdir $(CURDIR)))
+
+.PHONY: e2e-install
+e2e-install: ## Install the e2e harness deps (plus chromium for a host-side run)
+	cd $(E2E_DIR) && npm ci
+	cd $(E2E_DIR) && npx playwright install chromium
+
+.PHONY: e2e-fresh
+e2e-fresh: ## Destroy every e2e volume and bring the stack back up healthy
+	$(COMPOSE) down -v
+	$(COMPOSE) up -d --wait
+
+.PHONY: e2e-main
+e2e-main: ## PR-tier suite: api then ui, against the long-lived stack
+	cd $(E2E_DIR) && npx playwright test --project=api
+	cd $(E2E_DIR) && npx playwright test --project=ui
+
+.PHONY: e2e-quick
+e2e-quick: ## Pre-push subset (Section 2.8), api only, ~2 minutes
+	cd $(E2E_DIR) && npx playwright test --project=api \
+		-g 'E2E-AUTH-01|E2E-AUTH-11|E2E-CSRF-01|E2E-RBAC-01|E2E-RBAC-02|E2E-CERT-01|E2E-CERT-09|E2E-HLTH-02|E2E-ADM-01'
+
+.PHONY: e2e-bootstrap
+e2e-bootstrap: ## Run one bootstrap scenario: make e2e-bootstrap SCENARIO=fingerprint
+	@test -n "$(SCENARIO)" || { echo "usage: make e2e-bootstrap SCENARIO=<selfsigned|provided|ca-down|fingerprint|fatals>"; exit 2; }
+	./$(E2E_DIR)/scenario.sh $(SCENARIO)
+
+# Both rate limiters are process-local maps, so a restart clears them — turning
+# a multi-minute real-time wait into ~20-30s back to healthy.
+.PHONY: e2e-restart-ui
+e2e-restart-ui: ## Restart step-ui, clearing both process-local rate limiters
+	$(COMPOSE) restart step-ui
+	$(COMPOSE) up -d --wait step-ui
+
+.PHONY: e2e-reset-ssl
+e2e-reset-ssl: ## Remove the step-ui-ssl volume only, leaving users and CA state
+	$(COMPOSE) stop step-ui
+	$(COMPOSE) rm -f step-ui
+	docker volume rm $(E2E_PROJECT)_step-ui-ssl
+	$(COMPOSE) up -d --wait step-ui
+
+.PHONY: e2e-seed-history
+e2e-seed-history: ## Insert N synthetic cert_history rows: make e2e-seed-history N=25
+	@test -n "$(N)" || { echo "usage: make e2e-seed-history N=<count>"; exit 2; }
+	$(COMPOSE) exec -T postgres psql -v ON_ERROR_STOP=1 -U stepui -d stepui -c \
+		"INSERT INTO cert_history (action, cert_name, domain, details, username, role) \
+		 SELECT 'issue', 'e2e-seed-' || g, 'seed' || g || '.e2e.invalid', 'synthetic row seeded by make e2e-seed-history', 'e2e-seed', 'admin' \
+		 FROM generate_series(1, $(N)) AS g;"
+
+.PHONY: e2e-le-certs
+e2e-le-certs: ## Generate the local ACME server's TLS material for the LE leg
+	./$(E2E_DIR)/fixtures/pebble/gen-certs.sh
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Cleanup

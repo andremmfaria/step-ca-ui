@@ -1,0 +1,21 @@
+# Mail catcher for the reset-link and notification tests. SMTP on 1025, HTTP
+# API on 8025. Applied by the scenario driver only when E2E_MAIL_ENABLED=1.
+# SMTP itself is configured at runtime through POST /admin/notifications, not
+# through the environment, so nothing is added to step-ui here.
+services:
+
+  mailpit:
+    image: axllent/mailpit:v1.21
+    container_name: mailpit
+    environment:
+      TZ: "${TZ:-UTC}"
+      MP_SMTP_AUTH_ACCEPT_ANY: "true"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "true"
+    networks:
+      - step-net
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 3s

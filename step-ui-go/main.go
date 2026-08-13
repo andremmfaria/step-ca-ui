@@ -154,6 +154,12 @@ func main() {
 	if len(cfg.AllowedDomainSuffixes) == 0 {
 		slog.Warn("ALLOWED_DOMAIN_SUFFIXES is unset: certificate issuance is unrestricted and any manager can have the CA sign any name")
 	}
+	if cfg.UICertDuration < 10*time.Minute {
+		slog.Warn("UI_CERT_DURATION is under 10 minutes: this is a testing cadence, not an operational one", "duration", cfg.UICertDuration)
+	}
+	if cfg.LEACMEDirectoryURL != config.LEProductionDirectoryURL {
+		slog.Warn("LE_ACME_DIRECTORY_URL is not the Let's Encrypt production directory: ACME issuance will dial this instead", "url", cfg.LEACMEDirectoryURL)
+	}
 
 	// ─── Database ────────────────────────────────────────────────────────────
 	conn, err := appdb.Connect(cfg.DatabaseURL)

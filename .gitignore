@@ -5,6 +5,16 @@ secrets/
 node_modules/
 package-lock.json
 package.json
+# The e2e harness is its own Node project and its manifests are tracked; the
+# two patterns above have no slash, so they would otherwise match at any depth.
+!test/e2e/package.json
+!test/e2e/package-lock.json
+
+# Generated ACME-server material for the Let's Encrypt leg (make e2e-le-certs)
+test/e2e/fixtures/pebble/certs/
+
+# Playwright output: reports, traces, junit, the cumulative step-ui log
+test/e2e/artifacts/
 
 # Go binaries
 step-ui-go/step-ui

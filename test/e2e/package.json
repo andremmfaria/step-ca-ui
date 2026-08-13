@@ -1,0 +1,26 @@
+{
+  "name": "step-ca-ui-e2e",
+  "version": "0.0.0",
+  "private": true,
+  "description": "End-to-end suite for step-ca-ui (plans/e2e-tests.md). Deliberately its own Node project, outside the Go module and the repo-root frontend tooling.",
+  "license": "SEE LICENSE IN ../../LICENSE",
+  "scripts": {
+    "test": "playwright test",
+    "test:api": "playwright test --project=api",
+    "test:ui": "playwright test --project=ui",
+    "test:infra": "playwright test --project=infra",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint ."
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.1",
+    "@types/node": "22.10.2",
+    "@types/pngjs": "6.0.5",
+    "eslint": "9.17.0",
+    "jsqr": "1.4.0",
+    "otplib": "13.4.1",
+    "pngjs": "7.0.0",
+    "typescript": "5.7.2",
+    "typescript-eslint": "8.18.1"
+  }
+}

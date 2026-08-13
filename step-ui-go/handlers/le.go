@@ -80,20 +80,24 @@ func (h *Handler) LEIssuePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	appdb.AddLELog(r.Context(), h.db, domain, "issue", "Certificate issuance started")
+	// The directory URL is recorded per issuance so the value actually in
+	// effect is DB-visible, not only a startup log line.
+	appdb.AddLELog(r.Context(), h.db, domain, "issue",
+		fmt.Sprintf("Certificate issuance started (directory: %s)", h.cfg.LEACMEDirectoryURL))
 
 	// Issue in the background — use Background so the goroutine outlives the request.
 	bgCtx := context.Background()
 	safeGo("le-issue:"+domain, func() {
 		result, err := le.IssueCert(&le.LEConfig{
-			Email:     email,
-			Domain:    domain,
-			Provider:  provider,
-			CFToken:   settings.CFToken,
-			CFZoneID:  settings.CFZoneID,
-			R53KeyID:  settings.R53KeyID,
-			R53Secret: settings.R53SecretKey,
-			R53Region: settings.R53Region,
+			Email:        email,
+			Domain:       domain,
+			Provider:     provider,
+			CFToken:      settings.CFToken,
+			CFZoneID:     settings.CFZoneID,
+			R53KeyID:     settings.R53KeyID,
+			R53Secret:    settings.R53SecretKey,
+			R53Region:    settings.R53Region,
+			DirectoryURL: h.cfg.LEACMEDirectoryURL,
 		})
 		if err != nil {
 			_ = appdb.UpdateLECertStatus(bgCtx, h.db, id, "error", err.Error())
@@ -139,11 +143,12 @@ func (h *Handler) LERenew(w http.ResponseWriter, r *http.Request) {
 	bgCtx := context.Background()
 	safeGo("le-renew:"+cert.Domain, func() {
 		result, err := le.IssueCert(&le.LEConfig{
-			Email:    cert.Email,
-			Domain:   cert.Domain,
-			Provider: cert.Provider,
-			CFToken:  settings.CFToken,
-			CFZoneID: settings.CFZoneID,
+			Email:        cert.Email,
+			Domain:       cert.Domain,
+			Provider:     cert.Provider,
+			CFToken:      settings.CFToken,
+			CFZoneID:     settings.CFZoneID,
+			DirectoryURL: h.cfg.LEACMEDirectoryURL,
 		})
 		if err != nil {
 			_ = appdb.UpdateLECertStatus(bgCtx, h.db, id, "error", err.Error())

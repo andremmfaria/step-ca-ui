@@ -4,9 +4,11 @@
 package config
 
 import (
+	"log/slog"
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Config holds all runtime configuration loaded from environment variables.
@@ -63,7 +65,20 @@ type Config struct {
 	CARootCertPEM string
 	UIHostname    string
 	HostIP        string
+
+	// Validity requested for the UI's own leaf when UITLSMode == "stepca".
+	// The renewal loop sleeps ~2/3 of it.
+	UICertDuration time.Duration
+
+	// Env-only: a manager-editable DB setting must not be able to repoint
+	// where LE issuance actually dials.
+	LEACMEDirectoryURL string
 }
+
+const (
+	LEProductionDirectoryURL = "https://acme-v02.api.letsencrypt.org/directory"
+	defaultUICertDuration    = 8760 * time.Hour
+)
 
 // Load reads configuration from environment variables.
 // Sensitive values support a *_FILE variant: if SECRET_KEY_FILE is set its
@@ -116,6 +131,9 @@ func Load() *Config {
 		CARootCertPEM: getEnv("CA_ROOT_CERT_PEM", ""),
 		UIHostname:    getEnv("UI_HOSTNAME", ""),
 		HostIP:        getEnv("HOST_IP", "127.0.0.1"),
+
+		UICertDuration:     getEnvDuration("UI_CERT_DURATION", defaultUICertDuration),
+		LEACMEDirectoryURL: getEnv("LE_ACME_DIRECTORY_URL", LEProductionDirectoryURL),
 	}
 }
 
@@ -158,6 +176,21 @@ func getEnvList(key string) []string {
 		}
 	}
 	return out
+}
+
+// getEnvDuration parses a Go duration string. An unparseable or non-positive
+// value falls back to def with a warning, the posture getEnvBool already uses.
+func getEnvDuration(key string, def time.Duration) time.Duration {
+	v := os.Getenv(key)
+	if v == "" {
+		return def
+	}
+	d, err := time.ParseDuration(v)
+	if err != nil || d <= 0 {
+		slog.Warn("invalid duration, using default", "key", key, "value", v, "default", def)
+		return def
+	}
+	return d
 }
 
 func getEnvBool(key string, def bool) bool {

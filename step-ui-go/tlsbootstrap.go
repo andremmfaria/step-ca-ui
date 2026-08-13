@@ -34,16 +34,17 @@ var (
 // error) — distinct from the normal ~2/3-of-validity sleep on success.
 const uiCertRenewFailureBackoff = 5 * time.Minute
 
-// uiIssueDuration/uiIssueKeyType are the certificate parameters requested
-// for the UI's own leaf cert — matching cert_ops.go's "server" template
-// default (issueTemplates["server"]) and step ca certificate's default key
-// type, since entrypoint.sh's old `step ca certificate` call passed neither
-// --not-after nor --kty/--curve and relied on the CA's defaults, which this
-// mirrors.
-const (
-	uiIssueDuration = 8760 * time.Hour
-	uiIssueKeyType  = "EC:P-256"
-)
+// uiIssueKeyType is the key type requested for the UI's own leaf cert —
+// matching cert_ops.go's "server" template default (issueTemplates["server"])
+// and step ca certificate's default key type, since entrypoint.sh's old
+// `step ca certificate` call passed neither --not-after nor --kty/--curve and
+// relied on the CA's defaults, which this mirrors. The duration is
+// cfg.UICertDuration (UI_CERT_DURATION).
+const uiIssueKeyType = "EC:P-256"
+
+// minRenewalSleep keeps a very short UI_CERT_DURATION from driving the
+// renewal loop into a busy spin.
+const minRenewalSleep = time.Minute
 
 // writeInlineRootCert writes cfg.CARootCertPEM to cfg.RootCert when set,
 // replacing entrypoint.sh's CA_ROOT_CERT_PEM branch (ECS/Kubernetes
@@ -250,7 +251,7 @@ func ensureUICert(ctx context.Context, cfg *config.Config, caClient stepca.CA) e
 func issueUICert(ctx context.Context, cfg *config.Config, caClient stepca.CA, hostname string) error {
 	certPEM, keyPEM, err := caClient.IssueCertificate(ctx, stepca.IssueRequest{
 		Domain:       hostname,
-		Duration:     uiIssueDuration,
+		Duration:     cfg.UICertDuration,
 		KeyType:      uiIssueKeyType,
 		Provisioner:  cfg.Provisioner,
 		PasswordFile: cfg.PasswordFile,
@@ -304,6 +305,9 @@ func nextRenewalSleep(certPath string) (time.Duration, error) {
 	sleep := validity * 2 / 3
 	if sleep <= 0 {
 		sleep = uiCertRenewFailureBackoff
+	}
+	if sleep < minRenewalSleep {
+		sleep = minRenewalSleep
 	}
 	return sleep, nil
 }

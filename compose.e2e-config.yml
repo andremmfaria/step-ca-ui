@@ -1,0 +1,10 @@
+# The three keys config.Load reads but the stock step-ui environment block
+# never passes through, so setting them in .env alone is a silent no-op.
+# USE_HTTPS is E2E-CFG-01's row, ALLOWED_DOMAIN_SUFFIXES is E2E-CERT-12's, and
+# UI_CERT_DURATION is what makes E2E-RENEW-01 finish inside a CI run.
+services:
+  step-ui:
+    environment:
+      USE_HTTPS:               "${USE_HTTPS:-}"
+      ALLOWED_DOMAIN_SUFFIXES: "${ALLOWED_DOMAIN_SUFFIXES:-}"
+      UI_CERT_DURATION:        "${UI_CERT_DURATION:-8760h}"

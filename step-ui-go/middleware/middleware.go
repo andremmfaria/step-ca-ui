@@ -59,6 +59,10 @@ func SecurityHeaders(enableHSTS bool) func(http.Handler) http.Handler {
 					"font-src 'self'; img-src 'self' data:; "+
 					"object-src 'none'; base-uri 'self'; "+
 					"form-action 'self'; frame-ancestors 'none';")
+			// Global, not per-route: an allowlist goes stale every time a
+			// sensitive route is added. main.go's static handler runs after
+			// this chain and overwrites it for assets, which is intended.
+			w.Header().Set("Cache-Control", "no-store")
 			w.Header().Del("Server")
 			next.ServeHTTP(w, r)
 		})

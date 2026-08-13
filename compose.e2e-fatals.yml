@@ -1,0 +1,7 @@
+# E2E-BOOT-07 only. The stock `restart: unless-stopped` turns every intended
+# fatal into a crash loop, and reading ExitCode mid-loop races the next restart.
+# With restart "no" the container exits once and stays exited, so the poll for
+# `exited` and the ExitCode read are both well-defined.
+services:
+  step-ui:
+    restart: "no"
