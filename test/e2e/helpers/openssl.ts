@@ -46,8 +46,8 @@ export async function parsePEM(pem: string): Promise<ProbedCert> {
       { timeoutMs: 15_000 },
     );
     const text = out.stdout;
-    const issuer = field(text, /^issuer=(.*)$/m);
-    const subject = field(text, /^subject=(.*)$/m);
+    const issuer = normaliseDN(field(text, /^issuer=(.*)$/m));
+    const subject = normaliseDN(field(text, /^subject=(.*)$/m));
     return {
       issuer,
       subject,
@@ -68,6 +68,15 @@ function field(text: string, re: RegExp): string {
   const m = re.exec(text);
   if (!m || m[1] === undefined) throw new Error(`could not parse ${re} out of:\n${text}`);
   return m[1].trim();
+}
+
+/**
+ * OpenSSL 3 prints DNs as "CN = example.com" while older builds print
+ * "CN=example.com", so the host and the harness image disagree. Assertions
+ * compare the spaceless form.
+ */
+function normaliseDN(dn: string): string {
+  return dn.replace(/\s*=\s*/g, "=");
 }
 
 /** Validity window in milliseconds, which every duration assertion compares against a tolerance. */

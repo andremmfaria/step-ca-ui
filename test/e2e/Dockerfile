@@ -34,4 +34,6 @@ RUN npm ci
 
 COPY . .
 
-ENTRYPOINT ["npx", "playwright", "test"]
+# No ENTRYPOINT: each job passes a full command, and an entrypoint would prefix
+# it, turning `npx playwright test --project=api` into a nonsense argv.
+CMD ["npx", "playwright", "test"]

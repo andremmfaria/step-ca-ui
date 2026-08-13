@@ -17,6 +17,11 @@ env:
   # runs, which is the silent drift this suite exists to catch. The tag must
   # match @playwright/test in test/e2e/package.json.
   PLAYWRIGHT_IMAGE: "mcr.microsoft.com/playwright:v1.62.1-noble@sha256:dcc5531e97840b9b5e794f2814476b21571c5124a3fca2267d73041f56e7580e"
+  # Pinned because the harness resolves the project from its own working
+  # directory, which is /repo inside the container and the checkout name
+  # outside it. Left to default, the two disagree and every `docker compose
+  # exec` from a test reports "service not running".
+  COMPOSE_PROJECT_NAME: step-ca-ui
 
 jobs:
   image:
@@ -111,16 +116,22 @@ jobs:
 
       # The harness runs as a container on step-network, not on the host: both
       # rate limiters key on the client IP, so a host harness is one gateway
-      # address and per-test rate-limit isolation is impossible. The repo mount
-      # carries the compose file, .env and secrets/; the docker socket is the
-      # one mechanism every container- or database-touching assertion uses.
+      # address and per-test rate-limit isolation is impossible. It runs from
+      # /e2e, the image's own copy of this commit's harness, so the baked
+      # node_modules layer is on the resolution path; the mounted /repo supplies
+      # the compose file, .env and secrets/, E2E_REPO_ROOT points the helpers at
+      # it, and the docker socket is the one mechanism every container- or
+      # database-touching assertion uses.
       - name: Run the api project
         run: |
           docker run --rm \
             --network step-network \
             -v "$PWD:/repo" -v /var/run/docker.sock:/var/run/docker.sock \
-            -w /repo/test/e2e \
+            -w /e2e \
             -e BASE_URL=https://step-ui:8443 \
+            -e E2E_REPO_ROOT=/repo \
+            -e E2E_ARTIFACT_DIR=/repo/test/e2e/artifacts \
+            -e COMPOSE_PROJECT_NAME=step-ca-ui \
             -e CI=true \
             step-ca-ui-harness:e2e \
             npx playwright test --project=api
