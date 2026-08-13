@@ -465,7 +465,7 @@ That assertion is the point of the whole design. Without it the frontend job can
 
 ### D9. `/openapi.json` and `/docs` are not public
 
-**Decision.** Set `cfg.DocsPath = ""` and `cfg.OpenAPIPath = ""` so huma registers nothing on the adapter. `/openapi.json` is served by an explicit chi route from the committed file, behind **the API-contract session wrapper from Phase 1**, not `mw.RequireLogin`, which redirects with `302` to `/login` on every rejection path (`middleware/middleware.go:81,86,97,109,140`) and so cannot satisfy a 401 criterion and would point at a deleted route after Phase 9. The committed spec reaches the image via `//go:embed openapi/openapi.json` in the backend, which does not violate the clean-checkout criterion because it is committed source rather than a build artifact. `/docs` is not served at all, and nginx has no static rule for `/openapi.json`: it proxies it like any other API path so the authorisation actually applies.
+**Decision.** Set `cfg.DocsPath = ""`, `cfg.OpenAPIPath = ""` **and `cfg.SchemasPath = ""`** so huma registers nothing on the adapter. Phase 0 found the third one the hard way: `SchemasPath` has its own register site in huma's `api.go`, independent of the `SchemaLinkTransformer`, so nilling `CreateHooks` does not suppress `/schemas/{schema}` and it stays reachable below the middleware. `/openapi.json` is served by an explicit chi route from the committed file, behind **the API-contract session wrapper from Phase 1**, not `mw.RequireLogin`, which redirects with `302` to `/login` on every rejection path (`middleware/middleware.go:81,86,97,109,140`) and so cannot satisfy a 401 criterion and would point at a deleted route after Phase 9. The committed spec reaches the image via `//go:embed openapi/openapi.json` in the backend, which does not violate the clean-checkout criterion because it is committed source rather than a build artifact. `/docs` is not served at all, and nginx has no static rule for `/openapi.json`: it proxies it like any other API path so the authorisation actually applies.
 
 **Why, and why it is not obscurity.** Endpoint names are guessable from the SPA bundle, so hiding the spec from an authenticated user buys nothing. Two things are not obscurity. First, anything huma auto-registers on the adapter is a path `api.UseMiddleware` never sees, and this design has exactly one authorisation chokepoint, so leaving adapter-registered routes in place is a standing hole in the mechanism rather than a decision about one document. Second, 5.5 emits `x-required-role` into the spec. A public spec then hands an unauthenticated caller a machine-readable map of which paths are admin, which is a targeting aid that costs nothing to withhold. The same reasoning applies to the admin console, and both are decided here, once.
 
@@ -1079,7 +1079,7 @@ Three details are corrections rather than style. `MarshalJSON` returns **compact
 
 `api.NewForSpec()` builds the huma API against a zero-value `*handlers.Handler` (D3, no `Service` interface). OIDC-conditional routes (`main.go:232-235`) are always registered and gated at runtime, which is a small behaviour change worth stating: with OIDC disabled the operation exists in the spec and returns `404`.
 
-**Huma configuration, identical in `cmd/openapi` and `main.go`.** `cfg.CreateHooks = nil`, because `DefaultConfig`'s `SchemaLinkTransformer` injects a `$schema` property into every struct response body and a `Link` header derived from the request `Host`, which pollutes the generated types and breaks exact-body assertions. `cfg.DocsPath = ""` and `cfg.OpenAPIPath = ""` per D9.
+**Huma configuration, identical in `cmd/openapi` and `main.go`.** `cfg.CreateHooks = nil`, because `DefaultConfig`'s `SchemaLinkTransformer` injects a `$schema` property into every struct response body and a `Link` header derived from the request `Host`, which pollutes the generated types and breaks exact-body assertions. `cfg.DocsPath = ""`, `cfg.OpenAPIPath = ""` and `cfg.SchemasPath = ""` per D9.
 
 Determinism, and what actually threatens it:
 
@@ -1164,7 +1164,7 @@ Per D8: the client is not in `frontend`'s `package.json` and not in its lockfile
 `frontend/src/api/client.ts` configures the generated client once:
 
 ```ts
-import { client } from '@andremmfaria/step-ca-ui-client'
+import { client } from '@andremmfaria/step-ca-ui-client/client'
 
 client.setConfig({ baseUrl: '', credentials: 'same-origin' })
 
@@ -1205,11 +1205,26 @@ Each phase PR names the D-numbers and acceptance criteria it discharges, and car
 
 If a stop after Phase 4 is nonetheless chosen it is neither clean nor free: it must also retire the template routes for the certificate domain, flip the base path back to the root, and delete the CSS duplicate, which is Phase 4 plus a partial Phase 9. Budget for that before starting Phase 3b, not on reaching it.
 
-### Phase 0. Rename, then a vertical slice spike
+### Phase 0. Rename, then a vertical slice spike — **COMPLETE, merged 2026-08-13 (`ae98bcf`)**
+
+**Outcome: go. The unwrap mechanic is sound, so D2 stands and the `oapi-codegen` off-ramp is not taken.** All six workflows green on `main`.
+
+**Exit criteria, measured rather than asserted.** `go build ./...` passes with no Node run; the spec is byte-identical across two runs and two environments including one with `DATABASE_URL` pointed at a dead port, so nothing dials; the generated client typechecks and packs; a protected route returns `401 application/problem+json`; schema validation returns `422`; an unmatched `/api/v1/*` path returns a problem document rather than HTML; `/docs`, `/openapi.json`, `/openapi.yaml` and `/schemas/*` all 404. Step 10's two proofs both hold, and both were made honest before being counted: the restart proof initially passed for the wrong reason because the backend kept its address, so it was re-run with the address forced to change, and the forgery proof was run as an A/B that first reproduced the vulnerability and then closed it.
+
+**Three exit criteria were NOT met and are carried forward, not quietly dropped.** "Two machines" was never tested, only two runs and two environments on one machine. "The CSRF interceptor works" is only half proven: the cookie is minted and read, but the request interceptor that attaches `X-CSRF-Token` to mutations does not exist yet, because the spike has no mutating call site; it lands in Phase 3a step 2. And "no submitted value echoed" was not verified, because the error transformer that strips `value` from `errors[]` is Phase 1 step 6 and huma echoes it by default until then.
+
+**What the spike falsified, all now corrected in place.** D5's `resolver` line did not parse, since `timeout=` is not a `resolver` parameter but the separate `resolver_timeout` directive. D5 rule 1's stated mechanism was wrong, and rule 2 turned out to be the load-bearing half. `SchemasPath` was a third adapter register site D9 did not know about. The plan's 7.6 snippet did not compile, because openapi-ts re-exports only SDK functions and types from its index, so the client instance needs a `./client` subpath export.
+
+**Smaller findings worth carrying.** The generated fetch client needs the `DOM` and `DOM.Iterable` TypeScript libs. `@hey-api/client-fetch` as a standalone dependency is deprecated and unused since the runtime is bundled, so dropping it leaves the client package with genuinely zero runtime dependencies, which is what 7.4 requires. Two high-severity `js-yaml` advisories reach the tree through the generator and needed an npm `overrides` pin, since the only alternative remedy was a four-minor downgrade. `make cover` had been broken independently of this work and is fixed. Measured coverage is 22.9% against a 15% floor, which R8's ratchet must account for.
+
+**Three placeholders shipped deliberately.** `oidcButtonLabel` and `acmeEnabled` in `GET /api/v1/config` have no backing configuration and are stubs; `roleLevels` duplicates `middleware.RequireRole`'s unexported map, which Phase 1's role golden table should de-duplicate. Step 1, branch protection, was deferred by the owner and is recorded below with its re-trigger.
+
+The step list below is retained as the record of what was built.
+
 
 0. **The D11 rename, as its own pull request**, with every file in the blast-radius table. Nothing else in that commit. Close open Dependabot pull requests first, since `dependabot.yml` is read from the default branch only. Fix `test/e2e/helpers/routes.ts` and `specs/config/static-01.api.spec.ts` in the same commit, and fix the pre-existing `make cover` bug while the Makefile is open (`cover` omits the `cd $(GO_DIR)` every other Go target has, so it resolves a repo-root `scripts/coverage-gate.sh` that does not exist) so the implementer does not mistake it for a rename regression.
 1. **Branch protection: deferred by the owner on 2026-08-13, not dropped.** 7.2's clean-merge-of-a-shared-schema failure needs two contract pull requests open at once, which cannot happen with one developer and nothing consuming the spec, so requiring up-to-date branches and making the drift gate a required check on `push: main` buys nothing today. **Re-trigger: a second contributor, or the first time two contract pull requests are open simultaneously.** Whoever hits either condition turns it on before merging the second one.
-2. Add huma pinned at `v2.30.0` or newer and `humachi`. Mount a `huma.API` under chi at `/api/v1` alongside every existing route, with `cfg.CreateHooks = nil`, `cfg.DocsPath = ""` and `cfg.OpenAPIPath = ""`.
+2. Add huma pinned at `v2.30.0` or newer and `humachi`. Mount a `huma.API` under chi at `/api/v1` alongside every existing route, with `cfg.CreateHooks = nil`, `cfg.DocsPath = ""`, `cfg.OpenAPIPath = ""` and `cfg.SchemasPath = ""`.
 3. **Add the unwrap middleware from 5.5 and prove a session write works from inside an operation handler.** Highest-risk mechanic in the plan. If it does not work, nothing downstream does.
 4. **Do the registration split here, not in Phase 1**: `api.Register(huma.API, *handlers.Handler)` separate from construction, plus `handlers.NewForSpec()`. `cmd/openapi` cannot exist without it (D3), so it cannot be later work.
 5. Implement `GET /api/v1/config`, `GET /api/v1/status` and `GET /api/v1/session` with the `state` discriminator and the CSRF cookie on every response. Session validation is written **inline** here, without the shared middleware chain. Phase 1 extracts it into the wrapped-twice implementation of 5.3.
@@ -1219,7 +1234,7 @@ If a stop after Phase 4 is nonetheless chosen it is neither clean nor free: it m
 9. Add a throwaway `frontend/` that boots against `vite dev` and its proxy, calls `getSession` and renders the username. `GET /api/v1/config` reports `contractSha`, the sha256 of the embedded spec, since 5.10's skew detection needs a producer before it can have a consumer.
 10. **A minimal proxy spike**, because Phase 0's exit criterion otherwise de-risks D2 and nothing about D1 or D5, which carry the plan's two most serious findings. Front the throwaway app with nginx implementing only D5 rules 1, 2 and 7, and prove two things: a forged `X-Real-IP` does not move the rate limiter, and a Go-container restart is picked up without an nginx restart. Everything else about the origin, the certificates and the compose topology stays in Phase 3b, which is additive complexity rather than a go-or-no-go question.
 
-**Exit criterion.** Committed as a file, not left in a review comment. `go build ./...` succeeds with no Node run. The spec is byte-identical across two runs, two machines and two environments. The generated client typechecks. The CSRF interceptor works. A protected route returns `application/problem+json` on `401`. A validation failure returns `422` with no submitted value echoed. An unmatched `/api/v1/*` path returns a 404 problem document. If huma's ergonomics, the `Unwrap` mechanic or the spec output are wrong, this is the cheap moment to switch to `oapi-codegen`, and D2 is revisited before Phase 4.
+**Exit criterion (met, with the three exceptions recorded above).** Committed as a file, not left in a review comment. `go build ./...` succeeds with no Node run. The spec is byte-identical across two runs, two machines and two environments. The generated client typechecks. The CSRF interceptor works. A protected route returns `application/problem+json` on `401`. A validation failure returns `422` with no submitted value echoed. An unmatched `/api/v1/*` path returns a 404 problem document. If huma's ergonomics, the `Unwrap` mechanic or the spec output are wrong, this is the cheap moment to switch to `oapi-codegen`, and D2 is revisited before Phase 4.
 
 ### Phase 1. API foundation
 
