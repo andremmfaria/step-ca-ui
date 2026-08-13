@@ -1,6 +1,6 @@
 # Plan: Split step-ca-ui into a React SPA and an OpenAPI-described Go backend-for-frontend
 
-Status: Draft, revision 5. Written 2026-08-13 against `main` at `a549750`, and revised through two four-phase reviews.
+Status: revision 6. Written 2026-08-13 against `main` at `a549750`, revised through two four-phase reviews, and **partly executed: Phase 0 is complete and merged**, so the decisions it tested are now measured rather than proposed.
 
 This plan replaces the server-rendered Go UI in `backend/` with a React single-page application, served by its own nginx container, talking to the Go process over a versioned JSON API. The Go side becomes a backend-for-frontend: it keeps sessions, authorisation, database and CA access, and publishes an OpenAPI 3.1 description that a generated TypeScript client consumes. A CI gate ties the frontend build to that exact description, so a contract change that breaks the frontend fails in the same run rather than at runtime.
 
@@ -1205,7 +1205,7 @@ Each phase PR names the D-numbers and acceptance criteria it discharges, and car
 
 If a stop after Phase 4 is nonetheless chosen it is neither clean nor free: it must also retire the template routes for the certificate domain, flip the base path back to the root, and delete the CSS duplicate, which is Phase 4 plus a partial Phase 9. Budget for that before starting Phase 3b, not on reaching it.
 
-### Phase 0. Rename, then a vertical slice spike — **COMPLETE, merged 2026-08-13 (`ae98bcf`)**
+### Phase 0. Rename, then a vertical slice spike. **COMPLETE, merged 2026-08-13 (`ae98bcf`)**
 
 **Outcome: go. The unwrap mechanic is sound, so D2 stands and the `oapi-codegen` off-ramp is not taken.** All six workflows green on `main`.
 
