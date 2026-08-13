@@ -57,7 +57,7 @@ services:
   # ─── Step-CA UI (Go) ───────────────────────────────────────────────────────
   step-ui:
     build:
-      context: ./step-ui-go
+      context: ./backend
       dockerfile: Dockerfile
     container_name: step-ui
     restart: unless-stopped

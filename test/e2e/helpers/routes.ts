@@ -14,7 +14,7 @@ export interface PostRoute {
  * The repo is bind-mounted into the harness, so main.go is readable at test time.
  */
 export function postRoutes(): PostRoute[] {
-  const mainGo = fs.readFileSync(path.join(REPO_ROOT, "step-ui-go", "main.go"), "utf8");
+  const mainGo = fs.readFileSync(path.join(REPO_ROOT, "backend", "main.go"), "utf8");
   const routes: PostRoute[] = [];
   const re = /r\.Post\(\s*"([^"]+)"\s*,\s*([A-Za-z0-9_.]+)\s*\)/g;
   for (let m = re.exec(mainGo); m !== null; m = re.exec(mainGo)) {

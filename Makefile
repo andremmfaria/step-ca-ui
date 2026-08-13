@@ -4,7 +4,7 @@
 # Configuration
 # ──────────────────────────────────────────────────────────────────────────────
 SECRETS_DIR  := secrets
-GO_DIR       := step-ui-go
+GO_DIR       := backend
 BACKUP_DIR   := backups
 COMPOSE      := docker compose
 
@@ -162,7 +162,8 @@ lint: ## Run golangci-lint and check formatting
 
 .PHONY: cover
 cover: ## Run coverage gate
-	bash scripts/coverage-gate.sh
+	cd $(GO_DIR) && go test -coverprofile=coverage.out ./... >/dev/null
+	cd $(GO_DIR) && COVERPROFILE=coverage.out THRESHOLD=15 bash scripts/coverage-gate.sh
 
 # ──────────────────────────────────────────────────────────────────────────────
 # End-to-end suite (plans/e2e-tests.md)

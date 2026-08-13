@@ -17,8 +17,8 @@ test/e2e/fixtures/pebble/certs/
 test/e2e/artifacts/
 
 # Go binaries
-step-ui-go/step-ui
-step-ui-go/*.exe
+backend/step-ui
+backend/*.exe
 
 # Coverage profiles (unit + merged integration)
 coverage.out
@@ -33,14 +33,14 @@ merged.out
 backups/
 
 # SSL certificates (auto-generated)
-step-ui-go/ssl/
+backend/ssl/
 ssl/
 
 # Docker
 .docker/
 
 # Go build cache
-step-ui-go/vendor/
+backend/vendor/
 
 # IDE
 .idea/

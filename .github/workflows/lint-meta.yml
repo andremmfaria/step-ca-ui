@@ -19,7 +19,7 @@ jobs:
       - name: Run hadolint
         uses: hadolint/hadolint-action@2332a7b74a6de0dda2e2221d575162eba76ba5e5 # v3.3.0
         with:
-          dockerfile: step-ui-go/Dockerfile
+          dockerfile: backend/Dockerfile
 
   actionlint:
     name: Workflow lint (actionlint)
@@ -78,15 +78,15 @@ jobs:
         run: |
           # --config-basedir points stylelint at the repo-root node_modules for the extended config
           node_modules/.bin/stylelint \
-            --config step-ui-go/.stylelintrc.json \
+            --config backend/.stylelintrc.json \
             --config-basedir "$(pwd)" \
-            "step-ui-go/static/css/**/*.css"
+            "backend/static/css/**/*.css"
 
       - name: eslint (JS)
-        run: node_modules/.bin/eslint --config step-ui-go/eslint.config.js "step-ui-go/static/js/**/*.js"
+        run: node_modules/.bin/eslint --config backend/eslint.config.js "backend/static/js/**/*.js"
 
       - name: djlint (Go templates — lint only; format burn-down is PR-23)
-        run: djlint step-ui-go/templates/ --profile=golang --lint
+        run: djlint backend/templates/ --profile=golang --lint
 
       # The e2e harness is its own Node project, deliberately outside the
       # repo-root frontend tooling so its dependencies never reach govulncheck

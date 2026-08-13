@@ -38,8 +38,8 @@ jobs:
       - name: Build the application image and warm its layer cache
         uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
         with:
-          context: ./step-ui-go
-          file: ./step-ui-go/Dockerfile
+          context: ./backend
+          file: ./backend/Dockerfile
           tags: step-ca-ui:e2e
           push: false
           load: true
@@ -74,8 +74,8 @@ jobs:
       - name: Materialise the application image from the layer cache
         uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
         with:
-          context: ./step-ui-go
-          file: ./step-ui-go/Dockerfile
+          context: ./backend
+          file: ./backend/Dockerfile
           tags: step-ca-ui:e2e
           push: false
           load: true

@@ -454,7 +454,7 @@ Running standalone (without Compose) requires a reachable PostgreSQL instance an
 To build locally without pushing:
 
 ```bash
-docker build -f step-ui-go/Dockerfile step-ui-go
+docker build -f backend/Dockerfile backend
 ```
 
 **Publish behaviour:**
@@ -510,7 +510,7 @@ Pull requests are welcome. For major changes, open an issue first to discuss wha
 
 ```bash
 git clone https://github.com/andremmfaria/step-ca-ui.git
-cd step-ca-ui/step-ui-go
+cd step-ca-ui/backend
 go mod download
 go run .  # requires a running postgres + step-ca
 ```
@@ -533,7 +533,7 @@ When submitting:
 │   └── coverage-gate.sh       # CI coverage ratchet
 ├── LICENSE                    # GPL-3.0
 ├── README.md                  # this file
-└── step-ui-go/
+└── backend/
     ├── main.go                # entry point, router setup
     ├── config/                # env-based config loader
     ├── db/                    # SQL queries and schema migrations

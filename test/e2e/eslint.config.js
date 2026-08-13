@@ -1,5 +1,5 @@
 // ESLint v9 flat config for the e2e harness, following the same shape as
-// step-ui-go/eslint.config.js rather than introducing a second style.
+// backend/eslint.config.js rather than introducing a second style.
 "use strict";
 
 const tseslint = require("typescript-eslint");
@@ -10,7 +10,7 @@ module.exports = tseslint.config(
   },
   ...tseslint.configs.recommended,
   {
-    // This config file itself is CommonJS, matching step-ui-go/eslint.config.js.
+    // This config file itself is CommonJS, matching backend/eslint.config.js.
     files: ["eslint.config.js"],
     rules: { "@typescript-eslint/no-require-imports": "off" },
   },

@@ -79,7 +79,7 @@ test("E2E-STATIC-01: static assets resist traversal on a raw socket", async () =
 async function discoverAssets(): Promise<Record<string, string>> {
   const fs = await import("node:fs/promises");
   const path = await import("node:path");
-  const root = path.join(REPO_ROOT, "step-ui-go", "static");
+  const root = path.join(REPO_ROOT, "backend", "static");
 
   const found: Record<string, string> = {};
   const walk = async (dir: string): Promise<void> => {

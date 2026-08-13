@@ -30,7 +30,7 @@ repos:
         types: [go]
         language: system
         pass_filenames: false
-        args: [--config=step-ui-go/.golangci.yml]
+        args: [--config=backend/.golangci.yml]
 
   # ── CSS (stylelint) ───────────────────────────────────────────────────────
   - repo: local
@@ -39,8 +39,8 @@ repos:
         name: stylelint
         language: node
         entry: stylelint
-        args: [--config=step-ui-go/.stylelintrc.json]
-        files: ^step-ui-go/static/css/.*\.css$
+        args: [--config=backend/.stylelintrc.json]
+        files: ^backend/static/css/.*\.css$
         additional_dependencies:
           - stylelint@^16
           - stylelint-config-standard@^37
@@ -52,8 +52,8 @@ repos:
         name: eslint
         language: node
         entry: eslint
-        args: [--config=step-ui-go/eslint.config.js]
-        files: ^step-ui-go/static/js/.*\.js$
+        args: [--config=backend/eslint.config.js]
+        files: ^backend/static/js/.*\.js$
         additional_dependencies:
           - eslint@^9
 
@@ -62,4 +62,4 @@ repos:
     rev: v1.36.4
     hooks:
       - id: djlint-golang
-        files: ^step-ui-go/templates/.*\.html$
+        files: ^backend/templates/.*\.html$
