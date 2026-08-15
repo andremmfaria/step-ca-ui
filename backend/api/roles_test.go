@@ -25,7 +25,7 @@ func (g goldenRow) String() string {
 
 func readGolden(t *testing.T, path string) []goldenRow {
 	t.Helper()
-	f, err := os.Open(path)
+	f, err := os.Open(path) //nolint:gosec // G304: path is a test constant naming a committed golden file
 	if err != nil {
 		t.Fatalf("open %s: %v", path, err)
 	}
@@ -70,13 +70,7 @@ func registeredRows(t *testing.T) []goldenRow {
 
 	var rows []goldenRow
 	for path, item := range spec.Paths {
-		for method, op := range map[string]*huma.Operation{
-			"GET": item.Get, "POST": item.Post, "PUT": item.Put,
-			"PATCH": item.Patch, "DELETE": item.Delete,
-		} {
-			if op == nil {
-				continue
-			}
+		for method, op := range operationsOf(item) {
 			row := goldenRow{method: method, path: path, retired: "true"}
 
 			switch opAuth(op) {
@@ -109,6 +103,24 @@ func registeredRows(t *testing.T) []goldenRow {
 		}
 	}
 	return rows
+}
+
+// operationsOf returns the non-nil operations on a path item, keyed by method.
+// Several tests walk the registered set, and each would otherwise repeat the
+// same method literal, which is how one of them ends up silently skipping a
+// method nobody notices is missing.
+func operationsOf(item *huma.PathItem) map[string]*huma.Operation {
+	all := map[string]*huma.Operation{
+		"GET": item.Get, "POST": item.Post, "PUT": item.Put,
+		"PATCH": item.Patch, "DELETE": item.Delete,
+		"HEAD": item.Head, "OPTIONS": item.Options, "TRACE": item.Trace,
+	}
+	for method, op := range all {
+		if op == nil {
+			delete(all, method)
+		}
+	}
+	return all
 }
 
 func sortRows(rows []goldenRow) {
@@ -165,11 +177,8 @@ func TestRoleMatrix(t *testing.T) {
 func TestOptionalAuthIsOnlyGetSession(t *testing.T) {
 	spec := NewForSpec().OpenAPI()
 	for path, item := range spec.Paths {
-		for method, op := range map[string]*huma.Operation{
-			"GET": item.Get, "POST": item.Post, "PUT": item.Put,
-			"PATCH": item.Patch, "DELETE": item.Delete,
-		} {
-			if op == nil || opAuth(op) != authOptional {
+		for method, op := range operationsOf(item) {
+			if opAuth(op) != authOptional {
 				continue
 			}
 			if op.OperationID != "getSession" {
@@ -185,13 +194,7 @@ func TestOptionalAuthIsOnlyGetSession(t *testing.T) {
 func TestRoleRepresentationsAgree(t *testing.T) {
 	spec := NewForSpec().OpenAPI()
 	for path, item := range spec.Paths {
-		for method, op := range map[string]*huma.Operation{
-			"GET": item.Get, "POST": item.Post, "PUT": item.Put,
-			"PATCH": item.Patch, "DELETE": item.Delete,
-		} {
-			if op == nil {
-				continue
-			}
+		for method, op := range operationsOf(item) {
 			role, declared := opRole(op)
 			ext, hasExt := op.Extensions["x-required-role"].(string)
 
@@ -213,6 +216,31 @@ func TestRoleRepresentationsAgree(t *testing.T) {
 			if _, known := appmw.RoleLevels[role]; !known {
 				t.Errorf("%s %s: role %q is not in middleware.RoleLevels, so RoleAllows denies it unconditionally", method, path, role)
 			}
+		}
+	}
+}
+
+// TestRateLimitedSetsTheScopeTheMiddlewareReads pins the contract between the
+// declaration helper and rateLimitMiddleware. They are the only two places
+// that name the scope, and a change to one that misses the other silently
+// unscopes the login rate limiter.
+func TestRateLimitedSetsTheScopeTheMiddlewareReads(t *testing.T) {
+	op := rateLimited(huma.Operation{OperationID: "createSession"})
+	got, _ := op.Metadata[metaRateLimit].(string)
+	if got != rateLimitAuth {
+		t.Fatalf("rateLimited set %s=%q, want %q", metaRateLimit, got, rateLimitAuth)
+	}
+}
+
+// TestNoOperationIsRateLimitedYet records why rateLimitMiddleware has no
+// end-to-end test in this phase: the four operations 5.5 scopes it to
+// (createSession, submitMfa, requestPasswordReset, confirmPasswordReset) do
+// not exist until the auth domain is ported. This test fails when the first
+// one lands, which is the moment to write that coverage.
+func TestNoOperationIsRateLimitedYet(t *testing.T) {
+	for _, row := range registeredRows(t) {
+		if row.ratelimit == "yes" {
+			t.Fatalf("%s %s is rate-limited; add end-to-end coverage of rateLimitMiddleware and delete this test", row.method, row.path)
 		}
 	}
 }

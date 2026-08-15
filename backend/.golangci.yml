@@ -21,8 +21,40 @@ linters:
     - unparam
     # Added in PR-23 now that log/slog is adopted
     - sloglint
+    # Added in Phase 1 of plans/frontend-backend-split.md
+    - depguard
+    - gomodguard_v2
 
   settings:
+    depguard:
+      rules:
+        # apitypes is what cmd/openapi and the middleware chain both build on,
+        # so it must stay free of anything that needs a database, a CA client
+        # or an environment. An allowlist, not a denylist: a denylist is
+        # defeated by an aliasing package that re-exports the forbidden one.
+        apitypes:
+          files:
+            - "**/apitypes/**"
+          allow:
+            - $gostd
+            - step-ui/apitypes
+        # api/ describes and enforces the contract; the row types belong to
+        # handlers, which is what keeps a database type from reaching a DTO.
+        api:
+          files:
+            - "**/api/*.go"
+            - "!**/api/*_test.go"
+          deny:
+            - pkg: step-ui/models
+              desc: "api/ must not name a database row type; DTOs live in apitypes and handlers own the rows (Section 2)"
+            - pkg: step-ui/db
+              desc: "api/ must not reach the database directly; go through handlers (Section 2)"
+    gomodguard_v2:
+      blocked:
+        - module: github.com/rs/cors
+          reason: "the SPA and the API share one origin (D1), so no CORS grant is ever correct here"
+        - module: github.com/go-chi/cors
+          reason: "the SPA and the API share one origin (D1), so no CORS grant is ever correct here"
     gocritic:
       enabled-tags:
         - diagnostic

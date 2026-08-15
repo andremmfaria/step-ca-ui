@@ -40,7 +40,7 @@ const securitySchemeName = "session"
 // and leaves the spec documenting an authorisation posture the runtime does
 // not enforce, which is a spec that lies in exactly the place worth checking.
 // The role-matrix test asserts all three agree.
-func roleOp(role string, op huma.Operation) huma.Operation {
+func roleOp(role string, op huma.Operation) huma.Operation { //nolint:gocritic // hugeParam: huma.Register takes huma.Operation by value, so a decorator returning one composes at the call site exactly as 5.5 spells it
 	if _, ok := appmw.RoleLevels[role]; !ok {
 		// A typo here would otherwise register an operation no role can ever
 		// satisfy, which reads as a permissions bug rather than a build error.
@@ -57,7 +57,7 @@ func roleOp(role string, op huma.Operation) huma.Operation {
 
 // publicOp marks an operation as needing no session and no role. The chain
 // touches no cookie for it.
-func publicOp(op huma.Operation) huma.Operation {
+func publicOp(op huma.Operation) huma.Operation { //nolint:gocritic // hugeParam: huma.Register takes huma.Operation by value, so a decorator returning one composes at the call site exactly as 5.5 spells it
 	op.Metadata = withMeta(op.Metadata, metaAuth, authPublic)
 	op.Security = []map[string][]string{}
 	return op
@@ -66,7 +66,7 @@ func publicOp(op huma.Operation) huma.Operation {
 // optionalAuthOp marks the one operation that validates a session when one is
 // present and never answers 401 (5.5). The role-matrix test fails if any
 // operation other than getSession carries it.
-func optionalAuthOp(op huma.Operation) huma.Operation {
+func optionalAuthOp(op huma.Operation) huma.Operation { //nolint:gocritic // hugeParam: huma.Register takes huma.Operation by value, so a decorator returning one composes at the call site exactly as 5.5 spells it
 	op.Metadata = withMeta(op.Metadata, metaAuth, authOptional)
 	op.Security = []map[string][]string{}
 	return op
@@ -74,7 +74,7 @@ func optionalAuthOp(op huma.Operation) huma.Operation {
 
 // rateLimited scopes the login rate limiter onto one operation. Composes with
 // roleOp and publicOp in either order.
-func rateLimited(op huma.Operation) huma.Operation {
+func rateLimited(op huma.Operation) huma.Operation { //nolint:gocritic // hugeParam: huma.Register takes huma.Operation by value, so a decorator returning one composes at the call site exactly as 5.5 spells it
 	op.Metadata = withMeta(op.Metadata, metaRateLimit, rateLimitAuth)
 	return op
 }

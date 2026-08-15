@@ -3,3 +3,8 @@ Dockerfile text eol=lf
 *.yml text eol=lf
 *.yaml text eol=lf
 backend/openapi/openapi.json text eol=lf
+
+# openapi.json is a pure function of the Go source, never merged by hand.
+# `make hooks` registers the driver per clone; see 7.2 of
+# plans/frontend-backend-split.md for what the driver does and does not reach.
+backend/openapi/openapi.json merge=openapi-regen

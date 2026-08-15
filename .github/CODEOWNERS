@@ -1,0 +1,19 @@
+# Files whose review cannot be routine, because a one-line change to any of
+# them silently weakens a guarantee the rest of the contract pipeline assumes.
+#
+# Section 2 of plans/frontend-backend-split.md requires the first two entries.
+
+# Adding a line here declares that a secret-shaped property name may appear in
+# a request body. Nothing else in the pipeline questions it afterwards.
+/backend/openapi/secret-allowlist.txt   @andremmfaria
+
+# The role golden table is the only cross-check between the runtime metadata
+# the chain enforces and the posture the document advertises.
+/backend/testdata/roles.golden          @andremmfaria
+
+# The contract pipeline itself: the drift gate, the breaking-change gate, and
+# the depguard fixture that proves the import rules still deny.
+/.github/workflows/ci.yml               @andremmfaria
+/scripts/contract-gate.sh               @andremmfaria
+/scripts/lint-fixtures.sh               @andremmfaria
+/backend/.golangci.yml                  @andremmfaria

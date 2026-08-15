@@ -61,7 +61,7 @@ func newTestServer(t *testing.T) *httptest.Server {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		http.SetCookie(w, &http.Cookie{Name: "step-ui-csrf", Value: testCSRFToken, Path: "/"})
+		http.SetCookie(w, &http.Cookie{Name: "step-ui-csrf", Value: testCSRFToken, Path: "/"}) //nolint:gosec // G124: the readable CSRF cookie is deliberately not HttpOnly (5.4), and this test server is plain HTTP
 	})
 
 	humaapi.Mount(r, h, stubUserLoader)
@@ -77,7 +77,7 @@ var testUser = &models.User{ID: 1, Username: "spike", Role: "manager", IsActive:
 
 // testCSRFToken is the value the test-only login route puts in both halves of
 // the session-bound pair (5.4).
-const testCSRFToken = "test-csrf-token-value"
+const testCSRFToken = "test-csrf-token-value" //nolint:gosec // G101: a fixed value in a test, not a credential
 
 // stubUserLoader stands in for db.GetUserByID, which cannot run against the
 // nil database these tests build the handler with.

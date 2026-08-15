@@ -76,6 +76,58 @@ jobs:
           working-directory: backend
           # Config file is backend/.golangci.yml — picked up automatically
 
+      - name: depguard rejects the negative fixture
+        # Runs here rather than in the contract job because the pinned action
+        # above already put golangci-lint on PATH. Installing it again by
+        # curl would be the only unpinned tool fetch in this repository.
+        #
+        # A rule nobody tests is a rule that stops working the next time the
+        # config is refactored and nobody notices (Section 2).
+        working-directory: .
+        run: ./scripts/lint-fixtures.sh
+
+  contract:
+    name: Contract
+    runs-on: ubuntu-latest
+    # Standalone for Phase 1. Phase 2 relocates both gates into the client
+    # job, where 7.2's requirement that the gate and the client generation be
+    # inseparable becomes satisfiable. Until that job exists a standalone gate
+    # is strictly better than none.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          # oasdiff needs the base document, so the full history is required.
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        with:
+          go-version-file: backend/go.mod
+          cache: true
+          cache-dependency-path: backend/go.sum
+
+      - name: OpenAPI spec is current
+        working-directory: backend
+        run: |
+          go run ./cmd/openapi -out openapi/openapi.json
+          git diff --exit-code openapi/openapi.json \
+            || { echo "::error::openapi.json is stale. Run: make openapi (go $(go version))"; exit 1; }
+
+      - name: Install oasdiff
+        # Pinned to a release rather than @latest: every uses: in this
+        # repository pins to a commit sha, and an unpinned tool install would
+        # be the only exception.
+        run: go install github.com/oasdiff/oasdiff@v1.11.7
+
+      - name: Breaking changes are recorded in docs/contract-changes.md
+        env:
+          # On pull_request the base is the PR's actual base ref, which is not
+          # necessarily main. On push: main there is no base branch and the
+          # comparison is against the commit the push replaced.
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: ./scripts/contract-gate.sh "$BASE_SHA"
+
   db-integration:
     name: DB Integration Tests
     runs-on: ubuntu-latest

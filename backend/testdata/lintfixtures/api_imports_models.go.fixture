@@ -1,0 +1,15 @@
+// This file is a negative fixture for the depguard rules in .golangci.yml. It
+// is not compiled: the .fixture extension keeps it out of the build, and
+// scripts/lint-fixtures.sh copies it into api/ to assert the lint run rejects
+// it. A denylist that nothing ever tests is a denylist that silently stops
+// working after a config refactor.
+package api
+
+import (
+	"step-ui/db"
+	"step-ui/models"
+)
+
+func fixtureMustBeRejected(d any) (*models.User, error) {
+	return db.GetUserByID(nil, 1)
+}

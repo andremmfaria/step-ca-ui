@@ -169,6 +169,13 @@ cover: ## Run coverage gate
 openapi: ## Regenerate backend/openapi/openapi.json from the huma-registered operations
 	cd $(GO_DIR) && go run ./cmd/openapi -out openapi/openapi.json
 
+.PHONY: hooks
+hooks: ## Register the openapi.json merge driver in this clone's git config
+	@git config merge.openapi-regen.name "regenerate openapi.json from the merged Go source"
+	@git config merge.openapi-regen.driver 'cd backend && go run ./cmd/openapi -out openapi/openapi.json'
+	@echo "merge driver registered. Note it fires only on a local git merge or rebase:"
+	@echo "GitHub's merge button, squash and merge queue never run local git config (7.2)."
+
 # ──────────────────────────────────────────────────────────────────────────────
 # End-to-end suite (plans/e2e-tests.md)
 # ──────────────────────────────────────────────────────────────────────────────
