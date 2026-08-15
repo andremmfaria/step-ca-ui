@@ -17,7 +17,7 @@ func (h *Handler) auditSecurity(r *http.Request, reason string) {
 	if si.UserID == 0 || si.Username == "" || reason == "" {
 		return
 	}
-	_ = appdb.LogAuth(h.db, si.Username, r.RemoteAddr, true, auditPrefix+reason)
+	_ = appdb.LogAuth(h.db, si.Username, clientIP(r), true, auditPrefix+reason)
 }
 
 // securityEventLabel returns a short human-readable label for a security log

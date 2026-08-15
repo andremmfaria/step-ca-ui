@@ -7,10 +7,7 @@ import (
 
 	"step-ui/handlers"
 	appmw "step-ui/middleware"
-	"step-ui/models"
 	"step-ui/security"
-
-	appdb "step-ui/db"
 
 	"github.com/gorilla/sessions"
 )
@@ -45,42 +42,6 @@ type sessionOutput struct {
 	Body sessionBody
 }
 
-// validatedUser re-checks a session's user_id exactly as
-// middleware.RequireLogin does — reload, IsActive, session_epoch, absolute
-// lifetime, idle window — but never slides last_activity, because
-// GET /api/v1/session is exempt from sliding-window renewal (5.3): otherwise
-// an open tab with refetchOnWindowFocus would keep an idle session alive
-// forever.
-func validatedUser(h *handlers.Handler, s *sessions.Session) (*models.User, bool) {
-	idRaw, ok := s.Values["user_id"]
-	if !ok || idRaw == nil {
-		return nil, false
-	}
-	id, _ := idRaw.(int)
-
-	now := time.Now()
-	if created, ok := s.Values["session_created_at"].(int64); ok {
-		if now.Sub(time.Unix(created, 0)) > appmw.SessionMaxLifetime {
-			return nil, false
-		}
-	}
-	if last, ok := s.Values["last_activity"].(int64); ok {
-		if now.Sub(time.Unix(last, 0)) > appmw.SessionTimeout {
-			return nil, false
-		}
-	}
-
-	user, err := appdb.GetUserByID(h.DB(), id)
-	if err != nil || user == nil || !user.IsActive {
-		return nil, false
-	}
-	epoch, _ := s.Values["session_epoch"].(int)
-	if epoch != user.SessionEpoch {
-		return nil, false
-	}
-	return user, true
-}
-
 // setCSRFCookie mirrors handlers.Handler.csrf's readable half (5.4): same
 // value as the encrypted session's csrf_token, same MaxAge, but readable by
 // JavaScript so the SPA can echo it in X-CSRF-Token.
@@ -97,9 +58,9 @@ func setCSRFCookie(w http.ResponseWriter, h *handlers.Handler, token string) {
 	})
 }
 
-// getSession implements GET /api/v1/session. Session validation is written
-// inline here rather than reused from a shared middleware, as directed by
-// Phase 0 step 5 — Phase 1 extracts the wrapped-twice implementation of 5.3.
+// getSession implements GET /api/v1/session. It is the one auth: optional
+// operation (5.5): the chain validates a present session and never answers
+// 401, so this handler only reports the state and keeps the CSRF pair fresh.
 func getSession(h *handlers.Handler) func(context.Context, *struct{}) (*sessionOutput, error) {
 	return func(ctx context.Context, _ *struct{}) (*sessionOutput, error) {
 		r, w := httpFrom(ctx)
@@ -114,7 +75,10 @@ func getSession(h *handlers.Handler) func(context.Context, *struct{}) (*sessionO
 		case isPending2FA(s):
 			out.Body.State = SessionPendingMFA
 		default:
-			if user, ok := validatedUser(h, s); ok {
+			// sessionMiddleware ran with auth: optional, so it validated a
+			// session if one was present and put the user on the context
+			// without ever answering 401 (5.5). Nothing is re-checked here.
+			if user, ok := appmw.UserFrom(ctx); ok {
 				out.Body.State = SessionAuthenticated
 				out.Body.User = &sessionUserBody{ID: user.ID, Username: user.Username, Role: user.Role}
 			} else {

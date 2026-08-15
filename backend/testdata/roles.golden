@@ -1,0 +1,21 @@
+# The role golden table. One row per registered operation, sorted by method
+# then path. Columns are space-separated key=value pairs after the method and
+# path, and every column is required.
+#
+# The role-matrix test reads the in-process registered operation set, not the
+# committed spec: huma.Operation.Metadata is tagged yaml:"-" upstream and
+# never reaches the serialised document, so a test parsing openapi.json would
+# see nothing. Adding an operation without updating this file fails the build.
+#
+# There is no version column. /v1 is permanent by construction (5.1, Q5), so
+# the column would hold one constant value in every row.
+#
+# templateRouteRetired is false until Phase 9 deletes the server-rendered
+# route this operation replaces, and the count of false rows reaching zero is
+# a Phase 9 exit criterion (R22). It is true for an operation that never had
+# a template route.
+GET  /api/v1/_spike/blob   auth=required role=viewer  tag=system      csrf=no  ratelimit=no templateRouteRetired=true
+GET  /api/v1/config        auth=public   role=-       tag=system      csrf=no  ratelimit=no templateRouteRetired=true
+GET  /api/v1/session       auth=optional role=-       tag=session     csrf=no  ratelimit=no templateRouteRetired=true
+GET  /api/v1/status        auth=required role=viewer  tag=dashboard   csrf=no  ratelimit=no templateRouteRetired=false
+POST /api/v1/_spike/upload auth=required role=manager tag=system      csrf=yes ratelimit=no templateRouteRetired=true

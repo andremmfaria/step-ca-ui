@@ -82,8 +82,13 @@ func sessionMiddleware(h *handlers.Handler, loadUser appmw.UserLoader) func(huma
 			return
 		}
 
-		if err := res.Session.Save(r, w); err != nil {
-			slog.Error("session save failed", "path", r.URL.Path, "err", err)
+		// getSession saves its own session, because it also mints the CSRF
+		// pair; saving here as well would put two Set-Cookie headers for the
+		// same name on one response.
+		if mode != authOptional {
+			if err := res.Session.Save(r, w); err != nil {
+				slog.Error("session save failed", "path", r.URL.Path, "err", err)
+			}
 		}
 		setSessionExpires(w, res.Session)
 		// The user rides on middleware's own context key, so roleMiddleware and

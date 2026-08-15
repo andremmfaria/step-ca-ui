@@ -196,7 +196,7 @@ func (h *Handler) completeLogin(w http.ResponseWriter, r *http.Request, user *mo
 	s.Values["last_activity"] = time.Now().Unix()
 	s.Values["csrf_token"] = security.GenerateToken()
 	_ = s.Save(r, w)
-	_ = appdb.LogAuth(h.db, user.Username, r.RemoteAddr, true, reason)
+	_ = appdb.LogAuth(h.db, user.Username, clientIP(r), true, reason)
 }
 
 // LogoutGet answers an old bookmark. Logging out revokes every session the
@@ -218,7 +218,7 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 		if err := appdb.BumpSessionEpoch(h.db, si.UserID); err != nil {
 			slog.Error("bumping session epoch on logout failed", "user_id", si.UserID, "err", err)
 		}
-		_ = appdb.LogAuth(h.db, si.Username, r.RemoteAddr, true, "Logout")
+		_ = appdb.LogAuth(h.db, si.Username, clientIP(r), true, "Logout")
 	}
 	s := h.sess(r)
 	s.Values = map[interface{}]interface{}{}

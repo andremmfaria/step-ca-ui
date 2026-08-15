@@ -82,7 +82,7 @@ func (h *Handler) OIDCCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s := h.sess(r)
-	ip := r.RemoteAddr
+	ip := clientIP(r)
 
 	// --- state check ---
 	savedState, _ := s.Values["oidc_state"].(string)

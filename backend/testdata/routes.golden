@@ -1,0 +1,18 @@
+# Every route registered on the real chi router, sorted. Phase 9's exit
+# criterion is that chi.Walk over the router produces this set byte-equal,
+# with the only non-/api/v1 patterns being /health, /ready, /auth/oidc/login,
+# /auth/oidc/callback, /openapi.json, NotFound and MethodNotAllowed.
+#
+# During the migration window this file additionally carries every
+# still-registered template route and /static/*. Progress is measured by the
+# role table's templateRouteRetired count, never by shrinking this list, which
+# would break Phase 3c's exit criterion.
+#
+# Phase 1 registers the huma operations only; the template routes are added to
+# this file when Phase 3c takes the published port and the walk becomes a
+# gate over the whole router.
+GET  /api/v1/_spike/blob
+GET  /api/v1/config
+GET  /api/v1/session
+GET  /api/v1/status
+POST /api/v1/_spike/upload

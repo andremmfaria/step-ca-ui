@@ -125,7 +125,7 @@ func (h *Handler) Profile2FAConfirm(w http.ResponseWriter, r *http.Request) {
 	u.TOTPEnabled = true
 	u.TOTPSecret = u.TOTPPendingSecret
 	u.TOTPPendingSecret = ""
-	_ = appdb.LogAuth(h.db, u.Username, r.RemoteAddr, true, "2FA enabled")
+	_ = appdb.LogAuth(h.db, u.Username, clientIP(r), true, "2FA enabled")
 	data := h.base(w, r, "profile")
 	data["U"] = u
 	data["RecoveryCodes"] = recoveryCodes
@@ -159,7 +159,7 @@ func (h *Handler) Profile2FADisable(w http.ResponseWriter, r *http.Request) {
 	if err := appdb.DisableUserTOTP(h.db, u.ID); err != nil {
 		h.flash(w, r, "err", "Failed to disable 2FA")
 	} else {
-		_ = appdb.LogAuth(h.db, u.Username, r.RemoteAddr, true, "2FA disabled")
+		_ = appdb.LogAuth(h.db, u.Username, clientIP(r), true, "2FA disabled")
 		h.flash(w, r, "ok", "2FA disabled")
 	}
 	http.Redirect(w, r, "/profile/2fa", http.StatusFound)

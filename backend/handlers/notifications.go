@@ -175,7 +175,7 @@ func (h *Handler) AdminNotificationsTest(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	err = h.sendNotification(r.Context(), "", "system.test", "info", "Step-CA UI test notification", "Test webhook dispatch from admin panel", map[string]string{
-		"remote_addr": r.RemoteAddr,
+		"remote_addr": clientIP(r),
 	})
 	if err != nil {
 		h.auditSecurity(r, "notifications.test status=failed")
