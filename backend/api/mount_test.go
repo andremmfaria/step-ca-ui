@@ -50,7 +50,7 @@ func newTestServer(t *testing.T) *httptest.Server {
 	// the real login path is unreachable; this mints the same session values
 	// middleware.ValidateSession reads and lets the cookie jar carry them.
 	r.Post("/test-login", func(w http.ResponseWriter, req *http.Request) {
-		sess, _ := store.Get(req, "step-ui")
+		sess, _ := store.Get(req, h.SessionCookieName())
 		now := time.Now().Unix()
 		sess.Values["user_id"] = testUser.ID
 		sess.Values["session_epoch"] = testUser.SessionEpoch
@@ -170,7 +170,7 @@ func TestSession_AnonymousRoundTrip(t *testing.T) {
 	if firstCSRF == "" {
 		t.Fatal("first call: step-ui-csrf cookie not set")
 	}
-	if cookieValue(first.cookies, "step-ui") == "" {
+	if cookieValue(first.cookies, "step-ui") == "" { // plain HTTP test store, so no __Host- prefix (D6)
 		t.Fatal("first call: step-ui session cookie not set")
 	}
 

@@ -67,8 +67,8 @@ func config() huma.Config {
 		securitySchemeName: {
 			Type:        "apiKey",
 			In:          "cookie",
-			Name:        handlers.SessionCookieName,
-			Description: "Encrypted session cookie. Role names in a requirement array are documentation: enforcement is server-side.",
+			Name:        appmw.SessionCookieBase,
+			Description: "Encrypted session cookie, served as __Host-step-ui when SESSION_SECURE is on (D6). Role names in a requirement array are documentation: enforcement is server-side.",
 		},
 	}
 	// Installed here rather than on the mounted API so cmd/openapi's

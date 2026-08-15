@@ -74,11 +74,18 @@ func NewForSpec() *Handler {
 	return NewWithFS(nil, &config.Config{}, nil, nil)
 }
 
-// SessionCookieName is the gorilla/sessions cookie name. Exported so
-// backend/api's inline session handling (D2 cost 2 — a huma handler has no
-// access to mw.RequireLogin's chi middleware chain) uses the same name
-// rather than a second hardcoded literal.
-const SessionCookieName = "step-ui"
+// SessionCookieName returns this installation's session cookie name. It
+// carries the __Host- prefix whenever SESSION_SECURE is on (D6), so it is a
+// method rather than a constant.
+func (h *Handler) SessionCookieName() string { return middleware.SessionCookieName(h.store) }
+
+// CSRFCookieName returns the readable CSRF cookie's name, prefixed on the
+// same condition.
+func (h *Handler) CSRFCookieName() string { return middleware.CSRFCookieName(h.store) }
+
+// OIDCCookieName returns the name of the cookie carrying the OIDC round-trip
+// state.
+func (h *Handler) OIDCCookieName() string { return middleware.OIDCCookieName(h.store) }
 
 // DB exposes the database handle to backend/api, which reads and validates
 // sessions directly instead of through the chi middleware chain.
@@ -291,11 +298,64 @@ func (h *Handler) templateFuncs() template.FuncMap {
 }
 
 func (h *Handler) sess(r *http.Request) *sessions.Session {
-	s, err := h.store.Get(r, "step-ui")
+	s, err := h.store.Get(r, h.SessionCookieName())
 	if err != nil {
 		slog.Warn("session decode failed", "remote", r.RemoteAddr, "host", r.Host, "path", r.URL.Path, "err", err)
 	}
 	return s
+}
+
+// oidcSession is the separate Lax cookie carrying the whole OIDC round-trip
+// state (D6, 5.3).
+//
+// It exists because the session cookie is SameSite=Strict, and the browser
+// will not send a Strict cookie on the cross-site navigation back from the
+// identity provider. Keeping state, nonce and verifier in the session would
+// therefore fail every callback with a state mismatch. MaxAge is 300s: the
+// values are one-time and a round trip that takes longer than five minutes
+// has failed.
+func (h *Handler) oidcSession(r *http.Request) *sessions.Session {
+	s, err := h.store.Get(r, h.OIDCCookieName())
+	if err != nil {
+		slog.Warn("oidc cookie decode failed", "host", r.Host, "path", r.URL.Path, "err", err)
+	}
+	s.Options = &sessions.Options{
+		Path:     "/",
+		MaxAge:   300,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   h.store.Options.Secure,
+	}
+	return s
+}
+
+// clearOIDCSession expires the round-trip cookie. The values are one-time, so
+// they are dropped as soon as the callback has read them rather than being
+// left to age out.
+func (h *Handler) clearOIDCSession(w http.ResponseWriter, r *http.Request, s *sessions.Session) {
+	s.Options.MaxAge = -1
+	s.Values = map[interface{}]interface{}{}
+	_ = s.Save(r, w)
+}
+
+// SetCSRFCookie writes the readable half of the session-bound CSRF pair
+// (5.4): same value as the session's csrf_token, same MaxAge, but readable by
+// JavaScript so the SPA can echo it in X-CSRF-Token. HttpOnly:false is the
+// point of it, not an oversight.
+//
+// The cookie is transport, never the comparand: the server compares the
+// header against the value inside the encrypted session, which is the
+// session-bound variant and needs no separate signing (D6).
+func (h *Handler) SetCSRFCookie(w http.ResponseWriter, token string) {
+	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: Secure mirrors the store (SESSION_SECURE), a runtime value; HttpOnly:false is deliberate (5.4)
+		Name:     h.CSRFCookieName(),
+		Value:    token,
+		Path:     "/",
+		MaxAge:   h.store.Options.MaxAge,
+		Secure:   h.store.Options.Secure,
+		SameSite: http.SameSiteStrictMode,
+		HttpOnly: false,
+	})
 }
 
 func (h *Handler) sessionInfo(r *http.Request) *models.SessionInfo {
@@ -332,10 +392,10 @@ func (h *Handler) popFlash(w http.ResponseWriter, r *http.Request) []models.Flas
 }
 
 func (h *Handler) csrf(w http.ResponseWriter, r *http.Request) string {
-	s, err := h.store.Get(r, "step-ui")
+	s, err := h.store.Get(r, h.SessionCookieName())
 	if err != nil {
 		slog.Warn("session reset after decode failure", "remote", r.RemoteAddr, "host", r.Host, "path", r.URL.Path, "err", err)
-		s, _ = h.store.New(r, "step-ui")
+		s, _ = h.store.New(r, h.SessionCookieName())
 	}
 	token, ok := s.Values["csrf_token"].(string)
 	if !ok || token == "" {

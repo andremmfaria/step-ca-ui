@@ -15,6 +15,7 @@
 # a Phase 9 exit criterion (R22). It is true for an operation that never had
 # a template route.
 GET  /api/v1/_spike/blob   auth=required role=viewer  tag=system      csrf=no  ratelimit=no templateRouteRetired=true
+DELETE /api/v1/session     auth=public   role=-       tag=session     csrf=optional ratelimit=no templateRouteRetired=false
 GET  /api/v1/config        auth=public   role=-       tag=system      csrf=no  ratelimit=no templateRouteRetired=true
 GET  /api/v1/session       auth=optional role=-       tag=session     csrf=no  ratelimit=no templateRouteRetired=true
 GET  /api/v1/status        auth=required role=viewer  tag=dashboard   csrf=no  ratelimit=no templateRouteRetired=false

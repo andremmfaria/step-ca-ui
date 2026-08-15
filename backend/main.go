@@ -196,7 +196,11 @@ func main() {
 		Path:     "/",
 		MaxAge:   28800,
 		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
+		// Strict, not Lax (D6). The one flow this would have broken is the
+		// OIDC callback, whose round-trip state now lives in its own Lax
+		// cookie (handlers.oidcSession), so nothing reaches this cookie by a
+		// cross-site navigation any more.
+		SameSite: http.SameSiteStrictMode,
 		Secure:   cfg.SessionSecure,
 	}
 

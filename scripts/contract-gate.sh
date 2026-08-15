@@ -7,6 +7,10 @@
 # See Q5 and 7.2 of plans/frontend-backend-split.md.
 set -euo pipefail
 
+# Paths below are repository-relative, so run from the repository root
+# regardless of where the caller happened to be.
+cd "$(dirname "$0")/.."
+
 BASE_SHA="${1:-}"
 SPEC=backend/openapi/openapi.json
 LEDGER=docs/contract-changes.md

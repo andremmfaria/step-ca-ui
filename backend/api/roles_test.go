@@ -94,6 +94,9 @@ func registeredRows(t *testing.T) []goldenRow {
 			row.csrf = "no"
 			if !safeMethod(method) {
 				row.csrf = "yes"
+				if mode, _ := op.Metadata[metaCSRF].(string); mode == csrfOptional {
+					row.csrf = csrfOptional
+				}
 			}
 			row.ratelimit = "no"
 			if scope, _ := op.Metadata[metaRateLimit].(string); scope == rateLimitAuth {

@@ -139,8 +139,16 @@ func csrfMiddleware(h *handlers.Handler) func(huma.Context, func(huma.Context)) 
 
 		sent := r.Header.Get(csrfHeaderName)
 		var want string
-		if s, err := h.Store().Get(r, handlers.SessionCookieName); err == nil {
+		if s, err := h.Store().Get(r, h.SessionCookieName()); err == nil {
 			want, _ = s.Values["csrf_token"].(string)
+		}
+		// An operation marked csrfOptional is checked only when the session
+		// actually holds a token: see csrfWhenSession for why logout needs it.
+		if want == "" {
+			if mode, _ := ctx.Operation().Metadata[metaCSRF].(string); mode == csrfOptional {
+				next(ctx)
+				return
+			}
 		}
 		if sent == "" || want == "" || subtle.ConstantTimeCompare([]byte(sent), []byte(want)) != 1 {
 			writeCSRFProblem(w, r.URL.Path)

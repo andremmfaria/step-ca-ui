@@ -78,15 +78,69 @@ export function redirectsToLogin(res: APIResponse): boolean {
   return location.startsWith("/login");
 }
 
-/** gorilla/sessions names the cookie after store.Get(r, "step-ui") (handlers/handler.go:261). */
-export const SESSION_COOKIE_NAME = "step-ui";
+/**
+ * Cookie name bases. The served names carry the __Host- prefix whenever
+ * SESSION_SECURE is on (D6 of plans/frontend-backend-split.md), so the suite
+ * must not assume either spelling: it probes prefixed first, then bare, the
+ * same way src/api/client.ts does.
+ */
+export const SESSION_COOKIE_BASE = "step-ui";
+export const CSRF_COOKIE_BASE = "step-ui-csrf";
+export const OIDC_COOKIE_BASE = "step-ui-oidc";
+const HOST_PREFIX = "__Host-";
+
+/** Both spellings of a cookie base, prefixed first. */
+export function cookieNameCandidates(base: string): string[] {
+  return [`${HOST_PREFIX}${base}`, base];
+}
+
+/**
+ * The session cookie's served name, resolved against a cookie jar. Prefer this
+ * over a literal: which spelling is served depends on SESSION_SECURE, and the
+ * e2e stack does not run with the same value in every scenario.
+ */
+export async function sessionCookieName(ctx: APIRequestContext): Promise<string> {
+  const state = await ctx.storageState();
+  for (const name of cookieNameCandidates(SESSION_COOKIE_BASE)) {
+    if (state.cookies.some((c) => c.name === name)) return name;
+  }
+  throw new Error(
+    `no session cookie in jar; cookies present: ${state.cookies.map((c) => c.name).join(", ")}`,
+  );
+}
+
+/**
+ * Deprecated: the served name is no longer a constant. Kept so existing specs
+ * keep compiling while they are migrated to sessionCookieName().
+ */
+export const SESSION_COOKIE_NAME = SESSION_COOKIE_BASE;
 
 /** The raw session cookie, which E2E-AUTH-12 captures and replays after a logout. */
 export async function sessionCookie(ctx: APIRequestContext): Promise<string> {
   const state = await ctx.storageState();
-  const cookie = state.cookies.find((c) => c.name === SESSION_COOKIE_NAME);
+  const names = cookieNameCandidates(SESSION_COOKIE_BASE);
+  const cookie = state.cookies.find((c) => names.includes(c.name));
   if (!cookie) {
-    throw new Error(`no ${SESSION_COOKIE_NAME} cookie in jar; cookies present: ${state.cookies.map((c) => c.name).join(", ")}`);
+    throw new Error(
+      `no session cookie in jar (tried ${names.join(", ")}); cookies present: ${state.cookies.map((c) => c.name).join(", ")}`,
+    );
   }
   return `${cookie.name}=${cookie.value}`;
+}
+
+/**
+ * The readable CSRF token the SPA echoes in X-CSRF-Token (5.4). It is set on
+ * login as well as by GET /api/v1/session, so a template-route login is enough
+ * to obtain one.
+ */
+export async function csrfToken(ctx: APIRequestContext): Promise<string> {
+  const state = await ctx.storageState();
+  const names = cookieNameCandidates(CSRF_COOKIE_BASE);
+  const cookie = state.cookies.find((c) => names.includes(c.name));
+  if (!cookie) {
+    throw new Error(
+      `no CSRF cookie in jar (tried ${names.join(", ")}); cookies present: ${state.cookies.map((c) => c.name).join(", ")}`,
+    );
+  }
+  return cookie.value;
 }

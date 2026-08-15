@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"step-ui/config"
+	"step-ui/middleware"
 
 	gojose "github.com/go-jose/go-jose/v4"
 	josejwt "github.com/go-jose/go-jose/v4/jwt"
@@ -173,7 +174,7 @@ func injectSession(t *testing.T, store *sessions.CookieStore, values map[interfa
 	t.Helper()
 	req := httptest.NewRequestWithContext(context.Background(), "GET", "/", nil)
 	rr := httptest.NewRecorder()
-	sess, _ := store.New(req, "step-ui")
+	sess, _ := store.New(req, middleware.SessionCookieName(store))
 	for k, v := range values {
 		sess.Values[k] = v
 	}

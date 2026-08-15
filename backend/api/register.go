@@ -23,6 +23,17 @@ func Register(humaAPI huma.API, h *handlers.Handler) {
 		Summary:     "Get the current session state",
 	}), getSession(h))
 
+	// Public: logging out must work from a session the server has already
+	// rejected, and the only effect is expiring the caller's own cookies.
+	huma.Register(humaAPI, csrfWhenSession(publicOp(huma.Operation{
+		OperationID:   "deleteSession",
+		Method:        http.MethodDelete,
+		Path:          BasePath + "/session",
+		Tags:          []string{"session"},
+		Summary:       "Log out and expire the session and CSRF cookies",
+		DefaultStatus: http.StatusNoContent,
+	})), deleteSession(h))
+
 	huma.Register(humaAPI, publicOp(huma.Operation{
 		OperationID: "getConfig",
 		Method:      http.MethodGet,

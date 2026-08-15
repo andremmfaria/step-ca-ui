@@ -12,10 +12,6 @@ import (
 	"github.com/gorilla/sessions"
 )
 
-// csrfCookieName is the readable sibling of the encrypted session cookie
-// (5.4). Its value always matches session.Values["csrf_token"].
-const csrfCookieName = "step-ui-csrf"
-
 // SessionState is GET /api/v1/session's required discriminator (5.3): the
 // endpoint answers 200 in all three cases and never 401.
 type SessionState string
@@ -42,22 +38,6 @@ type sessionOutput struct {
 	Body sessionBody
 }
 
-// setCSRFCookie mirrors handlers.Handler.csrf's readable half (5.4): same
-// value as the encrypted session's csrf_token, same MaxAge, but readable by
-// JavaScript so the SPA can echo it in X-CSRF-Token.
-func setCSRFCookie(w http.ResponseWriter, h *handlers.Handler, token string) {
-	opts := h.Store().Options
-	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: Secure mirrors opts.Secure (SESSION_SECURE), a runtime value gosec can't evaluate statically; HttpOnly:false is deliberate (5.4)
-		Name:     csrfCookieName,
-		Value:    token,
-		Path:     "/",
-		MaxAge:   opts.MaxAge,
-		Secure:   opts.Secure,
-		SameSite: http.SameSiteStrictMode,
-		HttpOnly: false,
-	})
-}
-
 // getSession implements GET /api/v1/session. It is the one auth: optional
 // operation (5.5): the chain validates a present session and never answers
 // 401, so this handler only reports the state and keeps the CSRF pair fresh.
@@ -65,9 +45,9 @@ func getSession(h *handlers.Handler) func(context.Context, *struct{}) (*sessionO
 	return func(ctx context.Context, _ *struct{}) (*sessionOutput, error) {
 		r, w := httpFrom(ctx)
 
-		s, err := h.Store().Get(r, handlers.SessionCookieName)
+		s, err := h.Store().Get(r, h.SessionCookieName())
 		if err != nil {
-			s, _ = h.Store().New(r, handlers.SessionCookieName) //nolint:errcheck // New only errors on codec setup, never on a bad cookie
+			s, _ = h.Store().New(r, h.SessionCookieName()) //nolint:errcheck // New only errors on codec setup, never on a bad cookie
 		}
 
 		out := &sessionOutput{}
@@ -97,7 +77,7 @@ func getSession(h *handlers.Handler) func(context.Context, *struct{}) (*sessionO
 		if err := s.Save(r, w); err != nil {
 			return nil, err
 		}
-		setCSRFCookie(w, h, token)
+		h.SetCSRFCookie(w, token)
 
 		return out, nil
 	}
@@ -112,4 +92,54 @@ func isPending2FA(s *sessions.Session) bool {
 	}
 	exp, _ := s.Values["pending_2fa_expires"].(int64)
 	return exp == 0 || time.Now().Unix() <= exp
+}
+
+// deleteSessionOutput carries no body: the response is a 204.
+type deleteSessionOutput struct {
+	Status int
+}
+
+// deleteSession implements DELETE /api/v1/session. It expires both halves of
+// the pair (5.3): leaving the readable CSRF cookie behind would have the SPA
+// echo a token for a session that no longer exists, which reads as a CSRF
+// failure rather than as a logged-out state.
+//
+// It is auth: public because logging out must work from a session the server
+// has already rejected. There is nothing to authorise: the only effect is
+// expiring the caller's own cookies.
+func deleteSession(h *handlers.Handler) func(context.Context, *struct{}) (*deleteSessionOutput, error) {
+	return func(ctx context.Context, _ *struct{}) (*deleteSessionOutput, error) {
+		r, w := httpFrom(ctx)
+
+		if s, err := h.Store().Get(r, h.SessionCookieName()); err == nil {
+			s.Options.MaxAge = -1
+			s.Values = map[interface{}]interface{}{}
+			if err := s.Save(r, w); err != nil {
+				return nil, err
+			}
+		} else {
+			// An undecodable cookie still has to be cleared, or the caller is
+			// stuck sending a cookie the server rejects on every request.
+			http.SetCookie(w, expiredCookie(h.SessionCookieName(), h.Store().Options.Secure, true))
+		}
+		http.SetCookie(w, expiredCookie(h.CSRFCookieName(), h.Store().Options.Secure, false))
+
+		return &deleteSessionOutput{Status: http.StatusNoContent}, nil
+	}
+}
+
+// expiredCookie builds the deletion form of a cookie. The attributes must
+// match the ones it was set with or the browser keeps the original, and with
+// the __Host- prefix Path=/ and Secure are required for the delete to be
+// accepted at all.
+func expiredCookie(name string, secure, httpOnly bool) *http.Cookie {
+	return &http.Cookie{ //nolint:gosec // G124: Secure mirrors the store (SESSION_SECURE), a runtime value
+		Name:     name,
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		Secure:   secure,
+		SameSite: http.SameSiteStrictMode,
+		HttpOnly: httpOnly,
+	}
 }

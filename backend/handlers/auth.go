@@ -193,9 +193,15 @@ func (h *Handler) completeLogin(w http.ResponseWriter, r *http.Request, user *mo
 	s.Values["username"] = user.Username
 	s.Values["role"] = user.Role
 	s.Values["session_epoch"] = user.SessionEpoch
+	s.Values["session_created_at"] = time.Now().Unix()
 	s.Values["last_activity"] = time.Now().Unix()
-	s.Values["csrf_token"] = security.GenerateToken()
+	// One value, both halves of the pair, in one response (5.4). Wiping
+	// s.Values above and minting a fresh token here is what closes post-auth
+	// session fixation, because with a cookie store the cookie is the session.
+	csrfToken := security.GenerateToken()
+	s.Values["csrf_token"] = csrfToken
 	_ = s.Save(r, w)
+	h.SetCSRFCookie(w, csrfToken)
 	_ = appdb.LogAuth(h.db, user.Username, clientIP(r), true, reason)
 }
 

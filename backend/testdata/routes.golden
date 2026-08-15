@@ -11,6 +11,7 @@
 # Phase 1 registers the huma operations only; the template routes are added to
 # this file when Phase 3c takes the published port and the walk becomes a
 # gate over the whole router.
+DELETE /api/v1/session
 GET  /api/v1/_spike/blob
 GET  /api/v1/config
 GET  /api/v1/session

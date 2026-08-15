@@ -195,3 +195,63 @@ func TestMethodNotAllowed_IsProblemDocument(t *testing.T) {
 		t.Fatalf("Content-Type = %q, want application/problem+json", ct)
 	}
 }
+
+// TestDeleteSession_ExpiresBothCookies asserts logout clears the readable CSRF
+// cookie as well as the session. Leaving it behind would have the SPA echo a
+// token for a session that no longer exists, which surfaces as a CSRF failure
+// rather than as a logged-out state (5.3).
+func TestDeleteSession_ExpiresBothCookies(t *testing.T) {
+	srv := newTestServer(t)
+	client := newClient(t)
+	token := login(t, client, srv)
+
+	resp := doRequest(t, client, http.MethodDelete, srv.URL+"/api/v1/session", nil, func(r *http.Request) { //nolint:bodyclose // closed via t.Cleanup inside doRequest
+		r.Header.Set("X-CSRF-Token", token)
+	})
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204", resp.StatusCode)
+	}
+
+	for _, name := range []string{"step-ui", "step-ui-csrf"} {
+		var found bool
+		for _, c := range resp.Cookies() {
+			if c.Name == name {
+				found = true
+				if c.MaxAge >= 0 {
+					t.Errorf("cookie %q has MaxAge = %d, want a negative value so the browser drops it", name, c.MaxAge)
+				}
+			}
+		}
+		if !found {
+			t.Errorf("logout did not expire the %q cookie", name)
+		}
+	}
+}
+
+// TestDeleteSession_WorksWithoutAValidSession is the reason deleteSession
+// carries csrfWhenSession. Logging out from a session the server has already
+// rejected must clear the cookies rather than answering 403, or the caller is
+// stuck sending a cookie every request rejects.
+func TestDeleteSession_WorksWithoutAValidSession(t *testing.T) {
+	srv := newTestServer(t)
+	client := newClient(t)
+
+	resp := doRequest(t, client, http.MethodDelete, srv.URL+"/api/v1/session", nil, nil) //nolint:bodyclose // closed via t.Cleanup inside doRequest
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204 (logout must work with no session)", resp.StatusCode)
+	}
+}
+
+// TestDeleteSession_StillRequiresCSRFWithASession asserts the relaxation is
+// narrow: a caller that does hold a session must still present the token, so
+// csrfWhenSession is not a way to opt out of CSRF entirely.
+func TestDeleteSession_StillRequiresCSRFWithASession(t *testing.T) {
+	srv := newTestServer(t)
+	client := newClient(t)
+	login(t, client, srv)
+
+	resp := doRequest(t, client, http.MethodDelete, srv.URL+"/api/v1/session", nil, nil) //nolint:bodyclose // closed via t.Cleanup inside doRequest
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403 (a live session must still present the token)", resp.StatusCode)
+	}
+}

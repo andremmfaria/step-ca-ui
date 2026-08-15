@@ -224,7 +224,7 @@
     },
     "securitySchemes": {
       "session": {
-        "description": "Encrypted session cookie. Role names in a requirement array are documentation: enforcement is server-side.",
+        "description": "Encrypted session cookie, served as __Host-step-ui when SESSION_SECURE is on (D6). Role names in a requirement array are documentation: enforcement is server-side.",
         "in": "cookie",
         "name": "step-ui",
         "type": "apiKey"
@@ -387,6 +387,29 @@
       }
     },
     "/api/v1/session": {
+      "delete": {
+        "operationId": "deleteSession",
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [],
+        "summary": "Log out and expire the session and CSRF cookies",
+        "tags": [
+          "session"
+        ]
+      },
       "get": {
         "operationId": "getSession",
         "responses": {

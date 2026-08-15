@@ -63,7 +63,7 @@ func injectSessionMiddleware(t *testing.T, store *sessions.CookieStore, values m
 	t.Helper()
 	req := newReq("GET", "/")
 	rr := httptest.NewRecorder()
-	sess, _ := store.New(req, "step-ui")
+	sess, _ := store.New(req, SessionCookieName(store))
 	for k, v := range values {
 		sess.Values[k] = v
 	}
@@ -377,7 +377,7 @@ func TestRequireLogin_BadCookie_Redirects(t *testing.T) {
 	// Inject a cookie with the right name but garbage value so gorilla sessions
 	// fails to decode it, exercising the err != nil branch.
 	//nolint:gosec // G124: test-only cookie intentionally missing Secure/HttpOnly attributes
-	req.AddCookie(&http.Cookie{Name: "step-ui", Value: "not-a-valid-encoded-session"})
+	req.AddCookie(&http.Cookie{Name: SessionCookieName(store), Value: "not-a-valid-encoded-session"})
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 	if rr.Code != http.StatusFound {

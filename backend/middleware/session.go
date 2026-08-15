@@ -11,10 +11,57 @@ import (
 	"github.com/gorilla/sessions"
 )
 
-// SessionCookieName is the name RequireLogin reads. It is declared here
-// rather than taken from handlers/ because middleware/ must stay free of a
-// dependency on that package.
-const SessionCookieName = "step-ui"
+// Cookie name bases. The served names carry the __Host- prefix whenever the
+// store is Secure (D6), so they are resolved rather than written as constants.
+const (
+	// SessionCookieBase is exported because the OpenAPI document names the
+	// cookie, and the document is generated with no store to resolve the
+	// prefix from.
+	SessionCookieBase = "step-ui"
+	csrfCookieBase    = "step-ui-csrf"
+	oidcCookieBase    = "step-ui-oidc"
+)
+
+// HostPrefix is what binds a cookie to this exact host. Cookies are not
+// origin-scoped, so without it any sibling host on the same registrable
+// domain, or anything that can take over a subdomain, can set a Domain=
+// cookie that shadows ours. Tossing a session cookie lands the victim inside
+// the attacker's account; tossing a mismatched CSRF value is a permanent
+// denial of service on every mutation (D6).
+//
+// The prefix requires Secure, Path=/ and no Domain, which is exactly the
+// shape store.Options already has. It is therefore applied only when the
+// store is Secure, so plain-HTTP local development still works.
+const HostPrefix = "__Host-"
+
+// CookieName returns the served name for a base, prefixed when secure.
+func CookieName(base string, secure bool) string {
+	if secure {
+		return HostPrefix + base
+	}
+	return base
+}
+
+// SessionCookieName is the name of the encrypted session cookie for a given
+// store. It is derived from the store rather than from configuration because
+// the store is what every caller already holds, and threading a second copy
+// of the same boolean is how the two get to disagree.
+func SessionCookieName(store *sessions.CookieStore) string {
+	return CookieName(SessionCookieBase, store.Options.Secure)
+}
+
+// CSRFCookieName is the readable sibling of the session cookie (5.4).
+func CSRFCookieName(store *sessions.CookieStore) string {
+	return CookieName(csrfCookieBase, store.Options.Secure)
+}
+
+// OIDCCookieName carries the whole OIDC round-trip state. It is separate from
+// the session cookie because it must be SameSite=Lax to survive the
+// cross-site redirect back from the identity provider, and the session cookie
+// must not be (5.3).
+func OIDCCookieName(store *sessions.CookieStore) string {
+	return CookieName(oidcCookieBase, store.Options.Secure)
+}
 
 // RejectReason says why a session was refused, so the two callers of
 // validateSession can answer in their own contract: a 302 to /login for the
@@ -56,7 +103,7 @@ type SessionResult struct {
 // It performs no writes and emits no response. Persisting the session and
 // choosing the refusal shape both belong to the caller.
 func ValidateSession(store *sessions.CookieStore, loadUser UserLoader, r *http.Request, slide bool) SessionResult {
-	sess, err := store.Get(r, SessionCookieName)
+	sess, err := store.Get(r, SessionCookieName(store))
 	if err != nil {
 		slog.Warn("session decode failed", "host", r.Host, "path", r.URL.Path, "err", err)
 		return SessionResult{Session: sess, Reason: RejectDecode, Clear: true}

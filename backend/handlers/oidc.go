@@ -59,7 +59,9 @@ func (h *Handler) OIDCLogin(w http.ResponseWriter, r *http.Request) {
 	nonce := oidcRandomString(16)
 	verifier := oidcRandomString(32)
 
-	s := h.sess(r)
+	// The separate Lax cookie, not the Strict session cookie: the browser
+	// will not send a Strict cookie on the navigation back from the provider.
+	s := h.oidcSession(r)
 	s.Values["oidc_state"] = state
 	s.Values["oidc_nonce"] = nonce
 	s.Values["oidc_verifier"] = verifier
@@ -81,7 +83,7 @@ func (h *Handler) OIDCCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s := h.sess(r)
+	s := h.oidcSession(r)
 	ip := clientIP(r)
 
 	// --- state check ---
@@ -96,11 +98,8 @@ func (h *Handler) OIDCCallback(w http.ResponseWriter, r *http.Request) {
 	savedNonce, _ := s.Values["oidc_nonce"].(string)
 	savedVerifier, _ := s.Values["oidc_verifier"].(string)
 
-	// clear one-time OIDC session values
-	delete(s.Values, "oidc_state")
-	delete(s.Values, "oidc_nonce")
-	delete(s.Values, "oidc_verifier")
-	_ = s.Save(r, w)
+	// The whole cookie is one-time, so it is expired rather than emptied.
+	h.clearOIDCSession(w, r, s)
 
 	// --- exchange code ---
 	ctx := context.Background()

@@ -13,7 +13,20 @@ const (
 	metaRole      = "role"
 	metaAuth      = "auth"
 	metaRateLimit = "ratelimit"
+	metaCSRF      = "csrf"
 )
+
+// csrfWhenSession relaxes the CSRF requirement to "enforce only when the
+// session actually carries a token".
+//
+// It exists for exactly one shape of operation: one whose only effect is
+// clearing the caller's own state. Logging out has to work from a session the
+// server has already rejected, and a session with no decodable token has
+// nothing to forge a mutation against, so refusing it with a 403 would leave
+// the caller stuck sending a cookie the server rejects on every request. Any
+// operation carrying this that has another effect is a bug, which is why the
+// golden table records it as its own column value rather than hiding it.
+const csrfOptional = "optional"
 
 // The three values of metaAuth (5.5). Absent means "session required plus a
 // role", which is the default and is never written out.
@@ -69,6 +82,13 @@ func publicOp(op huma.Operation) huma.Operation { //nolint:gocritic // hugeParam
 func optionalAuthOp(op huma.Operation) huma.Operation { //nolint:gocritic // hugeParam: huma.Register takes huma.Operation by value, so a decorator returning one composes at the call site exactly as 5.5 spells it
 	op.Metadata = withMeta(op.Metadata, metaAuth, authOptional)
 	op.Security = []map[string][]string{}
+	return op
+}
+
+// csrfWhenSession marks an operation as CSRF-checked only when the session
+// holds a token. See csrfOptional.
+func csrfWhenSession(op huma.Operation) huma.Operation { //nolint:gocritic // hugeParam: huma.Register takes huma.Operation by value, so a decorator returning one composes at the call site exactly as 5.5 spells it
+	op.Metadata = withMeta(op.Metadata, metaCSRF, csrfOptional)
 	return op
 }
 
