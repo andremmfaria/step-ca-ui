@@ -37,12 +37,29 @@ services:
         }
     networks:
       - step-net
-    healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/default/.well-known/openid-configuration"]
-      interval: 5s
-      timeout: 3s
-      retries: 12
-      start_period: 5s
+
+  # The readiness probe cannot live on mock-oidc itself: that image is
+  # distroless, with no shell, no wget and no curl, so the healthcheck this
+  # file used to carry could never pass and step-ui waited on it forever. The
+  # wait moves to a throwaway container that exits 0 once discovery answers,
+  # and step-ui depends on its completion instead.
+  mock-oidc-ready:
+    image: curlimages/curl:8.11.1
+    container_name: mock-oidc-ready
+    command:
+      - sh
+      - -c
+      - |
+        for i in $$(seq 1 60); do
+          curl -sf http://mock-oidc:8080/default/.well-known/openid-configuration >/dev/null && exit 0
+          sleep 1
+        done
+        echo "mock-oidc did not answer discovery in 60s" >&2
+        exit 1
+    depends_on:
+      - mock-oidc
+    networks:
+      - step-net
 
   step-ui:
     environment:
@@ -62,5 +79,5 @@ services:
       TRUST_PROXY:          "${TRUST_PROXY:-false}"
       TRUSTED_PROXY_CIDRS:  "${TRUSTED_PROXY_CIDRS:-}"
     depends_on:
-      mock-oidc:
-        condition: service_healthy
+      mock-oidc-ready:
+        condition: service_completed_successfully
