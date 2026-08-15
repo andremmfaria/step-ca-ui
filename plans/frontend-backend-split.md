@@ -1,6 +1,6 @@
 # Plan: Split step-ca-ui into a React SPA and an OpenAPI-described Go backend-for-frontend
 
-Status: revision 7. Written 2026-08-13 against `main` at `a549750`, revised through two four-phase reviews, and **partly executed: Phase 0 is complete and merged**, so the decisions it tested are now measured rather than proposed. **All seven open questions are answered as of 2026-08-15, so nothing in this plan is blocked on a decision.**
+Status: revision 8. Written 2026-08-13 against `main` at `a549750`, revised through two four-phase reviews, and **partly executed: Phases 0 and 1 are complete and merged**, so the decisions they tested are now measured rather than proposed. **All seven open questions are answered as of 2026-08-15, so nothing in this plan is blocked on a decision.** Phase 2, the client package pipeline, is next.
 
 This plan replaces the server-rendered Go UI in `backend/` with a React single-page application, served by its own nginx container, talking to the Go process over a versioned JSON API. The Go side becomes a backend-for-frontend: it keeps sessions, authorisation, database and CA access, and publishes an OpenAPI 3.1 description that a generated TypeScript client consumes. A CI gate ties the frontend build to that exact description, so a contract change that breaks the frontend fails in the same run rather than at runtime.
 
@@ -19,7 +19,7 @@ Cost: a full rewrite of the user interface across 33 templates, 65 routes and 46
 | [5. API conventions](#5-api-conventions) | 5.1 Base path · 5.2 Error model · 5.3 Authentication · 5.4 CSRF · 5.5 Authorisation · 5.6 Lists · 5.7 Binary responses · 5.8 Naming and shapes · 5.9 Frontend conventions · 5.10 Two-container failure modes · 5.11 One operation, end to end |
 | [6. Endpoint map](#6-endpoint-map) | every current route to its replacement, with roles |
 | [7. The contract pipeline](#7-the-contract-pipeline) | 7.1 Spec generation · 7.2 Drift gate · 7.3 Client generation · 7.4 Packaging · 7.5 Publication · 7.6 Consumption |
-| [8. Phases](#8-phases) | Phases 0, 1, 2, 3a, 3b, 3c, 4 to 9, all on `main`. only Phase 9 is irreversible |
+| [8. Phases](#8-phases) | Phases 0, 1, 2, 3a, 3b, 3c, 4 to 9, all on `main`. 0 and 1 are complete; only Phase 9 is irreversible |
 | [9. CI and CD](#9-ci-and-cd) | 9.1 Job graph · 9.2 Workflow changes · 9.3 Rollback and recovery |
 | [10. Impact on the e2e suite](#10-impact-on-the-e2e-suite) | the agent was stopped 2026-08-13. what survives, and the resumption order |
 | [11. Risk register](#11-risk-register) | R1 to R34, each with a trigger and an owner phase unless explicitly parked; the live ones also carry a status |
@@ -1237,7 +1237,21 @@ The step list below is retained as the record of what was built.
 
 **Exit criterion (met, with the three exceptions recorded above).** Committed as a file, not left in a review comment. `go build ./...` succeeds with no Node run. The spec is byte-identical across two runs, two machines and two environments. The generated client typechecks. The CSRF interceptor works. A protected route returns `application/problem+json` on `401`. A validation failure returns `422` with no submitted value echoed. An unmatched `/api/v1/*` path returns a 404 problem document. If huma's ergonomics, the `Unwrap` mechanic or the spec output are wrong, this is the cheap moment to switch to `oapi-codegen`, and D2 is revisited before Phase 4.
 
-### Phase 1. API foundation
+### Phase 1. API foundation. **COMPLETE, merged 2026-08-15**
+
+**Exit criterion met, verified rather than asserted.** `go test ./...` green across ten packages, `golangci-lint` clean, the committed spec byte-current, and the e2e suite **138 passed / 8 skipped / 0 failed**, run twice: once on the newly built stack and once after it was restored to stock. The 8 skips are the ACME rows, gated on the LE stack being absent from this leg, which is environmental and pre-existing. AUTH 6/6, CSRF 9/9 and RBAC 83/83 passed **unmodified against the live template routes**, which is the criterion this phase is judged on. `SESSION_SECURE=true` in that stack, so the run exercised the prefixed cookie names rather than the bare fallback.
+
+**Four decisions were taken during execution that this plan did not specify, and each is recorded because a later phase would otherwise re-litigate it.**
+
+1. **The problem-emitting recoverer is registered second, not last.** As enumerated in step 2 it would have been innermost, leaving a panic in session validation, role enforcement, CSRF or rate limiting to emit exactly the `text/plain` 500 that 4.3 added it to prevent. It runs immediately inside the unwrap middleware, which is the earliest position that still has a `ResponseWriter`.
+2. **The two `/_spike/` operations carry real roles** (`viewer` and `manager`) rather than staying public. An unauthenticated multipart upload on a certificate authority is not something to leave reachable for the length of a migration, and deny-by-default would have refused them anyway.
+3. **`DELETE /api/v1/session` needed a third CSRF mode.** A plain requirement would answer `403` to a logout from a session the server has already rejected, leaving the caller sending a cookie every request refuses. `csrfWhenSession` enforces the check only when the session actually holds a token, and it is recorded as its own value in the golden table's `csrf` column so it cannot spread quietly.
+4. **The user reaches `api/` on `middleware`'s own context key**, via `huma.WithContext` plus `middleware.WithUser`. That is what lets Section 2's "`api/` imports no `step-ui/models`" criterion hold while the handlers still receive the context shape the template chain produces.
+
+**Carried forward, and why.** Phase 0's "two machines" spec-reproducibility criterion is still untested, since one machine is all that is available. The other two Phase 0 exceptions are now closed: the error transformer landed in step 6, and the CSRF request interceptor is Phase 3a's, unchanged.
+
+**One pre-existing defect was found and fixed outside this phase's scope**, because it blocked verification: `compose.e2e-oidc.yml` gave `mock-oidc` a `wget`-based healthcheck against a distroless image with no shell, no `wget` and no `curl`, so the check could never pass and `step-ui` waited on `service_healthy` forever. The OIDC leg was unstartable. A `mock-oidc-ready` container now polls discovery and exits, and `step-ui` depends on its completion.
+
 
 1. `apitypes/` with the shared envelope types, and **`/api/v1` as a single Go constant** every scope derives from (5.1): the CSRF middleware's scope, `MaxBytesReader`'s wrap, the CSP scoping, `X-Session-Expires-At`'s emission and the 404 handler would otherwise each carry the literal, which is a correctness defect independent of versioning. The `depguard` allowlist rules and `gomodguard`'s CORS ban added to `.golangci.yml` (9.2), with the negative fixture the lint run must reject. The property-name spec test, `openapi/secret-allowlist.txt`, and the CODEOWNERS entries covering that file and the `client` job block.
 2. Huma middleware, in order: unwrap, session validation (fail closed, `auth: public` and `auth: optional` the only exemptions, `optional` still fully validating a present session), role enforcement (denying on absent metadata), CSRF, scoped rate limiting, problem-emitting recoverer. Extracts Phase 0 step 5's inline logic.
