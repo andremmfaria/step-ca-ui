@@ -329,7 +329,7 @@ func main() {
 	// ─── JSON API (Phase 0 of plans/frontend-backend-split.md) ──────────────
 	// Mounted on the same router as every route above: huma operation paths
 	// carry the /api/v1 prefix themselves (5.1).
-	humaapi.Mount(r, h)
+	humaapi.Mount(r, h, h.UserLoader())
 
 	// ─── Static files ─────────────────────────────────────────────────────────
 	// Use the embedded FS sub-tree for static files so the binary is self-contained

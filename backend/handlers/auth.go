@@ -3,11 +3,11 @@ package handlers
 import (
 	"fmt"
 	"log/slog"
-	"net"
 	"net/http"
 	"strconv"
 	"time"
 
+	"step-ui/middleware"
 	"step-ui/models"
 	"step-ui/security"
 
@@ -21,11 +21,7 @@ import (
 // RemoteAddr to a bare IP, so SplitHostPort returns an error and we fall back
 // to the raw value — both cases produce the correct host-only string.
 func clientIP(r *http.Request) string {
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return r.RemoteAddr
-	}
-	return host
+	return middleware.ClientIP(r)
 }
 
 // LoginGet renders the login page, showing a blocked notice if the IP is rate-limited.

@@ -11,10 +11,12 @@ import (
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	humaapi "step-ui/api"
 	"step-ui/config"
 	"step-ui/handlers"
+	"step-ui/models"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/gorilla/sessions"
@@ -43,11 +45,58 @@ func newTestServer(t *testing.T) *httptest.Server {
 
 	h := handlers.NewWithFS(nil, &config.Config{}, store, nil)
 	r := chi.NewRouter()
-	humaapi.Mount(r, h)
+
+	// A test-only login route. The handler is built with a nil database, so
+	// the real login path is unreachable; this mints the same session values
+	// middleware.ValidateSession reads and lets the cookie jar carry them.
+	r.Post("/test-login", func(w http.ResponseWriter, req *http.Request) {
+		sess, _ := store.Get(req, "step-ui")
+		now := time.Now().Unix()
+		sess.Values["user_id"] = testUser.ID
+		sess.Values["session_epoch"] = testUser.SessionEpoch
+		sess.Values["session_created_at"] = now
+		sess.Values["last_activity"] = now
+		sess.Values["csrf_token"] = testCSRFToken
+		if err := sess.Save(req, w); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		http.SetCookie(w, &http.Cookie{Name: "step-ui-csrf", Value: testCSRFToken, Path: "/"})
+	})
+
+	humaapi.Mount(r, h, stubUserLoader)
 
 	srv := httptest.NewServer(r)
 	t.Cleanup(srv.Close)
 	return srv
+}
+
+// testUser is the row stubUserLoader returns. Role manager satisfies both the
+// viewer and the manager operations registered today.
+var testUser = &models.User{ID: 1, Username: "spike", Role: "manager", IsActive: true, SessionEpoch: 7}
+
+// testCSRFToken is the value the test-only login route puts in both halves of
+// the session-bound pair (5.4).
+const testCSRFToken = "test-csrf-token-value"
+
+// stubUserLoader stands in for db.GetUserByID, which cannot run against the
+// nil database these tests build the handler with.
+func stubUserLoader(id int) (*models.User, error) {
+	if id != testUser.ID {
+		return nil, nil
+	}
+	return testUser, nil
+}
+
+// login mints an authenticated session into client's cookie jar and returns
+// the CSRF token to echo in X-CSRF-Token on unsafe methods.
+func login(t *testing.T, client *http.Client, srv *httptest.Server) string {
+	t.Helper()
+	resp := doRequest(t, client, http.MethodPost, srv.URL+"/test-login", nil, nil) //nolint:bodyclose // closed via t.Cleanup inside doRequest
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("test-login: status = %d, want 200", resp.StatusCode)
+	}
+	return testCSRFToken
 }
 
 func newClient(t *testing.T) *http.Client {
@@ -173,6 +222,7 @@ func TestConfig_IsPublic(t *testing.T) {
 func TestSpikeBlob_Downloads(t *testing.T) {
 	srv := newTestServer(t)
 	client := newClient(t)
+	login(t, client, srv)
 
 	resp := doRequest(t, client, http.MethodGet, srv.URL+"/api/v1/_spike/blob", nil, nil) //nolint:bodyclose // closed via t.Cleanup inside doRequest
 
@@ -213,10 +263,12 @@ func multipartUploadBody(t *testing.T, includeFile bool) (*bytes.Buffer, string)
 func TestSpikeUpload_Succeeds(t *testing.T) {
 	srv := newTestServer(t)
 	client := newClient(t)
+	token := login(t, client, srv)
 
 	buf, contentType := multipartUploadBody(t, true)
 	resp := doRequest(t, client, http.MethodPost, srv.URL+"/api/v1/_spike/upload", buf, func(r *http.Request) { //nolint:bodyclose // closed via t.Cleanup inside doRequest
 		r.Header.Set("Content-Type", contentType)
+		r.Header.Set("X-CSRF-Token", token)
 	})
 
 	if resp.StatusCode != http.StatusOK {
@@ -240,9 +292,11 @@ func TestSpikeUpload_MissingFileIsUnprocessableEntity(t *testing.T) {
 	srv := newTestServer(t)
 	client := newClient(t)
 
+	token := login(t, client, srv)
 	buf, contentType := multipartUploadBody(t, false)
 	resp := doRequest(t, client, http.MethodPost, srv.URL+"/api/v1/_spike/upload", buf, func(r *http.Request) { //nolint:bodyclose // closed via t.Cleanup inside doRequest
 		r.Header.Set("Content-Type", contentType)
+		r.Header.Set("X-CSRF-Token", token)
 	})
 
 	if resp.StatusCode != http.StatusUnprocessableEntity {

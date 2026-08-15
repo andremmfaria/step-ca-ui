@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"step-ui/config"
+	"step-ui/middleware"
 	"step-ui/models"
 	"step-ui/security"
 	"step-ui/stepca"
@@ -88,6 +89,13 @@ func (h *Handler) Store() *sessions.CookieStore { return h.store }
 
 // Cfg exposes the loaded configuration to backend/api.
 func (h *Handler) Cfg() *config.Config { return h.cfg }
+
+// UserLoader adapts db.GetUserByID to middleware.UserLoader. It lives here
+// rather than in api/ so that package can enforce a role without importing
+// step-ui/models, which Section 2's depguard allowlist forbids.
+func (h *Handler) UserLoader() middleware.UserLoader {
+	return func(id int) (*models.User, error) { return appdb.GetUserByID(h.db, id) }
+}
 
 // NewWithFS creates a Handler that reads templates from the provided FS.
 // Pass the module-root embed.FS so templates and static files are baked into

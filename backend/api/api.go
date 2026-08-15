@@ -10,18 +10,21 @@ import (
 	"context"
 	"net/http"
 
+	"step-ui/apitypes"
 	"step-ui/handlers"
+	appmw "step-ui/middleware"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/go-chi/chi/v5"
 )
 
-// BasePath is the one spelling of the /api/v1 prefix (5.1); every operation
-// path below is written out starting with it.
-const BasePath = "/api/v1"
+// BasePath re-exports apitypes.BasePath so operation paths in this package
+// read naturally. apitypes owns the constant because middleware/ derives its
+// scopes from it too and cannot import api/ without a cycle (5.1).
+const BasePath = apitypes.BasePath
 
-// maxBodyBytes bounds every /api/v1 request body before any parser sees it
+// maxBodyBytes bounds every BasePath request body before any parser sees it
 // (5.7). Phase 0 proves the mechanism; the real per-endpoint ceilings are a
 // later-phase decision.
 const maxBodyBytes = 5 << 20 // 5 MiB
@@ -58,6 +61,19 @@ func config() huma.Config {
 	cfg.DocsPath = ""
 	cfg.OpenAPIPath = ""
 	cfg.SchemasPath = ""
+	// The scheme roleOp attaches role names to. It documents the posture; the
+	// runtime enforcement is Metadata["role"] in roleMiddleware (5.5).
+	cfg.Components.SecuritySchemes = map[string]*huma.SecurityScheme{
+		securitySchemeName: {
+			Type:        "apiKey",
+			In:          "cookie",
+			Name:        handlers.SessionCookieName,
+			Description: "Encrypted session cookie. Role names in a requirement array are documentation: enforcement is server-side.",
+		},
+	}
+	// Installed here rather than on the mounted API so cmd/openapi's
+	// spec-only API behaves identically (5.2).
+	cfg.Transformers = append(cfg.Transformers, stripSubmittedValues)
 	return cfg
 }
 
@@ -81,15 +97,27 @@ func unwrapMiddleware(ctx huma.Context, next func(huma.Context)) {
 // the legacy routes are already registered on: huma operation paths carry
 // the /api/v1 prefix themselves (5.1) rather than being registered under a
 // chi sub-router, so a request never gets prefix-stripped twice.
-func Mount(r chi.Router, h *handlers.Handler) huma.API {
+func Mount(r chi.Router, h *handlers.Handler, loadUser appmw.UserLoader) huma.API {
 	// Default is 8 KiB, far too small for a cert/key upload (5.7).
 	humachi.MultipartMaxMemory = 1 << 20 // 1 MiB
 
 	humaAPI := humachi.New(r, config())
-	humaAPI.UseMiddleware(unwrapMiddleware)
+	// Order matters and is 5.5's, with one correction: the recoverer is second
+	// rather than last, so that a panic in any of the four gates below it is
+	// still answered with a problem document. unwrap must precede it because
+	// it is what makes the ResponseWriter reachable.
+	humaAPI.UseMiddleware(
+		unwrapMiddleware,
+		recoverMiddleware,
+		sessionMiddleware(h, loadUser),
+		roleMiddleware,
+		csrfMiddleware(h),
+		rateLimitMiddleware,
+	)
 	Register(humaAPI, h)
 
 	r.NotFound(notFound)
+	r.MethodNotAllowed(methodNotAllowed)
 
 	return humaAPI
 }

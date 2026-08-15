@@ -12,44 +12,51 @@ import (
 // from construction (Mount, NewForSpec) so cmd/openapi can call it against a
 // Handler built with no database, no CA client and no environment (D3).
 func Register(humaAPI huma.API, h *handlers.Handler) {
-	huma.Register(humaAPI, huma.Operation{
+	// The one auth: optional operation in the API (5.5): it validates a
+	// session when present, never answers 401, and is exempt from the
+	// sliding-window renewal so an idling open tab cannot keep a session alive.
+	huma.Register(humaAPI, optionalAuthOp(huma.Operation{
 		OperationID: "getSession",
 		Method:      http.MethodGet,
 		Path:        BasePath + "/session",
 		Tags:        []string{"session"},
 		Summary:     "Get the current session state",
-	}, getSession(h))
+	}), getSession(h))
 
-	huma.Register(humaAPI, huma.Operation{
+	huma.Register(humaAPI, publicOp(huma.Operation{
 		OperationID: "getConfig",
 		Method:      http.MethodGet,
 		Path:        BasePath + "/config",
 		Tags:        []string{"system"},
 		Summary:     "Get public runtime configuration",
-	}, getConfig(h))
+	}), getConfig(h))
 
-	huma.Register(humaAPI, huma.Operation{
+	huma.Register(humaAPI, roleOp("viewer", huma.Operation{
 		OperationID: "getStatus",
 		Method:      http.MethodGet,
 		Path:        BasePath + "/status",
 		Tags:        []string{"dashboard"},
 		Summary:     "Get active/expiring certificate counts",
-	}, getStatus(h))
+	}), getStatus(h))
 
-	huma.Register(humaAPI, huma.Operation{
+	// The two spike operations prove the octet-stream and multipart mechanics
+	// Phase 4 reuses (5.7). They carry a real role rather than staying public:
+	// an unauthenticated multipart upload on a certificate authority is not
+	// something to leave reachable for the length of a migration.
+	huma.Register(humaAPI, roleOp("viewer", huma.Operation{
 		OperationID: "getSpikeBlob",
 		Method:      http.MethodGet,
 		Path:        BasePath + "/_spike/blob",
 		Tags:        []string{"system"},
 		Summary:     "Phase 0 spike: binary download mechanic",
 		Responses:   spikeBlobResponses,
-	}, getSpikeBlob)
+	}), getSpikeBlob)
 
-	huma.Register(humaAPI, huma.Operation{
+	huma.Register(humaAPI, roleOp("manager", huma.Operation{
 		OperationID: "postSpikeUpload",
 		Method:      http.MethodPost,
 		Path:        BasePath + "/_spike/upload",
 		Tags:        []string{"system"},
 		Summary:     "Phase 0 spike: multipart upload mechanic",
-	}, postSpikeUpload)
+	}), postSpikeUpload)
 }

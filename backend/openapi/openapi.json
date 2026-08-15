@@ -221,6 +221,14 @@
         ],
         "type": "object"
       }
+    },
+    "securitySchemes": {
+      "session": {
+        "description": "Encrypted session cookie. Role names in a requirement array are documentation: enforcement is server-side.",
+        "in": "cookie",
+        "name": "step-ui",
+        "type": "apiKey"
+      }
     }
   },
   "info": {
@@ -268,10 +276,18 @@
             "description": "Error"
           }
         },
+        "security": [
+          {
+            "session": [
+              "viewer"
+            ]
+          }
+        ],
         "summary": "Phase 0 spike: binary download mechanic",
         "tags": [
           "system"
-        ]
+        ],
+        "x-required-role": "viewer"
       }
     },
     "/api/v1/_spike/upload": {
@@ -324,10 +340,18 @@
             "description": "Error"
           }
         },
+        "security": [
+          {
+            "session": [
+              "manager"
+            ]
+          }
+        ],
         "summary": "Phase 0 spike: multipart upload mechanic",
         "tags": [
           "system"
-        ]
+        ],
+        "x-required-role": "manager"
       }
     },
     "/api/v1/config": {
@@ -355,6 +379,7 @@
             "description": "Error"
           }
         },
+        "security": [],
         "summary": "Get public runtime configuration",
         "tags": [
           "system"
@@ -386,6 +411,7 @@
             "description": "Error"
           }
         },
+        "security": [],
         "summary": "Get the current session state",
         "tags": [
           "session"
@@ -417,10 +443,18 @@
             "description": "Error"
           }
         },
+        "security": [
+          {
+            "session": [
+              "viewer"
+            ]
+          }
+        ],
         "summary": "Get active/expiring certificate counts",
         "tags": [
           "dashboard"
-        ]
+        ],
+        "x-required-role": "viewer"
       }
     }
   }
