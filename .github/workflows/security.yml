@@ -86,12 +86,10 @@ jobs:
           fetch-depth: 0
 
       - name: Run gitleaks
-        # BLOCKING for NEW findings (PR-22).  A committed baseline report
-        # (.gitleaks-baseline.json) suppresses any pre-existing findings so only
-        # newly introduced secrets fail the build.  Regenerate the baseline after
-        # a one-time triage: `gitleaks detect --report-format json --report-path
-        # .gitleaks-baseline.json` then commit the file.
-        # TODO: commit .gitleaks-baseline.json after first-time triage scan.
+        # BLOCKING for NEW findings (PR-22).  Known false positives are
+        # allowlisted by fingerprint/regex in the committed .gitleaks.toml
+        # (extends gitleaks' default ruleset), so only genuinely new secrets
+        # fail the build.  Add an entry there after triaging any new finding.
         uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,14 @@
+title = "gitleaks config for step-ca-ui"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "known false positives, verified by fingerprint"
+regexTarget = "line"
+regexes = [
+  # legoConfig.Certificate.KeyType assignment (lego's TLS key-type enum,
+  # not a secret). Historical commit 3f0259581dba6b47f60e67f60606096b66fbe266,
+  # step-ui-go/le/lego.go:90, rule generic-api-key.
+  '''Certificate\.KeyType\s*=\s*certcrypto\.''',
+]
