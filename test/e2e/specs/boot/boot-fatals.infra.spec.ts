@@ -46,7 +46,7 @@ test.describe.serial("bootstrap: fatals scenario", () => {
   // every case, not just (b) and (c)) — that fix is applied below but the
   // full file, in order, including case (c)'s wait against a stopped (not
   // absent) postgres, was not re-run end to end before this pass ended.
-  test.fixme(true, "E2E-BOOT-07 not yet re-verified end to end after the freshPostgres() fix — see comment above");
+  test.fixme(true, "E2E-BOOT-07 not yet re-verified end to end after the freshPostgres() fix, see comment above");
 
   test("E2E-BOOT-07 (a): weak SECRET_KEY", async () => {
     test.setTimeout(3 * 60_000);
