@@ -23,7 +23,8 @@
     "./client": {
       "types": "./dist/client.gen.d.ts",
       "import": "./dist/client.gen.js"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "files": [
     "dist"
