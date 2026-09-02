@@ -51,7 +51,7 @@ Status: 2026-08-10. Verified against `step-ui-go/` at `e53236f`.
 
 This is the project's end-to-end suite. It validates the deployed `step-ca-ui` stack (postgres + step-ca + step-ui, `docker-compose.yml`) as a black box: real HTTP requests against a running container set, real TLS handshakes, real files on the compose volumes. A test belongs here when its property is only observable against a running stack.
 
-The suite was seeded from `plans/step-cli-to-ca-lib-swap.md`. Section 5 traces which tests discharge which of that plan's criteria and risks.
+The suite was seeded from the step CLI to `ca` library swap plan, removed on 2026-09-02 once the swap had fully landed in `backend/stepca/` (see `plans/frontend-backend-split.md`, Section 12). Section 5 traces which tests discharge which of that plan's criteria and risks.
 
 **What e2e covers that unit tests do not:**
 - The `UI_TLS_MODE` bootstrap switch (`self-signed` / `provided` / `stepca`) crossed with all four root-provisioning modes, running against a real `step-ca` container, including retry-then-fallback timing (`caBootstrapRetries=30`, `caBootstrapInterval=1s`, `stepca/bootstrap.go`, `tlsbootstrap.go`).
@@ -2283,7 +2283,7 @@ Three tables, because this suite answers to three different things. Table 5.1 an
 
 ### 5.1 Migration acceptance criteria
 
-Only the runtime-observable criteria from `plans/step-cli-to-ca-lib-swap.md` appear here. The code-grep, `go build`/`vet`/`lint`/`test` and `go.mod` pinning criteria are CI and code-review concerns and are deliberately unmapped.
+Only the runtime-observable criteria from the removed step CLI to `ca` library swap plan appear here. The code-grep, `go build`/`vet`/`lint`/`test` and `go.mod` pinning criteria are CI and code-review concerns and are deliberately unmapped.
 
 | Acceptance criterion | Covering tests | Verdict |
 |---|---|---|
