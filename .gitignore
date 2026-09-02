@@ -1,6 +1,7 @@
 # Secrets
 .env
 *.env.local
+.env.e2e-*
 secrets/
 node_modules/
 package-lock.json

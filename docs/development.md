@@ -47,7 +47,7 @@ go test -tags=integration -race -count=1 ./db/...
 |---|---|---|
 | `api` | `*.api.spec.ts` | Runs as a container on the compose network, dials the `step-ui` service name directly |
 | `ui` | `*.ui.spec.ts` | Same network, drives a real Chromium via Playwright |
-| `infra` | `*.infra.spec.ts` | Runs on the host, dials the published port. No spec files exist under this pattern yet, so `make e2e-bootstrap` (below), which runs `--project=infra`, currently matches zero tests |
+| `infra` | `*.infra.spec.ts` | Runs on the host, dials the published port. Five spec files under `specs/boot/` now cover E2E-BOOT-01 to -07 and -09 (see below); `make e2e-bootstrap` (below) runs `--project=infra` filtered to whichever IDs the chosen `SCENARIO` names |
 
 `.github/workflows/e2e.yml` builds the application image and a Playwright-plus-docker-CLI harness image, brings up `docker-compose.yml` plus `compose.e2e-image.yml`, and runs **only the `api` project** (`npx playwright test --project=api`). The `ui` project is exercised locally via `make e2e-main` (which runs `api` then `ui`), not in CI today.
 
@@ -66,7 +66,9 @@ Several compose overlays exist purely to reach test scenarios the stock stack ca
 
 `compose.phase0-spike.yml` is a separate, non-e2e overlay for the Phase 0 SPA/nginx spike, kept out of `docker-compose.yml` so the base stack stays three services until the real split lands, see [docs/architecture.md](architecture.md#migration-state).
 
-The migration plan ([plans/frontend-backend-split.md](../plans/frontend-backend-split.md), section 10) describes the e2e suite as **active**, not paused: 24 spec files currently cover 40 of 78 indexed test IDs. Four `ui` spec files were written against the server-rendered markup the migration eventually deletes and will need rewriting or retiring once that markup changes.
+The migration plan ([plans/frontend-backend-split.md](../plans/frontend-backend-split.md), section 10) describes the e2e suite as **active**, not paused: 24 `api`/`ui` spec files currently cover 40 of 78 indexed test IDs. Four `ui` spec files were written against the server-rendered markup the migration eventually deletes and will need rewriting or retiring once that markup changes.
+
+`specs/boot/` adds the `infra` project's coverage of the bootstrap matrix (Section 3.1 of [plans/e2e-tests.md](../plans/e2e-tests.md)): `boot-fingerprint.infra.spec.ts` (E2E-BOOT-01, -05, -06, one file since the three share a CA identity across the job), `boot-ca-down.infra.spec.ts` (E2E-BOOT-02, -09), `boot-provided.infra.spec.ts` (E2E-BOOT-03), `boot-selfsigned.infra.spec.ts` (E2E-BOOT-04), and `boot-fatals.infra.spec.ts` (E2E-BOOT-07's five cases plus its positive control). The first four files were verified with real `make e2e-bootstrap SCENARIO=<fingerprint|ca-down|provided|selfsigned>` runs on 2026-09-02; `boot-fatals.infra.spec.ts` is marked `test.fixme` (see the file's own comment) because case (c)'s timing against a stopped-not-absent postgres was not re-confirmed after a same-day fix to how the other cases reach postgres. No CI workflow invokes the `infra` project yet, only `lint-meta.yml`'s harness `tsc`/`eslint` steps cover these files today; wiring `e2e.yml` to actually run `make e2e-bootstrap` per scenario remains open, see `plans/e2e-implementation-status.md`.
 
 ## Regenerating the API contract
 

@@ -197,3 +197,60 @@ export async function recreate(service: string, env: Record<string, string> = {}
 export async function timestampMarker(): Promise<string> {
   return new Date().toISOString();
 }
+
+/** Resolves through `compose ps -q` rather than the bare service/container name, which is ambiguous whenever more than one compose project is live on the host. */
+export async function containerId(service: string): Promise<string> {
+  const res = await compose("ps", "-q", service);
+  const id = res.stdout.trim().split("\n")[0];
+  if (!id) throw new Error(`no container id for service ${service} (docker compose ps -q returned nothing)`);
+  return id;
+}
+
+export interface ContainerState {
+  Status: string;
+  ExitCode: number;
+}
+
+export async function inspectState(service: string): Promise<ContainerState> {
+  const id = await containerId(service);
+  const res = await run(["docker", "inspect", "--format", "{{json .State}}", id]);
+  if (res.code !== 0) throw new Error(`docker inspect ${id} failed: ${res.stderr}`);
+  return JSON.parse(res.stdout.trim()) as ContainerState;
+}
+
+/** Bounded at 90s: E2E-BOOT-07 case (c) delays its fatal by entrypoint.sh's own 60x1s wait-for-postgres loop. */
+export async function waitExited(service: string, timeoutMs = 90_000): Promise<ContainerState> {
+  return pollUntil(
+    `${service} to exit`,
+    () => inspectState(service),
+    (s) => s.Status === "exited",
+    { timeoutMs, intervalMs: 2000 },
+  );
+}
+
+/** CI substitutes the prebuilt image and never passes --build; a local run needs it to pick up source changes. */
+export function upFlags(): string[] {
+  const usesPrebuiltImage = overrideFiles().includes("compose.e2e-image.yml");
+  return usesPrebuiltImage ? [] : ["--build"];
+}
+
+/** `up -d`, with a longer timeout than compose()'s default 120s: a cold `--build` runs past it. */
+export async function upStack(...services: string[]): Promise<void> {
+  const res = await run(composeArgv("up", "-d", ...upFlags(), ...services), { timeoutMs: 5 * 60_000 });
+  if (res.code !== 0) throw new Error(`docker compose up -d failed (${res.code}): ${res.stderr || res.stdout}`);
+}
+
+/** Matches Makefile's E2E_PROJECT: compose derives the project name the same way when COMPOSE_PROJECT_NAME is unset. */
+export function projectName(): string {
+  return process.env.COMPOSE_PROJECT_NAME ?? path.basename(REPO_ROOT);
+}
+
+const STEP_UI_VOLUMES = ["step-ui-certs", "step-ui-ssl", "step-ui-data", "step-ui-uploads"];
+
+/** Drops step-ui's own volumes while leaving step-ca-data, and the CA identity a fingerprint was computed from, intact. Call after `compose("down")` (no `-v`). */
+export async function resetStepUIVolumes(): Promise<void> {
+  const proj = projectName();
+  for (const vol of STEP_UI_VOLUMES) {
+    await run(["docker", "volume", "rm", `${proj}_${vol}`]);
+  }
+}

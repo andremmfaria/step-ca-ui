@@ -7,8 +7,22 @@ export const REPO_ROOT = process.env.E2E_REPO_ROOT ?? path.resolve(__dirname, ".
 
 export const BASE_URL = process.env.BASE_URL ?? "https://step-ui:8443";
 
-// Host-context (infra) tests dial the published port, not the service name.
-export const HOST_URL = process.env.HOST_URL ?? `https://localhost:${process.env.UI_HTTPS_PORT ?? "443"}`;
+/**
+ * Host-context (infra) tests dial the published port, not the service name.
+ * UI_HTTPS_PORT lives only in the (possibly scenario-edited) .env file that
+ * compose reads via --env-file, never in the harness's own environment, so
+ * this has to parse the file rather than read process.env.
+ */
+export function hostURL(): string {
+  if (process.env.HOST_URL) return process.env.HOST_URL;
+  const envFile = process.env.E2E_ENV_FILE ?? path.join(REPO_ROOT, ".env");
+  let port = "443";
+  if (fs.existsSync(envFile)) {
+    const m = /^\s*UI_HTTPS_PORT\s*=\s*(.*)$/m.exec(fs.readFileSync(envFile, "utf8"));
+    if (m && m[1] !== undefined) port = m[1].trim().replace(/^["']|["']$/g, "");
+  }
+  return `https://localhost:${port}`;
+}
 
 export const ADMIN_USERNAME = process.env.E2E_ADMIN_USERNAME ?? "admin";
 
