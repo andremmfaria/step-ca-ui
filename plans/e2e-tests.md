@@ -74,7 +74,7 @@ The suite was seeded from the step CLI to `ca` library swap plan, removed on 202
 | Property | Where it is asserted |
 |---|---|
 | The notification worker's 24h ticker | owed: a unit test with an injected clock. No test file exercises `StartNotificationWorker`'s ticker today |
-| `security.BlockTime` versus `LimitWindow` timing | owed: a unit test in `security/security_test.go`. Neither identifier is referenced anywhere in that file today |
+| `RetryAfter` and `LockoutMessage` against `LimitWindow` | `security/security_test.go`: `TestRateLimiterRetryAfter`, `TestLockoutMessageNamesLimitWindow` |
 | Session idle-timeout and absolute-lifetime expiry | `middleware/middleware_test.go`, all three cases |
 | The size of `adminConsoleCommands` | unit assertion over the slice, not a count of rendered `<option>` elements |
 | The schema-migration upgrade path | owed: an integration test with fixture dumps. `db/integration_test.go` today has only `TestIntegration_InitSchema_Idempotent`, which checks that re-running the schema is a no-op, not that an old-schema fixture upgrades cleanly |
@@ -794,7 +794,7 @@ Do **not** assert "the session cookie value changed". `securecookie` encrypts wi
 
 *Assertions:*
 - Attempts 1 through 4 each carry a flash, and the four texts in order are `Invalid username or password. Attempts remaining: 4`, then `3`, then `2`, then `1`. Asserting only the first message pins a compile-time constant (`security.LimitCount = 5`, `security/security.go:111`) and passes against a counter that never decrements. The descending sequence is what tests the counter.
-- **Attempt 5 carries no flash.** The message arrives on the *following* `GET /login` as `.Error`, because `LoginGet`'s `IsBlocked` branch renders it and the fifth-attempt flash was deliberately removed so the page does not show two error boxes (`handlers/auth.go:98-101`, and see Section 6.12). Assert that the page after attempt 5 contains exactly **one** occurrence of `Too many attempts. Please wait 15 minutes.` A test that looks for a flash here fails, and a test that counts occurrences loosely would have passed against the duplicated rendering this replaced.
+- **Attempt 5 carries no flash.** The message arrives on the *following* `GET /login` as `.Error`, because `LoginGet`'s `IsBlocked` branch renders it and the fifth-attempt flash was deliberately removed so the page does not show two error boxes (`handlers/auth.go:98-101`, and see Section 6.12). Assert that the page after attempt 5 contains exactly **one** occurrence of `Too many attempts. Please wait 5 minutes.` A test that looks for a flash here fails, and a test that counts occurrences loosely would have passed against the duplicated rendering this replaced.
 - Every attempt returns `302` to `/login`. The wrong-credential branch redirects (`handlers/auth.go:102`). This is not the shape of the blocked branch that E2E-AUTH-03 exercises, which renders inline at `200`, nor of the CSRF and policy paths, which also render inline.
 - `/admin/security` contains exactly five rows for the dedicated lockout user's username with `success=false`, all labelled `Denied`. That count is scoped to this username: `auth_log` is global and append-only, so an unscoped query would also pick up rows other tests wrote. E2E-SEC-01 does not assert these rows, because it runs before this test.
 
@@ -815,11 +815,11 @@ Do **not** assert "the session cookie value changed". `securecookie` encrypts wi
 
 *Assertions:*
 - **`200` with the page rendered inline**, not a redirect. The `IsBlocked` branch sets `data["Error"]` and `data["Blocked"] = true` and calls `h.render` (`handlers/auth.go:64-70`). There is no flash and no `Location` header.
-- The rendered page contains `Too many attempts. Please wait 15 minutes.` exactly once, from the `.Error` channel. `login.html` renders `.Error` and `.Msgs` in separate blocks, and this text must reach only the first.
+- The rendered page contains `Too many attempts. Please wait 5 minutes.` exactly once, from the `.Error` channel. `login.html` renders `.Error` and `.Msgs` in separate blocks, and this text must reach only the first.
 - The submit buttons render disabled, since `data["Blocked"]` drives that too.
 - No new session cookie, and no `auth_log` row for this attempt. `LoginPost` consults `security.RL.IsBlocked` before it reads the username or verifies the credential, so a correct password cannot pass a blocked IP. That ordering is the security property and it is the only part of the lockout observable over HTTP.
 
-*Not covered:* when the block actually clears. `clean()` consults only `LimitWindow = 5 * time.Minute` (`security/security.go:112`), while the user-facing copy says fifteen minutes and `security.BlockTime = 15 * time.Minute` (`:113`) is referenced nowhere outside its own declaration. The team owes a decision here, either a copy fix to five minutes or an implementation of `BlockTime`. It is a unit-level timing question and belongs in `security/security_test.go`, where the clock can be controlled. Observing it over HTTP costs six minutes of CI and races the five-minute boundary.
+*Not covered:* when the block actually clears. `clean()` consults only `LimitWindow = 5 * time.Minute` (`security/security.go:112`); the user-facing copy and the API's `Retry-After` are now both derived from that same window (`security.LockoutMessage`, `security.RateLimiter.RetryAfter`), and `BlockTime` is gone. It is a unit-level timing question and belongs in `security/security_test.go`, where the clock can be controlled. Observing it over HTTP costs six minutes of CI and races the five-minute boundary.
 
 *Teardown:* the block is cleared over HTTP, not by waiting. `POST /admin/users` as admin with `action=unblock_ip` and `target_ip=<the blocked ip>` calls `security.RL.Clear` (`handlers/users.go:125-131`). Assert that a subsequent correct login from that IP now succeeds. This is the suite's only live exercise of `unblock_ip` against a genuinely blocked address; E2E-ADM-08's row of the same action runs earlier, against a scratch value, and asserts only the form's shape. `make e2e-restart-ui` is the fallback if the admin session is unavailable.
 

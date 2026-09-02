@@ -32,7 +32,7 @@ func (h *Handler) LoginGet(w http.ResponseWriter, r *http.Request) {
 		data["NeedTOTP"] = true
 	}
 	if security.RL.IsBlocked(ip) {
-		data["Error"] = "Too many attempts. Please wait 15 minutes."
+		data["Error"] = security.LockoutMessage()
 		data["Blocked"] = true
 	}
 	data["OIDCEnabled"] = h.cfg.OIDCEnabled
@@ -59,7 +59,7 @@ func (h *Handler) LoginPost(w http.ResponseWriter, r *http.Request) {
 
 	if security.RL.IsBlocked(ip) {
 		data := h.base(w, r, "")
-		data["Error"] = "Too many attempts. Please wait 15 minutes."
+		data["Error"] = security.LockoutMessage()
 		data["Blocked"] = true
 		h.render(w, "login", data)
 		return

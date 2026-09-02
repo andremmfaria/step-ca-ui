@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/hex"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -110,8 +111,14 @@ const (
 	// before the IP is considered blocked.
 	LimitCount  = 5
 	LimitWindow = 5 * time.Minute
-	BlockTime   = 15 * time.Minute
 )
+
+// LockoutMessage is the user-facing lockout notice. Phrased against
+// LimitWindow rather than a hardcoded number, since the block lifts as soon
+// as attempts age out of that window, not on a fixed timer.
+func LockoutMessage() string {
+	return fmt.Sprintf("Too many attempts. Please wait %d minutes.", int(LimitWindow/time.Minute))
+}
 
 // RateLimiter tracks per-IP login attempt counts with a sliding time window.
 type RateLimiter struct {
@@ -175,4 +182,21 @@ func (r *RateLimiter) Left(ip string) int {
 		return 0
 	}
 	return n
+}
+
+// RetryAfter returns how long ip stays blocked: the time remaining until its
+// oldest surviving attempt ages out of LimitWindow and the count drops below
+// LimitCount. Zero when ip is not currently blocked.
+func (r *RateLimiter) RetryAfter(ip string) time.Duration {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.clean(ip)
+	if len(r.attempts[ip]) < LimitCount {
+		return 0
+	}
+	remaining := LimitWindow - time.Since(r.attempts[ip][0])
+	if remaining < 0 {
+		return 0
+	}
+	return remaining
 }

@@ -3,6 +3,7 @@ package api
 import (
 	"crypto/subtle"
 	"log/slog"
+	"math"
 	"net/http"
 	"runtime/debug"
 	"strconv"
@@ -161,7 +162,8 @@ func csrfMiddleware(h *handlers.Handler) func(huma.Context, func(huma.Context)) 
 // rateLimitMiddleware runs only for operations carrying Metadata["ratelimit"]
 // (5.5). Applied globally, five bad logins from a shared corporate egress
 // address would 429 every authenticated user on the installation. Retry-After
-// is computed from the block window and never echoed from input.
+// is computed from the time remaining until the IP's oldest counted attempt
+// ages out of the window, never echoed from input.
 func rateLimitMiddleware(ctx huma.Context, next func(huma.Context)) {
 	if scope, _ := ctx.Operation().Metadata[metaRateLimit].(string); scope != rateLimitAuth {
 		next(ctx)
@@ -170,7 +172,8 @@ func rateLimitMiddleware(ctx huma.Context, next func(huma.Context)) {
 	r, w := httpFrom(ctx.Context())
 	ip := appmw.ClientIP(r)
 	if security.RL.IsBlocked(ip) {
-		w.Header().Set("Retry-After", strconv.Itoa(int(security.BlockTime.Seconds())))
+		retrySecs := int(math.Ceil(security.RL.RetryAfter(ip).Seconds()))
+		w.Header().Set("Retry-After", strconv.Itoa(retrySecs))
 		writeRateLimitProblem(w, r.URL.Path, security.RL.Left(ip))
 		return
 	}

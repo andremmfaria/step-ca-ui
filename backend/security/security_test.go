@@ -177,3 +177,31 @@ func TestRateLimiterLeft(t *testing.T) {
 		t.Errorf("Left after 1 attempt: want %d got %d", LimitCount-1, rl.Left(ip))
 	}
 }
+
+// TestRateLimiterRetryAfter checks RetryAfter is zero pre-block, positive and
+// bounded by LimitWindow once blocked, and zero again after Clear.
+func TestRateLimiterRetryAfter(t *testing.T) {
+	rl := NewRateLimiter()
+	const ip = "198.51.100.2"
+	if rl.RetryAfter(ip) != 0 {
+		t.Errorf("RetryAfter before any attempt: want 0 got %v", rl.RetryAfter(ip))
+	}
+	for range LimitCount {
+		rl.Register(ip)
+	}
+	ra := rl.RetryAfter(ip)
+	if ra <= 0 || ra > LimitWindow {
+		t.Errorf("RetryAfter while blocked: want (0, %v] got %v", LimitWindow, ra)
+	}
+	rl.Clear(ip)
+	if rl.RetryAfter(ip) != 0 {
+		t.Errorf("RetryAfter after Clear: want 0 got %v", rl.RetryAfter(ip))
+	}
+}
+
+func TestLockoutMessageNamesLimitWindow(t *testing.T) {
+	want := "Too many attempts. Please wait 5 minutes."
+	if got := LockoutMessage(); got != want {
+		t.Errorf("LockoutMessage: want %q got %q", want, got)
+	}
+}
