@@ -16,7 +16,7 @@ All configuration lives in `.env`. `make setup` creates it from `.env.example` a
 
 Everything past that point, root CA trust and the UI's own TLS certificate, is handled **in-process** by the Go binary (`backend/main.go`, `backend/tlsbootstrap.go`), not by the entrypoint script. It runs synchronously before the HTTPS listener starts.
 
-`main.go` also runs a set of startup checks before any of this: it refuses to start if `SECRET_KEY` is weak, if `TRUST_PROXY=true` without a usable `TRUSTED_PROXY_CIDRS`, or if `OIDC_DEFAULT_ROLE` names something other than `viewer`, `manager`, `admin` or empty. It logs (but does not fail on) an unset `ALLOWED_DOMAIN_SUFFIXES`, a `UI_CERT_DURATION` under 10 minutes, and an `LE_ACME_DIRECTORY_URL` that isn't Let's Encrypt's production directory.
+`main.go` also runs a set of startup checks before any of this: it refuses to start if `SECRET_KEY` is weak, if `TRUST_PROXY=true` without a usable `TRUSTED_PROXY_CIDRS`, or if `OIDC_ENABLED=true` and `OIDC_DEFAULT_ROLE` names something other than `viewer`, `manager`, `admin` or empty (the check is skipped entirely when `OIDC_ENABLED` is false). It logs (but does not fail on) an unset `ALLOWED_DOMAIN_SUFFIXES`, a `UI_CERT_DURATION` under 10 minutes, and an `LE_ACME_DIRECTORY_URL` that isn't Let's Encrypt's production directory.
 
 ## Root CA trust
 
@@ -36,13 +36,13 @@ Everything past that point, root CA trust and the UI's own TLS certificate, is h
 |---|---|
 | `self-signed` (default) | Generates a 10-year self-signed EC P-256 cert on first boot via `crypto/x509`, if `$SSL_CERT` is absent. SANs: `IP:$HOST_IP`, `DNS:localhost`, and `DNS:$UI_HOSTNAME` when set |
 | `provided` | Does nothing. Expects a cert and key to already exist at `$SSL_CERT` / `$SSL_KEY` |
-| `stepca` | Requests a signed leaf from the step-ca this UI manages, via the smallstep library. Retried up to 30 times, 1 second apart, falls back to self-signed on failure. After a successful issue, a background renewal goroutine re-issues at roughly two thirds of the certificate's validity window |
+| `stepca` | Requests a signed leaf from the step-ca this UI manages, via the smallstep library. Retried up to 30 times, 1 second apart, falls back to self-signed on failure. After a successful issue, a background renewal goroutine (started only when the step-ca client initialised successfully, `main.go:445`) re-issues at roughly two thirds of the certificate's validity window, clamped to a minimum sleep of 1 minute so a very short `UI_CERT_DURATION` cannot drive a renewal tight loop. A failed renewal attempt is retried after a fixed 5-minute backoff instead |
 
 `UI_HOSTNAME` sets the certificate subject (CN) and an extra DNS SAN. For `self-signed` it is added to the SAN list. For `stepca` it is the requested CN/SAN, falling back to the OS-reported hostname when empty.
 
 ## TLS hot-reload
 
-`backend/tlsreload.go` re-stats both `SSL_CERT` and `SSL_KEY` on every TLS handshake. When either file's modification time changes, it reloads the pair in place via `tls.LoadX509KeyPair`. If the reload fails, the last successfully loaded certificate keeps serving, no handshake is ever dropped. This works for the `stepca` renewal goroutine, a manual file replacement in the `step-ui-ssl` volume, or any external cert-manager writing to the mounted path.
+`backend/tlsreload.go` re-stats both `SSL_CERT` and `SSL_KEY` on every TLS handshake. When either file's modification time changes, it reloads the pair in place via `tls.LoadX509KeyPair`. If the reload fails **and a certificate has already loaded successfully once**, that last-good certificate keeps serving and no handshake is dropped, a failure on the very first load (no cached certificate yet) is returned as an error instead. This works for the `stepca` renewal goroutine, a manual file replacement in the `step-ui-ssl` volume, or any external cert-manager writing to the mounted path.
 
 ## Environment variable reference
 
@@ -56,7 +56,8 @@ Every variable below is read in `backend/config/config.go` unless noted otherwis
 | `UI_HTTPS_PORT` | `443` | Yes (host port mapping only) | Host port mapped to the container's `8443` |
 | `PORT` | `8443` | Yes (hardcoded, not from `.env`) | Internal port the Go app listens on |
 | `TZ` | `UTC` | Yes | Container timezone, applied to all three containers |
-| `STEPUI_ADMIN_PASSWORD` | none, **required on first boot** | Yes | Seeds the initial admin user when no user rows exist yet. `backend/db/schema.go`'s `resolveAdminPassword` calls `log.Fatal` if no admin exists and this is empty. There is no `Admin123!`-style implicit default in the code, despite what `.env.example`'s comment says (see the note below). Remove from `.env` after first login |
+| `STEP_NET_SUBNET` | `172.28.0.0/24` | Yes (compose bridge network only) | Subnet for the `step-network` bridge network. Not in `.env.example`, add the line to `.env` by hand or set it as a shell environment variable if the default collides with something else on the host, then `docker network rm step-network` before recreating |
+| `STEPUI_ADMIN_PASSWORD` | none, **required on first boot** | Yes | Seeds the initial admin user when no user rows exist yet. `backend/db/schema.go`'s `resolveAdminPassword` returns an error if no admin exists and this is empty, its caller, `InitSchema`, is what calls `log.Fatal` on that error. There is no `Admin123!`-style implicit default in the code, despite what `.env.example`'s comment says (see the note below). Remove from `.env` after first login |
 
 `.env.example`'s comment claims an empty value defaults to a placeholder password. That does not match `backend/db/schema.go`: if no admin user exists yet and `STEPUI_ADMIN_PASSWORD` is empty, the database migration step calls `log.Fatal` and the container will not come up. Set `STEPUI_ADMIN_PASSWORD` before the first `make up`.
 
@@ -71,10 +72,10 @@ Every variable below is read in `backend/config/config.go` unless noted otherwis
 | `PROVISIONER` | `admin` | Yes | step-ca provisioner identifier used for certificate requests |
 | `PASSWORD_FILE` | `/opt/step-ui/data/provisioner_password` | Yes (hardcoded) | Path to the provisioner password file inside the container |
 | `PROVISIONER_PASSWORD` | empty | entrypoint.sh only | Plain-env fallback, written to `$PASSWORD_FILE` by the entrypoint when the file does not exist. Prefer `secrets/ca_password` |
-| `PROVISIONER_PASSWORD_FILE` | `/run/secrets/ca_password` | Yes (as `PROVISIONER_PASSWORD_FILE`, entrypoint.sh only) | Docker secret path for the provisioner password |
+| `PROVISIONER_PASSWORD_FILE` | `/run/secrets/ca_password` | Yes (as `PROVISIONER_PASSWORD_FILE`, entrypoint.sh only) | Docker secret path for the provisioner password. The `/run/secrets/ca_password` default is `entrypoint.sh`'s own shell fallback, not something `config.go` reads |
 | `STEP_CA_IMAGE` | `smallstep/step-ca:0.30.2` | Yes | step-ca image tag, also used for CA integrity verification |
-| `STEPCA_DEFAULT_TLS_CERT_DURATION` | `8760h` | Yes | Read by `scripts/step-ca-bootstrap.sh` and the step-ca container directly, not by the Go app. Default cert lifetime applied during step-ca initialisation |
-| `STEPCA_MAX_TLS_CERT_DURATION` | `87600h` | Yes | Same script/container. Maximum cert lifetime applied during step-ca initialisation |
+| `STEPCA_DEFAULT_TLS_CERT_DURATION` | `8760h` | Yes, on the `step-ca` service only | Read by `scripts/step-ca-bootstrap.sh` and the step-ca container directly, not by the Go app. Default cert lifetime applied during step-ca initialisation |
+| `STEPCA_MAX_TLS_CERT_DURATION` | `87600h` | Yes, on the `step-ca` service only | Same script/container. Maximum cert lifetime applied during step-ca initialisation |
 
 ### TLS: UI serving certificate
 
@@ -82,29 +83,29 @@ Every variable below is read in `backend/config/config.go` unless noted otherwis
 |---|---|---|---|
 | `UI_TLS_MODE` | `self-signed` | Yes | `self-signed`, `provided`, or `stepca`. See [TLS certificate modes](#tls-certificate-modes) |
 | `UI_HOSTNAME` | empty | Yes | Hostname added as DNS SAN (self-signed) or used as CN (stepca) |
-| `SSL_CERT` | `/opt/step-ui/ssl/server.crt` | n/a, hardcoded in config.go | Path to the serving TLS certificate |
-| `SSL_KEY` | `/opt/step-ui/ssl/server.key` | n/a, hardcoded in config.go | Path to the serving TLS private key |
-| `USE_HTTPS` | empty (auto-detect) | n/a, not read by entrypoint or compose | Force TLS on (`true`) or off (`false`). Empty probes whether `$SSL_CERT` exists |
+| `SSL_CERT` | `/opt/step-ui/ssl/server.crt` | n/a, hardcoded in config.go | Path to the serving TLS certificate. `config.go:109` hardcodes this path, setting `SSL_CERT` in `.env` has no effect |
+| `SSL_KEY` | `/opt/step-ui/ssl/server.key` | n/a, hardcoded in config.go | Path to the serving TLS private key. `config.go:110` hardcodes this path, setting `SSL_KEY` in `.env` has no effect |
+| `USE_HTTPS` | empty (auto-detect) | No, only in `compose.e2e-config.yml` | Force TLS on (`true`), or leave auto-detect (empty, probes whether `$SSL_CERT` exists). `USE_HTTPS=false` is a no-op: `main.go` ORs the flag with the same `$SSL_CERT` existence probe (`main.go:410-412`, default `false` in `config.go:128`), so an explicit `false` behaves identically to leaving the variable unset |
 | `UI_CERT_DURATION` | `8760h` | **No**, only in `compose.e2e-config.yml` | Validity requested under `UI_TLS_MODE=stepca`. Unparseable or non-positive values fall back to the default with a warning |
 
 ### Database
 
 | Variable | Default | In compose | Description |
 |---|---|---|---|
-| `DATABASE_URL` | constructed from parts | No (constructed by entrypoint.sh) | Full PostgreSQL DSN. Overrides the `POSTGRES_*` parts when set |
-| `POSTGRES_HOST` | `postgres` | Yes | Used only when `DATABASE_URL` is not set |
-| `POSTGRES_PORT` | `5432` | Yes | Used only when `DATABASE_URL` is not set |
-| `POSTGRES_USER` | `stepui` | Yes | Used only when `DATABASE_URL` is not set |
-| `POSTGRES_DB` | `stepui` | Yes | Used only when `DATABASE_URL` is not set |
+| `DATABASE_URL` | constructed from parts, or `postgres://stepui:stepui@postgres:5432/stepui?sslmode=disable` (`config.go:91`'s own fallback if nothing constructs one) | No (constructed by entrypoint.sh) | Full PostgreSQL DSN. Overrides the `POSTGRES_*` parts when set. In the stock stack `entrypoint.sh` normally builds and exports this from the `POSTGRES_*` parts before the Go app ever sees `config.go`'s own default |
+| `POSTGRES_HOST` | `postgres` | Yes (hardcoded, not from `.env`) | Used only when `DATABASE_URL` is not set |
+| `POSTGRES_PORT` | `5432` | Yes (hardcoded, not from `.env`) | Used only when `DATABASE_URL` is not set |
+| `POSTGRES_USER` | `stepui` | Yes (hardcoded, not from `.env`) | Used only when `DATABASE_URL` is not set |
+| `POSTGRES_DB` | `stepui` | Yes (hardcoded, not from `.env`) | Used only when `DATABASE_URL` is not set |
 | `POSTGRES_PASSWORD` | empty | entrypoint.sh only | Plain-env fallback for the database password. Prefer `secrets/postgres_password` |
-| `POSTGRES_PASSWORD_FILE` | `/run/secrets/postgres_password` | Yes, entrypoint.sh only | Docker secret path for the database password |
+| `POSTGRES_PASSWORD_FILE` | `/run/secrets/postgres_password` | Yes, entrypoint.sh only | Docker secret path for the database password. The `/run/secrets/postgres_password` default is `entrypoint.sh`'s own shell fallback, not something `config.go` reads |
 
 ### Application security
 
 | Variable | Default | In compose | Description |
 |---|---|---|---|
 | `SECRET_KEY` | none, **required** | No plain fallback in compose (file-based only) | Signs session cookies and CSRF tokens. Minimum 32 characters and must not equal the built-in placeholder, or the app refuses to start |
-| `SECRET_KEY_FILE` | `/run/secrets/secret_key` | Yes | Docker secret path for `SECRET_KEY`, read by both `entrypoint.sh` and, redundantly, `config.go`'s own `*_FILE` fallback |
+| `SECRET_KEY_FILE` | `/run/secrets/secret_key` | Yes | Docker secret path for `SECRET_KEY`, read by both `entrypoint.sh` and, redundantly, `config.go`'s own `*_FILE` fallback. The `/run/secrets/secret_key` default shown here is `entrypoint.sh`'s shell fallback and `docker-compose.yml`'s literal value, `config.go` itself supplies no default path for `SECRET_KEY_FILE` |
 | `SESSION_SECURE` | `true` | Yes | Sets the `Secure` flag (and the `__Host-` cookie name prefix, see [docs/authentication.md](authentication.md)) on session and CSRF cookies |
 | `ENABLE_HSTS` | `false` | Yes | Sends `Strict-Transport-Security`. Enable only with a trusted, non-self-signed certificate |
 | `TRUST_PROXY` | `false` | Yes | Rewrites the client IP from `X-Forwarded-For` / `X-Real-IP` / `True-Client-IP`, but only when the immediate TCP peer itself falls inside `TRUSTED_PROXY_CIDRS` |
@@ -137,7 +138,7 @@ Every variable below is read in `backend/config/config.go` unless noted otherwis
 | `OIDC_GROUP_ADMIN` | empty | **No** | IdP group name mapped to `admin` |
 | `OIDC_GROUP_MANAGER` | empty | **No** | IdP group name mapped to `manager` |
 | `OIDC_GROUP_VIEWER` | empty | **No** | IdP group name mapped to `viewer` |
-| `OIDC_DEFAULT_ROLE` | empty (deny) | **No** | Role assigned when no group matches. Must be `viewer`, `manager`, `admin` or empty, or startup fails |
+| `OIDC_DEFAULT_ROLE` | empty (deny) | **No** | Role assigned when no group matches. Must be `viewer`, `manager`, `admin` or empty, or startup fails, **but only when `OIDC_ENABLED=true`**: the check is skipped otherwise |
 | `OIDC_SYNC_ROLE` | `true` | **No** | Re-syncs role from IdP groups on every login |
 
 **None of the OIDC variables, nor `LOCAL_LOGIN_ENABLED`, appear in the stock `docker-compose.yml`'s `step-ui` service.** Setting them in `.env` alone does nothing: `docker compose config` confirms none of these keys reach the container. To enable OIDC against the stock compose file you need to add the corresponding `environment:` lines to the `step-ui` service yourself. `compose.e2e-oidc.yml` in the repository root shows the exact key list this is exercised against in CI (against a mock IdP), and is a reasonable template to copy from. See [docs/authentication.md](authentication.md) for the login and group-mapping behaviour these variables configure.

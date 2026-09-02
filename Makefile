@@ -24,7 +24,7 @@ setup: ## Bootstrap a fresh install: copy .env.example and generate secrets/
 	@# Copy .env if absent
 	@if [ ! -f .env ]; then \
 		cp .env.example .env; \
-		echo "  created  .env (from .env.example — edit HOST_IP, PROVISIONER, TZ)"; \
+		echo "  created  .env (from .env.example — edit HOST_IP, UI_HTTPS_PORT, PROVISIONER, TZ, STEPUI_ADMIN_PASSWORD)"; \
 	else \
 		echo "  skipped  .env already exists"; \
 	fi
@@ -64,7 +64,7 @@ setup: ## Bootstrap a fresh install: copy .env.example and generate secrets/
 	fi
 	@echo ""
 	@echo "Next steps:"
-	@echo "  1. Edit .env — set HOST_IP, UI_HTTPS_PORT, PROVISIONER, TZ"
+	@echo "  1. Edit .env — set HOST_IP, UI_HTTPS_PORT, PROVISIONER, TZ, STEPUI_ADMIN_PASSWORD"
 	@echo "  2. make up"
 	@echo ""
 	@echo "To regenerate secrets (existing deployment): make setup FORCE=1"

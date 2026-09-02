@@ -23,22 +23,26 @@ Use the admin UI: **Admin > Backup > Download backup bundle**, or the CLI:
 make backup
 ```
 
-Both produce a SHA-256-checksummed manifest, through two separate implementations (`backend/handlers/backup.go` for the admin UI, the `backup` Makefile target for the CLI). Restore is manual by design: unpack the archive, restore the PostgreSQL dump, and restore the Docker volumes.
+Both produce a SHA-256-checksummed manifest, through two separate implementations that cover different ground. The admin UI (`backend/handlers/backup.go`) archives a `pg_dump`, `/home/step` (the step-ca-data mount), `/opt/step-ui/data`, certificates and uploads. `make backup` archives all six named Docker volumes, including `postgres-data` and `step-ui-ssl` (the UI's own TLS material), which the admin-UI export does not cover, alongside its own `pg_dump`. Restore is manual by design: unpack the archive, restore the PostgreSQL dump, and restore the Docker volumes.
 </details>
 
 <details>
 <summary><b>How do I reset the admin password?</b></summary>
 
-**Self-service (requires SMTP and `PUBLIC_BASE_URL` configured):** use the **Forgot password?** link on the login page. A single-use reset link is emailed and expires after 30 minutes.
+**Self-service (requires SMTP and `PUBLIC_BASE_URL` configured):** use the **Forgot password?** link on the login page. SMTP is configured as a database setting from the admin UI's notifications page (host, from address, and so on, `backend/handlers/password_reset.go:94`), not an environment variable, only `PUBLIC_BASE_URL` is env. A single-use reset link is emailed and expires after 30 minutes.
 
 **Database reset (no email required):**
 
 ```bash
 docker compose exec postgres psql -U stepui -d stepui -c \
-  "UPDATE users SET password_hash = encode(sha256('newpass'::bytea), 'hex') WHERE username='admin';"
+  "UPDATE users SET password_hash = encode(sha256('newpass'::bytea), 'hex'), \
+     totp_enabled = false, totp_secret = '', is_active = true \
+   WHERE username='admin';"
 ```
 
 Log in with `admin` / `newpass` and change it from the UI. `backend/security/security.go`'s `VerifyPassword` still recognizes a 64-hex-character SHA-256 value as a legacy hash and accepts it, then transparently rehashes it to bcrypt after a successful login.
+
+The `totp_enabled`/`totp_secret` reset and `is_active = true` matter even if you only meant to reset the password: login checks `is_active` before the password at all (`backend/handlers/auth.go:102`), and a stale `totp_enabled=true` sends a successful password check straight to the 2FA step (`backend/handlers/auth.go:114`) which you may no longer be able to complete.
 </details>
 
 <details>
@@ -46,7 +50,7 @@ Log in with `admin` / `newpass` and change it from the UI. `backend/security/sec
 
 Three approaches, depending on how you obtain the certificate:
 
-**Option 1, operator-provided cert (static):** set `UI_TLS_MODE=provided` and mount your certificate and key at `SSL_CERT` / `SSL_KEY` (default paths `/opt/step-ui/ssl/server.crt` and `server.key`). The entrypoint does not touch those files. Recreate the container to pick up the change.
+**Option 1, operator-provided cert (static):** set `UI_TLS_MODE=provided` and mount your certificate and key into the `step-ui-ssl` volume at `/opt/step-ui/ssl/server.crt` and `server.key`. `SSL_CERT` and `SSL_KEY` are not environment variables the app reads, despite appearing in `.env.example`, these paths are hardcoded in `backend/config/config.go`, so setting them in `.env` has no effect. The entrypoint does not touch those files. Recreate the container to pick up the change.
 
 **Option 2, manual replacement (hot-swap, no restart required):** replace the cert and key files inside the `step-ui-ssl` volume with your own. The TLS hot-reloader (`backend/tlsreload.go`) re-stats both files on every handshake and reloads them automatically when their modification time changes.
 
@@ -78,6 +82,12 @@ Database migrations run automatically on startup.
 <summary><b>Why doesn't setting OIDC_ENABLED in .env do anything?</b></summary>
 
 The stock `docker-compose.yml` does not pass any `OIDC_*` variable, or `LOCAL_LOGIN_ENABLED`, through to the `step-ui` container. You need to add those `environment:` lines to the `step-ui` service yourself, see [docs/configuration.md](configuration.md#oidc-sso) for the full list and [docs/authentication.md](authentication.md#oidc-sso) for the setup checklist.
+</details>
+
+<details>
+<summary><b>The container won't start: "No admin user exists and STEPUI_ADMIN_PASSWORD is not set". What now?</b></summary>
+
+This is a first-boot fatal, not a bug: `backend/db/schema.go` refuses to seed an admin user with a made-up password (`schema.go:187-193`). Set `STEPUI_ADMIN_PASSWORD` in `.env` to a strong password and start the stack again. Once the admin user exists, remove the variable from `.env`, it is only consulted while the `users` table is empty.
 </details>
 
 See also: [docs/configuration.md](configuration.md), [docs/authentication.md](authentication.md), [docs/deployment.md](deployment.md).

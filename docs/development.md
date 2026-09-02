@@ -15,7 +15,7 @@ When submitting changes:
 
 - Run `make fmt` and `make lint` before pushing.
 - Update relevant tests.
-- Keep commits focused and descriptive.
+- Keep commits focused and descriptive, following this repository's actual convention: `area: lowercase summary` (`docs(plans):`, `ci:`, `e2e:`, and so on, one area per commit). There is no `CONTRIBUTING` file, the convention is inferred from `git log`.
 
 ## Tests
 
@@ -23,12 +23,13 @@ When submitting changes:
 
 ```bash
 make test   # go test -race ./... in backend/
-make cover  # backend/scripts/coverage-gate.sh
+make cover  # go test -coverprofile=coverage.out ./..., then
+            # COVERPROFILE=coverage.out THRESHOLD=15 backend/scripts/coverage-gate.sh
 ```
 
-`ci.yml`'s `build-test-lint` job runs `gofmt -l`, `go vet`, `go build`, `go test -race -coverprofile=coverage.out`, the coverage gate, and `golangci-lint` (an expanded ruleset ratcheted against a `new-from-rev` baseline), then asserts the depguard fixture in `scripts/lint-fixtures.sh` actually gets rejected.
+`ci.yml`'s `build-test-lint` job runs `gofmt -l`, `go vet`, `go build`, `go test -race -coverprofile=coverage.out`, the coverage gate, and `golangci-lint` v2.12.2 via `golangci-lint-action@v9.2.1`, then asserts the depguard fixture in `scripts/lint-fixtures.sh` actually gets rejected. Lint runs against the whole tree, there is no `new-from-rev` or `only-new-issues` baseline that would let a pre-existing finding through. The ruleset itself lives in `backend/.golangci.yml`: `errcheck`, `govet`, `staticcheck`, `ineffassign`, `unused`, `misspell`, `revive`, `gocritic`, `errorlint`, `bodyclose`, `noctx`, `gosec`, `unconvert`, `unparam`, `sloglint`, `depguard` and `gomodguard_v2`.
 
-The coverage gate itself is a floor, not a ratchet against the previous run's number: `THRESHOLD=15` is a fixed value in CI today (`backend/scripts/coverage-gate.sh`'s own comment calls it "the honest measured baseline set in PR-22"). Well-isolated packages exceed it by a wide margin, `middleware`, `config` and `security` are close to fully covered. `handlers` and the Let's Encrypt (`le`) package lean on integration and e2e tests instead of unit mocks.
+The coverage gate itself is a floor, not a ratchet against the previous run's number: `THRESHOLD=15` is a fixed value in CI today (`backend/scripts/coverage-gate.sh`'s own comment calls it "the honest measured baseline set in PR-22"). Package coverage from a `go test -coverprofile` run (`backend/coverage.out`) is uneven: `security` 97.0%, `middleware` 90.5%, `config` 85.7% are well covered by unit tests. `le` sits at 45.8% and `handlers` at 17.0%, both leaning on integration and e2e tests rather than unit mocks for a lot of their behaviour. `db` is at 0.8% under a plain unit run because its real coverage lives behind the `integration` build tag and only shows up under `go test -tags=integration`.
 
 ### DB integration tests
 
@@ -46,23 +47,24 @@ go test -tags=integration -race -count=1 ./db/...
 |---|---|---|
 | `api` | `*.api.spec.ts` | Runs as a container on the compose network, dials the `step-ui` service name directly |
 | `ui` | `*.ui.spec.ts` | Same network, drives a real Chromium via Playwright |
-| `infra` | `*.infra.spec.ts` | Runs on the host, dials the published port. No spec files exist under this pattern yet |
+| `infra` | `*.infra.spec.ts` | Runs on the host, dials the published port. No spec files exist under this pattern yet, so `make e2e-bootstrap` (below), which runs `--project=infra`, currently matches zero tests |
 
 `.github/workflows/e2e.yml` builds the application image and a Playwright-plus-docker-CLI harness image, brings up `docker-compose.yml` plus `compose.e2e-image.yml`, and runs **only the `api` project** (`npx playwright test --project=api`). The `ui` project is exercised locally via `make e2e-main` (which runs `api` then `ui`), not in CI today.
 
-Several compose overlays exist purely to reach test scenarios the stock stack can't, applied by the scenario driver (`scripts/step-ca-bootstrap.sh` neighbours, driven from `test/e2e`):
+Several compose overlays exist purely to reach test scenarios the stock stack can't. `test/e2e/scenario.sh` (invoked by `make e2e-bootstrap SCENARIO=...`, `Makefile:206-210`) is the driver behind the bootstrap scenarios, and only ever applies four of them, chosen per scenario (`scenario.sh:24-32`): `compose.e2e-image.yml`, `compose.e2e-nodeps.yml`, `compose.e2e-fingerprint.yml`, and `compose.e2e-fatals.yml` (the last two together for the `fatals` case). `scripts/step-ca-bootstrap.sh` is unrelated to any of this, it is the CA init script `docker-compose.yml` runs inside the `step-ca` container itself.
 
-| Overlay | Purpose |
-|---|---|
-| `compose.e2e-config.yml` | Passes `USE_HTTPS`, `ALLOWED_DOMAIN_SUFFIXES`, `UI_CERT_DURATION` through, none of which the stock compose file wires up |
-| `compose.e2e-fatals.yml` | Turns off `restart: unless-stopped` so an intended crash stays exited and its exit code can be read |
-| `compose.e2e-fingerprint.yml` | Drops the read-only `step-ca-data` mount so `CA_FINGERPRINT`'s fetch path is actually exercised |
-| `compose.e2e-image.yml` | Runs `step-ui` from the image the CI `image` job already built, instead of `up -d --build` |
-| `compose.e2e-le.yml` | A local ACME server (pebble) for the Let's Encrypt leg |
-| `compose.e2e-mail.yml` | A mail catcher for reset-link and notification tests |
-| `compose.e2e-nodeps.yml` | Lets `step-ui` start against a stopped step-ca or postgres |
-| `compose.e2e-oidc.yml` | A mock OIDC IdP plus the `OIDC_*` keys the stock compose file omits |
-| `compose.phase0-spike.yml` | The Phase 0 SPA/nginx spike overlay, kept out of `docker-compose.yml` so the base stack stays three services until the real split lands |
+| Overlay | Purpose | Applied by |
+|---|---|---|
+| `compose.e2e-fatals.yml` | Turns off `restart: unless-stopped` so an intended crash stays exited and its exit code can be read | `scenario.sh` (`fatals`) |
+| `compose.e2e-fingerprint.yml` | Drops the read-only `step-ca-data` mount so `CA_FINGERPRINT`'s fetch path is actually exercised | `scenario.sh` (`fingerprint`) |
+| `compose.e2e-image.yml` | Runs `step-ui` from the image the CI `image` job already built, instead of `up -d --build` | `scenario.sh`, when `E2E_USE_PREBUILT_IMAGE=1` |
+| `compose.e2e-nodeps.yml` | Lets `step-ui` start against a stopped step-ca or postgres | `scenario.sh` (`ca-down`, `fatals`) |
+| `compose.e2e-config.yml` | Passes `USE_HTTPS`, `ALLOWED_DOMAIN_SUFFIXES`, `UI_CERT_DURATION` through, none of which the stock compose file wires up | the nightly `oidc-mail` leg ([plans/e2e-tests.md](../plans/e2e-tests.md), section 2.7.1), not `scenario.sh` |
+| `compose.e2e-le.yml` | A local ACME server (pebble) for the Let's Encrypt leg | the nightly `oidc-mail` leg |
+| `compose.e2e-mail.yml` | A mail catcher for reset-link and notification tests | the nightly `oidc-mail` leg |
+| `compose.e2e-oidc.yml` | A mock OIDC IdP plus the `OIDC_*` keys the stock compose file omits | the nightly `oidc-mail` leg |
+
+`compose.phase0-spike.yml` is a separate, non-e2e overlay for the Phase 0 SPA/nginx spike, kept out of `docker-compose.yml` so the base stack stays three services until the real split lands, see [docs/architecture.md](architecture.md#migration-state).
 
 The migration plan ([plans/frontend-backend-split.md](../plans/frontend-backend-split.md), section 10) describes the e2e suite as **active**, not paused: 24 spec files currently cover 40 of 78 indexed test IDs. Four `ui` spec files were written against the server-rendered markup the migration eventually deletes and will need rewriting or retiring once that markup changes.
 
@@ -84,7 +86,7 @@ npm run generate   # @hey-api/openapi-ts against backend/openapi/openapi.json
 npm run build
 ```
 
-The published version string is computed by `scripts/client-version.sh`, never hand-edited, see [docs/architecture.md](architecture.md#the-generated-typescript-client).
+The published version string is computed by `scripts/client-version.sh`, never hand-edited, see [docs/architecture.md](architecture.md#the-generated-typescript-client). `ci.yml`'s `client` job does more than build it: it stamps the computed version onto the generated package with `npm version --no-git-tag-version`, runs `publint` and `attw --pack . --profile esm-only --ignore-rules internal-resolution-error` against it, then `npm pack`s the result for the `frontend` job to install (`ci.yml:174-194`).
 
 ## Lint gates
 
@@ -93,7 +95,7 @@ The published version string is computed by `scripts/client-version.sh`, never h
 | `ci.yml` | `build-test-lint`, `db-integration`, `client`, `frontend`, `contract-negative`, `ci-gate` (fails unless the first four all succeeded) |
 | `lint-meta.yml` | `hadolint`, `actionlint`, `yamllint`, `style` (stylelint/eslint/djlint plus the e2e harness's own typecheck/eslint) |
 | `security.yml` | `gosec`, `govulncheck`, `gitleaks`, `trivy-fs`, `trivy-image`, see [docs/security.md](security.md#supply-chain-security) |
-| `codeql.yml` | Go analysis |
+| `codeql.yml` | `analyze` (Go) |
 | `e2e.yml` | `image`, `e2e-main` (the `api` project only), `e2e-gate` |
 | `docker-build.yml` | Builds and, on `main` or a `v*` tag, publishes the image |
 
@@ -109,6 +111,7 @@ There is no markdown linter wired into CI (no markdownlint config or job exists 
 ├── .env.example               # configuration template
 ├── Makefile                   # setup, up, down, backup, test, lint, e2e-*, ...
 ├── secrets/                   # generated by `make setup`, not committed
+├── assets/                    # logo.svg, used by README.md
 ├── scripts/
 │   ├── client-version.sh      # derives the TS client's published version
 │   ├── contract-gate.sh       # fails a breaking change with no contract-changes.md row
@@ -137,7 +140,9 @@ There is no markdown linter wired into CI (no markdownlint config or job exists 
     ├── le/                    # Let's Encrypt / ACME
     ├── openapi/               # committed openapi.json plus embed glue
     ├── templates/             # HTML templates (Go html/template)
-    ├── static/                # CSS, JS, favicon, images
+    ├── static/                # CSS, JS, and a favicon (no other images)
+    ├── scripts/               # coverage-gate.sh
+    ├── testdata/              # golden files for the api/handlers test suites
     ├── Dockerfile              # multi-stage Alpine build
     ├── entrypoint.sh           # startup sequence: secrets → DB wait → provisioner → exec app
     ├── tlsbootstrap.go         # in-process root CA trust and UI cert issuance

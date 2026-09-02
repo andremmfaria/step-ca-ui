@@ -97,7 +97,7 @@ elif [ -n "${PROVISIONER_PASSWORD:-}" ]; then
   chmod 600 "$PASSWORD_FILE"
 else
   echo "[!] Provisioner password file not found: $PASSWORD_FILE"
-  echo "[!] Set CA_PASSWORD in .env or create this file with the step-ca provisioner password."
+  echo "[!] Set PROVISIONER_PASSWORD (or PROVISIONER_PASSWORD_FILE) in .env, or create this file with the step-ca provisioner password."
 fi
 export PASSWORD_FILE
 

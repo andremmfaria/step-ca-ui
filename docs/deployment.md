@@ -4,9 +4,9 @@ Requirements, the compose stack, secrets, the container image, and the Makefile.
 
 ## Requirements
 
-- Docker Engine with the Compose plugin (v2). The compose file uses top-level `secrets:` with file references and `depends_on: condition: service_healthy`, both Compose v2 features.
+- Docker Engine with the Compose plugin (v2). `docker-compose.yml` has no top-level `version:` key, which is what actually marks it as a version-less Compose Spec file, not the top-level `secrets:` with file references or `depends_on: condition: service_healthy` it also uses, both of which exist in the older, versioned Compose formats too.
 - Ports: `443/tcp` by default for the UI (configurable via `UI_HTTPS_PORT`), and `9443/tcp` for the step-ca API, which the stock `docker-compose.yml` publishes unconditionally (`ports: ["9443:9443"]` on the `step-ca` service). Remove that mapping yourself if you don't want step-ca reachable directly from outside the host.
-- A reachable PostgreSQL 16-compatible database if you're not using the bundled `postgres` container.
+- A reachable PostgreSQL database if you're not using the bundled `postgres` container (the bundled container pins `postgres:16-alpine`, no other version is tested against this codebase).
 
 This page intentionally does not give CPU/RAM/disk sizing numbers or a supported-OS list: nothing in the repository benchmarks or states them, so a table here would be invented rather than verified.
 
@@ -36,9 +36,9 @@ Three services, defined in `docker-compose.yml`:
 | `step-ca` | `${STEP_CA_IMAGE:-smallstep/step-ca:0.30.2}` | `step-ca-data` volume, bootstrapped by `scripts/step-ca-bootstrap.sh`, publishes `9443` |
 | `step-ui` | built from `backend/Dockerfile` | `step-ui-certs`, `step-ui-ssl`, `step-ui-data`, `step-ui-uploads` volumes, plus a read-only mount of `step-ca-data` at `/home/step`, publishes `${UI_HTTPS_PORT:-443}` mapped to the container's `8443` |
 
-All three share a bridge network named `step-network` (compose service key `step-net`), pinned to `${STEP_NET_SUBNET:-172.28.0.0/24}`.
+All three share a bridge network named `step-network` (compose service key `step-net`), pinned to `${STEP_NET_SUBNET:-172.28.0.0/24}`. `STEP_NET_SUBNET` is not in `.env.example`, set it as a shell environment variable or add the line to `.env` by hand if the default subnet collides with something else on the host, and `docker network rm step-network` after changing it.
 
-Several `compose.e2e-*.yml` and `compose.phase0-spike.yml` overlay files exist for CI and local e2e runs only, they are not part of a normal deployment. See [docs/development.md](development.md#end-to-end-tests-playwright) for what each one does.
+Several `compose.e2e-*.yml` overlay files exist for CI and local e2e runs only, they are not part of a normal deployment, see [docs/development.md](development.md#end-to-end-tests-playwright) for what each one does. `compose.phase0-spike.yml` is a separate, non-e2e overlay: the Phase 0 SPA/nginx spike for the in-progress frontend split, see [docs/architecture.md](architecture.md#migration-state).
 
 ## Secrets
 
@@ -59,10 +59,13 @@ Published as `ghcr.io/andremmfaria/step-ca-ui`, built by `.github/workflows/dock
 | Trigger | Pushed? | Tags |
 |---|---|---|
 | Push to `main` | Yes | `main` (branch ref), short commit SHA |
-| Push of a `v*` tag | Yes | full semver, `{major}.{minor}` |
+| Push of a `v*` tag | Yes | full semver, `{major}.{minor}`, short commit SHA |
+| `workflow_dispatch` | Yes | same rules as above, applied to whatever ref the dispatch runs against |
 | Pull request | No, build only | PR ref (computed, never pushed) |
 
-`backend/Dockerfile` is a two-stage build: `golang:1.26.8-alpine3.23` compiles a static (`CGO_ENABLED=0`) binary, then `alpine:3.23` runs it as a non-root user (uid/gid `10001`). The runtime image installs `curl`, `openssl`, `ca-certificates`, `netcat-openbsd`, `tzdata` and `postgresql-client` (the last for `pg_dump` in the backup handler), and nothing named `step`: certificate issuance, renewal and revocation go through `github.com/smallstep/certificates/ca` and `.../api` directly. `openssl` stays only because the admin diagnostic console has an `openssl.version` entry.
+The image is built for `linux/amd64` only, `docker-build.yml` sets no `platforms:` input on `docker/build-push-action`.
+
+`backend/Dockerfile` is a two-stage build: `golang:1.26.8-alpine3.23` compiles a static (`CGO_ENABLED=0`) binary, then `alpine:3.23` runs it as a non-root user (uid/gid `10001`). It declares `EXPOSE 8443`, a `HEALTHCHECK` that curls `https://localhost:8443/health`, `USER stepui`, and `ENTRYPOINT ["/entrypoint.sh"]`, which builds `DATABASE_URL` from the secret file before exec-ing the Go binary. The runtime image installs `curl`, `openssl`, `ca-certificates`, `netcat-openbsd`, `tzdata` and `postgresql-client` (the last for `pg_dump` in the backup handler), and nothing named `step`: certificate issuance, renewal and revocation go through `github.com/smallstep/certificates/ca` and `.../api` directly. `openssl` stays only because the admin diagnostic console has an `openssl.version` entry.
 
 ```bash
 docker pull ghcr.io/andremmfaria/step-ca-ui:main

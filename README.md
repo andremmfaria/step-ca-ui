@@ -18,13 +18,13 @@ A small-team-friendly web UI on top of `smallstep/step-ca`. No SaaS, no telemetr
 
 ## Features
 
-- Certificate management: issue, renew, revoke and import X.509 certificates, with server/internal-service/wildcard/client-identity templates
+- Certificate management: issue, renew, revoke and import X.509 certificates, with Server TLS / Internal service / Wildcard / Client identity templates
 - Role-based access (`admin` / `manager` / `viewer`) plus short-lived temporary users with automatic expiry
 - TOTP 2FA, OIDC SSO with group-to-role mapping, and self-service password recovery
 - Let's Encrypt / ACME issuance and renewal from within the UI
 - Built-in security: CSRF tokens, per-IP rate limiting, security and admin audit logs, a read-only diagnostics console
-- Backup export (admin UI and CLI) with SHA-256 manifest checksums, CA integrity checks, webhook and SMTP notifications
-- 4 themes, a custom date picker, and a mobile-first responsive layout
+- Backup export (admin UI and `make backup`) with SHA-256 manifest checksums, CA integrity checks, webhook and SMTP notifications
+- 3 colour themes plus an auto (system) mode, a custom date picker, and a responsive layout
 
 ## Quick Start
 

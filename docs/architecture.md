@@ -10,7 +10,7 @@ Three containers, wired by `docker-compose.yml`:
 |---|---|---|
 | `step-ui` | built from `backend/Dockerfile` | Go binary. Server-rendered HTML UI (chi router, `html/template`) plus a small versioned JSON API. Owns sessions, CSRF, rate limiting, and all step-ca/database access |
 | `postgres` | `postgres:16-alpine` | Users, certificate history, Let's Encrypt state, notification settings, password-reset tokens |
-| `step-ca` | `smallstep/step-ca:0.30.2` (pinned via `STEP_CA_IMAGE`) | The actual PKI. step-ui never runs the `step` CLI against it: `backend/stepca/` wraps `github.com/smallstep/certificates/ca` and `github.com/smallstep/certificates/api` directly (pinned to the same v0.30.2), so certificate issuance, renewal and revocation are Go library calls, not shelled-out subprocesses |
+| `step-ca` | `smallstep/step-ca:0.30.2` (pinned via `STEP_CA_IMAGE`) | The actual PKI. step-ui never runs the `step` CLI against it: `backend/stepca/` wraps `github.com/smallstep/certificates/ca` and `github.com/smallstep/certificates/api` directly (pinned to the same v0.30.2), so certificate issuance and revocation are Go library calls, not shelled-out subprocesses. Renewal has no separate call path in `backend/stepca/`, it is a re-issue through the same `issueCert` helper handlers use for a fresh certificate (`backend/handlers/cert_ops.go:118`, `backend/handlers/certs.go:225-250`) |
 
 `backend/Dockerfile` ships `openssl` only because the admin diagnostic console has an "OpenSSL version" entry (`openssl.version`, see [docs/security.md](security.md)). No `step` binary is installed in the image.
 
@@ -30,7 +30,8 @@ Three containers, wired by `docker-compose.yml`:
                           └─────┘ └───────────┘
 
    step-ui exposes :443 (UI_HTTPS_PORT) → internally listens on :8443
-   step-ca exposes :9443 → internal-only unless you publish it yourself
+   step-ca exposes :9443, published on the host by default (docker-compose.yml
+   maps "9443:9443") → remove that port mapping yourself to keep it internal-only
 ```
 
 Inside `step-ui`, one `chi.Router` serves two things on the same port:
@@ -48,7 +49,7 @@ Inside `step-ui`, one `chi.Router` serves two things on the same port:
 | `manager` | Yes | Yes | No | No |
 | `admin` | Yes | Yes | Yes | Yes |
 
-Temporary users (`backend/handlers`, expiry checked by a background goroutine every 60 seconds) can hold any of the three roles and are auto-deactivated once their `expires_at` timestamp passes.
+Temporary users (created in `backend/handlers/admin_temp.go`) can hold any of the three roles and are auto-deactivated once their `expires_at` timestamp passes: a background goroutine in `backend/main.go` (started around line 354) calls `db.ExpireOverdueTempUsers` every 60 seconds.
 
 ## The `/api/v1` surface today
 
@@ -69,13 +70,13 @@ An unmatched path under `/api/v1` gets an RFC 9457 problem document instead of a
 
 The repository is partway through [plans/frontend-backend-split.md](../plans/frontend-backend-split.md) (revision 10 at time of writing), which replaces the server-rendered UI above with a React SPA served by its own container, talking to `step-ui` only through the versioned JSON API. Phases 0, 1 and 2 are complete and merged. **The server-rendered UI described above is what actually serves users today**, nothing in `frontend/` is deployed.
 
-`frontend/` is a Phase 0 throwaway spike: it boots, calls `getSession` through the generated client, and renders the session-state discriminator, nothing more. It uses React 19.2.0, Vite 8.2.2 and `@vitejs/plugin-react` 6.1.1.
+`frontend/` is a Phase 0 throwaway spike: it boots, calls `getSession` through the generated client, and renders the session-state discriminator, nothing more. It uses React 19.2.0, Vite 8.2.2 and `@vitejs/plugin-react` 6.1.1. It also carries the nginx spike configs (`frontend/nginx.spike.conf`, `frontend/conf.d/proxy-headers.conf`) mounted by `compose.phase0-spike.yml:20-21` for the `step-ui-web` container.
 
 ### The generated TypeScript client
 
-`clients/ts` (`@andremmfaria/step-ca-ui-client`) is generated from `backend/openapi/openapi.json` by `@hey-api/openapi-ts` on every push and pull request, in the `client` job of `.github/workflows/ci.yml`. It is published to GitHub Packages only on a `client-v*` tag.
+`clients/ts` (`@andremmfaria/step-ca-ui-client`) is generated from `backend/openapi/openapi.json` by `@hey-api/openapi-ts` in the `client` job of `.github/workflows/ci.yml`, which runs on a push to `main`, a `client-v*` tag push, a pull request, and `workflow_dispatch`. It is published to GitHub Packages only on a `client-v*` tag.
 
-The version is never hand-edited. `scripts/client-version.sh` derives `0.<MINOR>.<PATCH>-sha.<short-sha>`: `MINOR` comes from `backend/openapi/package-version.txt` (bumped by hand on a deliberate break), `PATCH` is `git rev-list --count origin/main`, so two pull requests can never collide on the same number, and the short commit SHA is appended so a consumer can prove which commit it was generated from. The `frontend` CI job asserts the installed client's version string ends in the current commit's short SHA before it will typecheck or build (this is what `docs/contract-proof.md` demonstrates end to end with a deliberately regressed commit).
+The version is never hand-edited. `scripts/client-version.sh` derives `0.<MINOR>.<PATCH>-sha.<short-sha>`: `MINOR` comes from `backend/openapi/package-version.txt` (bumped by hand on a deliberate break), `PATCH` is `git rev-list --count origin/main`. That count alone does not stop two pull requests based on the same commit from landing on the same number, it is the appended short commit SHA that tells them apart and lets a consumer prove which commit the client was generated from. The `frontend` CI job asserts the installed client's version string ends in the current commit's short SHA before it will typecheck or build (this is what `docs/contract-proof.md` demonstrates end to end with a deliberately regressed commit).
 
 `frontend` never declares the client as a package.json dependency (D8 of the plan): CI installs the freshly packed tarball with `npm install --no-save` so the client under test is always the one generated from the commit being built, never a stale published version from an npm cache.
 
