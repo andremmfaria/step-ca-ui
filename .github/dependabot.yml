@@ -1,6 +1,5 @@
 version: 2
 updates:
-  # Go modules — weekly, group minor+patch, majors separate
   - package-ecosystem: gomod
     directory: /backend
     schedule:
@@ -19,7 +18,6 @@ updates:
       prefix: "chore(deps)"
       include: scope
 
-  # Docker base images
   - package-ecosystem: docker
     directory: /backend
     schedule:
@@ -38,7 +36,6 @@ updates:
       prefix: "chore(deps)"
       include: scope
 
-  # npm — spike frontend
   - package-ecosystem: npm
     directory: /frontend
     schedule:
@@ -57,7 +54,6 @@ updates:
       prefix: "chore(deps)"
       include: scope
 
-  # npm — generated TS client
   - package-ecosystem: npm
     directory: /clients/ts
     schedule:
@@ -76,7 +72,6 @@ updates:
       prefix: "chore(deps)"
       include: scope
 
-  # npm — e2e harness
   - package-ecosystem: npm
     directory: /test/e2e
     schedule:
@@ -95,7 +90,6 @@ updates:
       prefix: "chore(deps)"
       include: scope
 
-  # GitHub Actions
   - package-ecosystem: github-actions
     directory: /
     schedule:

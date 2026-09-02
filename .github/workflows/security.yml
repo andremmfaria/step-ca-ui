@@ -5,7 +5,6 @@ on:
     branches: [main]
   pull_request:
   schedule:
-    # Weekly Sunday 04:23 UTC
     - cron: "23 4 * * 0"
 
 concurrency:
@@ -21,27 +20,23 @@ jobs:
       contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@v6.0.2
 
       - name: Set up Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        uses: actions/setup-go@v6.4.0
         with:
           go-version-file: backend/go.mod
           cache: true
           cache-dependency-path: backend/go.sum
 
       - name: Run gosec
-        # Non-failing on first pass — tighten after baseline triage.
-        # Write SARIF to workspace-relative path so runner and upload step agree.
-        uses: securego/gosec@4a3bd8af174872c778439083ded7adbf3747e770 # v2.26.1
+        uses: securego/gosec@v2.26.1
         with:
-          # Path is relative to the container workdir (/github/workspace); an absolute
-          # host path like ${{ github.workspace }} does not exist inside the gosec container.
           args: -no-fail -fmt sarif -out gosec.sarif ./backend/...
 
       - name: Upload gosec SARIF
         if: ${{ hashFiles('gosec.sarif') != '' }}
-        uses: github/codeql-action/upload-sarif@03e4368ac7daa2bd82b3e85262f3bf87ee112f57 # v3.36.0
+        uses: github/codeql-action/upload-sarif@v3.36.0
         with:
           sarif_file: gosec.sarif
           category: gosec
@@ -54,10 +49,10 @@ jobs:
       contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@v6.0.2
 
       - name: Set up Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        uses: actions/setup-go@v6.4.0
         with:
           go-version-file: backend/go.mod
           cache: true
@@ -67,9 +62,6 @@ jobs:
         run: go install golang.org/x/vuln/cmd/govulncheck@latest
 
       - name: Run govulncheck
-        # BLOCKING (PR-22): a known CVE in any direct or transitive dependency
-        # fails the build.  govulncheck only reports vulnerabilities that are
-        # reachable in the compiled call graph, so false-positives are rare.
         working-directory: backend
         run: govulncheck ./...
 
@@ -81,16 +73,12 @@ jobs:
       contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@v6.0.2
         with:
           fetch-depth: 0
 
       - name: Run gitleaks
-        # BLOCKING for NEW findings (PR-22).  Known false positives are
-        # allowlisted by fingerprint/regex in the committed .gitleaks.toml
-        # (extends gitleaks' default ruleset), so only genuinely new secrets
-        # fail the build.  Add an entry there after triaging any new finding.
-        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
+        uses: gitleaks/gitleaks-action@v2.3.9
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_ENABLE_SARIF: "true"
@@ -106,20 +94,10 @@ jobs:
       contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@v6.0.2
 
       - name: Run Trivy (filesystem)
-        # BLOCKING for HIGH/CRITICAL findings (PR-22).  Only reachable
-        # vulnerabilities in Go binaries and OS packages are flagged.
-        # If a large pre-existing backlog surfaces, add a .trivyignore file
-        # with documented CVE IDs and a due-date comment for each entry.
-        #
-        # limit-severities-for-sarif is required, not cosmetic: without it the
-        # action builds the SARIF "with all severities" and drops the severity
-        # filter, so exit-code 1 then fires on UNKNOWN findings too.  That is
-        # what made this job fail every run since 2026-06-21 on GO-2026-5932,
-        # an UNKNOWN-severity advisory with no fix available.
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
           scan-ref: .
@@ -131,7 +109,7 @@ jobs:
 
       - name: Upload Trivy fs SARIF
         if: ${{ hashFiles('trivy-fs.sarif') != '' }}
-        uses: github/codeql-action/upload-sarif@03e4368ac7daa2bd82b3e85262f3bf87ee112f57 # v3.36.0
+        uses: github/codeql-action/upload-sarif@v3.36.0
         with:
           sarif_file: trivy-fs.sarif
           category: trivy-fs
@@ -139,22 +117,19 @@ jobs:
   trivy-image:
     name: trivy image scan
     runs-on: ubuntu-latest
-    # Non-blocking: image build may be slow/fail in CI without push credentials.
-    # Change to required once registry creds are wired up and baseline is clean.
     continue-on-error: true
     permissions:
       security-events: write
       contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@v6.0.2
 
       - name: Build Docker image
         run: docker build -t step-ca-ui:ci -f backend/Dockerfile backend
 
       - name: Run Trivy (image)
-        # Non-failing on first pass — tighten exit-code after baseline triage
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: step-ca-ui:ci
           format: sarif
@@ -163,7 +138,7 @@ jobs:
 
       - name: Upload Trivy image SARIF
         if: ${{ hashFiles('trivy-image.sarif') != '' }}
-        uses: github/codeql-action/upload-sarif@03e4368ac7daa2bd82b3e85262f3bf87ee112f57 # v3.36.0
+        uses: github/codeql-action/upload-sarif@v3.36.0
         with:
           sarif_file: trivy-image.sarif
           category: trivy-image

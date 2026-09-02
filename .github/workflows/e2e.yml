@@ -13,14 +13,7 @@ permissions:
   contents: read
 
 env:
-  # Pinned by tag and digest: an unpinned image changes browser version between
-  # runs, which is the silent drift this suite exists to catch. The tag must
-  # match @playwright/test in test/e2e/package.json.
-  PLAYWRIGHT_IMAGE: "mcr.microsoft.com/playwright:v1.62.1-noble@sha256:dcc5531e97840b9b5e794f2814476b21571c5124a3fca2267d73041f56e7580e"
-  # Pinned because the harness resolves the project from its own working
-  # directory, which is /repo inside the container and the checkout name
-  # outside it. Left to default, the two disagree and every `docker compose
-  # exec` from a test reports "service not running".
+  PLAYWRIGHT_IMAGE: "mcr.microsoft.com/playwright:v1.62.1-noble"
   COMPOSE_PROJECT_NAME: step-ca-ui
 
 jobs:
@@ -30,13 +23,13 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@v6.0.2
 
       - name: Set up Buildx
-        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+        uses: docker/setup-buildx-action@v4.1.0
 
       - name: Build the application image and warm its layer cache
-        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        uses: docker/build-push-action@v7.2.0
         with:
           context: ./backend
           file: ./backend/Dockerfile
@@ -47,7 +40,7 @@ jobs:
           cache-to: type=gha,scope=e2e,mode=max
 
       - name: Build the harness image (Playwright base plus docker CLI)
-        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        uses: docker/build-push-action@v7.2.0
         with:
           context: ./test/e2e
           file: ./test/e2e/Dockerfile
@@ -66,13 +59,13 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@v6.0.2
 
       - name: Set up Buildx
-        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+        uses: docker/setup-buildx-action@v4.1.0
 
       - name: Materialise the application image from the layer cache
-        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        uses: docker/build-push-action@v7.2.0
         with:
           context: ./backend
           file: ./backend/Dockerfile
@@ -82,7 +75,7 @@ jobs:
           cache-from: type=gha,scope=e2e
 
       - name: Materialise the harness image from the layer cache
-        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        uses: docker/build-push-action@v7.2.0
         with:
           context: ./test/e2e
           file: ./test/e2e/Dockerfile
@@ -93,9 +86,6 @@ jobs:
           load: true
           cache-from: type=gha,scope=e2e-harness
 
-      # Never repository secrets: a stored CA provisioner password is a
-      # long-lived credential with no rotation story that protects the CA's
-      # private keys.
       - name: Generate secrets in-job
         run: |
           make setup FORCE=1
@@ -107,21 +97,11 @@ jobs:
             echo "PUBLIC_BASE_URL=https://localhost"
             echo "SESSION_SECURE=true"
           } >> .env
-          # step-ca runs as uid 1000 and step-ui as 10001, neither of which owns
-          # the checkout, so mode 600 denies both and the CA never boots.
           chmod 644 secrets/*
 
       - name: Bring up the stack
         run: docker compose -f docker-compose.yml -f compose.e2e-image.yml up -d --wait
 
-      # The harness runs as a container on step-network, not on the host: both
-      # rate limiters key on the client IP, so a host harness is one gateway
-      # address and per-test rate-limit isolation is impossible. It runs from
-      # /e2e, the image's own copy of this commit's harness, so the baked
-      # node_modules layer is on the resolution path; the mounted /repo supplies
-      # the compose file, .env and secrets/, E2E_REPO_ROOT points the helpers at
-      # it, and the docker socket is the one mechanism every container- or
-      # database-touching assertion uses.
       - name: Run the api project
         run: |
           docker run --rm \
@@ -146,7 +126,7 @@ jobs:
 
       - name: Upload artifacts
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@v4.6.2
         with:
           name: e2e-main-${{ github.run_attempt }}
           path: |
