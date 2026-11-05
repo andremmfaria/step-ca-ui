@@ -1,6 +1,6 @@
 module step-ui
 
-go 1.26.8
+go 1.26.10
 
 require (
 	github.com/coreos/go-oidc/v3 v3.18.0
