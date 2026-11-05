@@ -70,7 +70,7 @@ An unmatched path under `/api/v1` gets an RFC 9457 problem document instead of a
 
 The repository is partway through [plans/frontend-backend-split.md](../plans/frontend-backend-split.md) (revision 10 at time of writing), which replaces the server-rendered UI above with a React SPA served by its own container, talking to `step-ui` only through the versioned JSON API. Phases 0, 1 and 2 are complete and merged. **The server-rendered UI described above is what actually serves users today**, nothing in `frontend/` is deployed.
 
-`frontend/` is a Phase 0 throwaway spike: it boots, calls `getSession` through the generated client, and renders the session-state discriminator, nothing more. It uses React 19.2.0, Vite 8.2.2 and `@vitejs/plugin-react` 6.1.1. It also carries the nginx spike configs (`frontend/nginx.spike.conf`, `frontend/conf.d/proxy-headers.conf`) mounted by `compose.phase0-spike.yml:20-21` for the `step-ui-web` container.
+`frontend/` is a Phase 0 throwaway spike: it boots, calls `getSession` through the generated client, and renders the session-state discriminator, nothing more. It uses React 19.2.0, Vite 8.3.5 and `@vitejs/plugin-react` 6.1.1. It also carries the nginx spike configs (`frontend/nginx.spike.conf`, `frontend/conf.d/proxy-headers.conf`) mounted by `compose.phase0-spike.yml:20-21` for the `step-ui-web` container.
 
 ### The generated TypeScript client
 
